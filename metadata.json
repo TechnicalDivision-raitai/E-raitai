@@ -1,0 +1,6 @@
+{
+  "name": "ระบบบริหารจัดการงานโครงการกองช่าง อบต.ไร่ใต้",
+  "description": "ระบบบริหารจัดการและติดตามงานโครงการกองช่าง องค์การบริหารส่วนตำบลไร่ใต้ สอดคล้องกับระบบสารบรรณเดิม",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,2430 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ระบบจัดการงานสารบรรณและเอกสารภายในกองช่าง (e-Saraban) อบต.ไร่ใต้</title>
+    
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Google Fonts: Kanit & Sarabun -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
+    
+    <!-- FontAwesome 6 CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- SweetAlert2 CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <!-- SheetJS Library สำหรับอ่านไฟล์ Excel -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+    <!-- Supabase Client SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        const SUPABASE_URL = 'https://wkhbkvxewrihmpjrkjql.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_6heN0SRJYr7mHV00heafpQ_vnIAR4Kj';
+        const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    </script>
+
+    <style>
+        body {
+            font-family: 'Kanit', sans-serif;
+        }
+        .sarabun-font {
+            font-family: 'Sarabun', sans-serif;
+        }
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #printableArea, #printableArea * {
+                visibility: visible;
+            }
+            #printableArea {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 antialiased">
+
+    <!-- ==================== LOGIN SCREEN ==================== -->
+    <div id="loginScreen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-gray-100">
+            <div class="bg-gradient-to-r from-blue-700 to-indigo-800 p-6 text-white text-center">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-white/10 mb-3 backdrop-blur-md">
+                    <i class="fa-solid fa-folder-open text-3xl"></i>
+                </div>
+                <h1 class="text-2xl font-bold">e-Saraban กองช่าง</h1>
+                <p class="text-blue-100 text-sm mt-1">องค์การบริหารส่วนตำบลไร่ใต้</p>
+            </div>
+            
+            <div class="p-6 space-y-5">
+                <div class="space-y-3">
+                    <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wider">เข้าสู่ระบบเพื่อใช้งาน</label>
+                    
+                    <button onclick="loginAs('admin')" class="w-full flex items-center justify-between p-3 rounded-xl border border-blue-200 bg-blue-50/50 hover:bg-blue-100/60 transition group text-left">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold">
+                                <i class="fa-solid fa-user-shield"></i>
+                            </div>
+                            <div>
+                                <div class="font-semibold text-blue-900">ผู้ดูแลระบบ (Admin)</div>
+                                <div class="text-xs text-blue-600">นส. นิศาชล คงดี (ต้องใส่รหัสผ่าน)</div>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-chevron-right text-blue-400 group-hover:translate-x-1 transition"></i>
+                    </button>
+
+                    <button onclick="loginAs('staff')" class="w-full flex items-center justify-between p-3 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 transition group text-left">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 rounded-lg bg-gray-600 text-white flex items-center justify-center font-bold">
+                                <i class="fa-solid fa-user"></i>
+                            </div>
+                            <div>
+                                <div class="font-semibold text-gray-800">บุคลากร / เจ้าหน้าที่ (Staff)</div>
+                                <div class="text-xs text-gray-500">สิทธิ์ดูรายงาน ค้นหาหนังสือ และเปิดดูเอกสาร</div>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-chevron-right text-gray-400 group-hover:translate-x-1 transition"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== MAIN APP CONTAINER ==================== -->
+    <div id="appContent" class="hidden min-h-screen flex flex-col md:flex-row">
+        
+        <!-- Sidebar Desktop -->
+        <aside class="hidden md:flex flex-col w-64 bg-slate-900 text-white border-r border-slate-800 shrink-0">
+            <div class="p-5 border-b border-slate-800 flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
+                    <i class="fa-solid fa-book-bookmark text-lg"></i>
+                </div>
+                <div>
+                    <h2 class="font-bold text-base leading-tight">งานสารบรรณ</h2>
+                    <span class="text-xs text-slate-400">กองช่าง อบต.ไร่ใต้</span>
+                </div>
+            </div>
+
+            <!-- User Info Badge -->
+            <div class="p-4 mx-3 my-3 bg-slate-800/80 rounded-xl border border-slate-700/60 flex items-center space-x-3">
+                <div id="sidebarUserAvatar" class="w-9 h-9 rounded-full bg-blue-500 flex items-center justify-center font-bold text-sm">น</div>
+                <div class="overflow-hidden">
+                    <div id="sidebarUserName" class="text-sm font-medium truncate">นิศาชล คงดี</div>
+                    <div id="sidebarUserRoleName" class="text-xs text-blue-400">สถานะ: ผู้ดูแลระบบ</div>
+                </div>
+            </div>
+
+            <!-- Navigation Links -->
+            <nav class="flex-1 px-3 space-y-1 overflow-y-auto py-2">
+                <a href="#" onclick="switchTab('dashboard')" class="nav-link flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition active-tab bg-blue-600 text-white" data-tab="dashboard">
+                    <i class="fa-solid fa-chart-pie w-5 text-center"></i>
+                    <span>สรุปผลงานสารบรรณ</span>
+                </a>
+                <a href="#" onclick="switchTab('vouchersSummary')" class="nav-link flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition" data-tab="vouchersSummary">
+                    <i class="fa-solid fa-chart-pie w-5 text-center text-pink-400"></i>
+                    <span>สรุปงานฎีกา</span>
+                </a>
+
+                <a id="myInboxNavDesktop" href="#" onclick="switchTab('myInbox')" class="nav-link flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition" data-tab="myInbox">
+                    <i class="fa-solid fa-inbox w-5 text-center"></i>
+                    <span>กล่องงานของฉัน</span>
+                    <span id="badgeMyInbox" class="ml-auto bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full font-bold">0</span>
+                </a>
+
+                <div class="pt-4 pb-1 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">ทะเบียนแยกประเภท</div>
+                
+                <a href="#" onclick="switchTab('incoming')" class="nav-link flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition" data-tab="incoming">
+                    <i class="fa-solid fa-file-arrow-down w-5 text-center text-blue-400"></i>
+                    <span>หนังสือรับ</span>
+                </a>
+                <a href="#" onclick="switchTab('outgoing')" class="nav-link flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition" data-tab="outgoing">
+                    <i class="fa-solid fa-file-arrow-up w-5 text-center text-emerald-400"></i>
+                    <span>หนังสือส่ง</span>
+                </a>
+                <a href="#" onclick="switchTab('orders')" class="nav-link flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition" data-tab="orders">
+                    <i class="fa-solid fa-gavel w-5 text-center text-amber-400"></i>
+                    <span>คำสั่ง</span>
+                </a>
+                <a href="#" onclick="switchTab('memos')" class="nav-link flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition" data-tab="memos">
+                    <i class="fa-solid fa-note-sticky w-5 text-center text-purple-400"></i>
+                    <span>บันทึกข้อความ (ปีงบฯ)</span>
+                </a>
+                <a href="#" onclick="switchTab('vouchers')" class="nav-link flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition" data-tab="vouchers">
+                    <i class="fa-solid fa-receipt w-5 text-center text-rose-400"></i>
+                    <span>งานฎีกา (ปีงบฯ)</span>
+                </a>
+		<a href="#" onclick="switchTab('forms')" class="nav-link flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition" data-tab="forms">
+                    <i class="fa-solid fa-file-lines w-5 text-center text-cyan-400"></i>
+                    <span>แบบฟอร์ม</span>
+                </a>
+                <a href="#" onclick="switchTab('allDocs')" class="nav-link flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition" data-tab="allDocs">
+                    <i class="fa-solid fa-folder-tree w-5 text-center text-teal-400"></i>
+                    <span>รวมทะเบียนทั้งหมด</span>
+                </a>
+
+                <div class="pt-4 pb-1 px-3 text-xs font-semibold text-slate-500 uppercase tracking-wider">รายงานและติดตาม</div>
+                <a href="#" onclick="switchTab('overdue')" class="nav-link flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white transition" data-tab="overdue">
+                    <i class="fa-solid fa-triangle-exclamation w-5 text-center text-red-400"></i>
+                    <span>งานเกินกำหนด</span>
+                    <span id="badgeOverdue" class="ml-auto bg-red-500 text-white text-xs px-2 py-0.5 rounded-full font-bold">0</span>
+                </a>
+            </nav>
+
+            <!-- Sidebar Footer Controls -->
+            <div class="p-3 border-t border-slate-800 space-y-2">
+                <button id="switchRoleBtn" onclick="openLoginScreen()" class="w-full flex items-center justify-center space-x-2 py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm transition">
+                    <i class="fa-solid fa-right-left"></i>
+                    <span>สลับสิทธิ์การใช้งาน</span>
+                </button>
+                <button onclick="logout()" class="w-full flex items-center justify-center space-x-2 py-2 px-3 rounded-lg bg-red-950/40 hover:bg-red-900/60 text-red-400 text-sm transition">
+                    <i class="fa-solid fa-power-off"></i>
+                    <span>ออกจากระบบ</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <div class="flex-1 flex flex-col min-w-0">
+            
+            <!-- Top Header Bar -->
+            <header class="bg-white border-b border-gray-200 h-16 flex items-center justify-between px-4 md:px-8 shadow-xs sticky top-0 z-30">
+                <div class="flex items-center space-x-3">
+                    <button onclick="toggleMobileMenu()" class="md:hidden text-gray-600 hover:text-gray-900 focus:outline-none text-xl">
+                        <i class="fa-solid fa-bars"></i>
+                    </button>
+                    <h1 id="pageTitle" class="text-lg md:text-xl font-bold text-gray-800">สรุปผลงานสารบรรณ</h1>
+                </div>
+
+                <div class="flex items-center space-x-3">
+                    <button id="addDocBtn" onclick="openDocumentModal()" class="hidden bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-xl shadow-md transition flex items-center space-x-2">
+                        <i class="fa-solid fa-plus-circle"></i>
+                        <span class="hidden sm:inline">ลงทะเบียนหนังสือใหม่</span>
+                    </button>
+
+                    <div class="bg-gray-100 border border-gray-200 px-3 py-1.5 rounded-xl flex items-center space-x-2 text-xs font-semibold">
+                        <span id="headerRoleBadge" class="w-2.5 h-2.5 rounded-full bg-green-500"></span>
+                        <span id="headerRoleName" class="text-gray-700">ผู้ดูแลระบบ (Admin)</span>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Mobile Drawer Menu -->
+            <div id="mobileDrawer" class="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs hidden md:hidden">
+                <div class="w-72 bg-slate-900 text-white h-full flex flex-col p-4 space-y-2">
+                    <div class="flex items-center justify-between pb-4 border-b border-slate-800">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center">
+                                <i class="fa-solid fa-book-bookmark"></i>
+                            </div>
+                            <span class="font-bold">e-Saraban อบต.ไร่ใต้</span>
+                        </div>
+                        <button onclick="toggleMobileMenu()" class="text-slate-400 hover:text-white text-lg">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </div>
+                    <nav class="flex-1 space-y-1 overflow-y-auto py-2">
+                        <a href="#" onclick="switchTab('dashboard'); toggleMobileMenu();" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:bg-slate-800"><i class="fa-solid fa-chart-pie w-5"></i><span>แดชบอร์ด</span></a>
+                        <a id="myInboxNavDrawer" href="#" onclick="switchTab('myInbox'); toggleMobileMenu();" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:bg-slate-800"><i class="fa-solid fa-inbox w-5"></i><span>กล่องงานของฉัน</span></a>
+                        <a href="#" onclick="switchTab('incoming'); toggleMobileMenu();" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:bg-slate-800"><i class="fa-solid fa-file-arrow-down w-5 text-blue-400"></i><span>หนังสือรับ</span></a>
+                        <a href="#" onclick="switchTab('outgoing'); toggleMobileMenu();" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:bg-slate-800"><i class="fa-solid fa-file-arrow-up w-5 text-emerald-400"></i><span>หนังสือส่ง</span></a>
+                        <a href="#" onclick="switchTab('orders'); toggleMobileMenu();" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:bg-slate-800"><i class="fa-solid fa-gavel w-5 text-amber-400"></i><span>คำสั่ง</span></a>
+                        <a href="#" onclick="switchTab('memos'); toggleMobileMenu();" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:bg-slate-800"><i class="fa-solid fa-note-sticky w-5 text-purple-400"></i><span>บันทึกข้อความ</span></a>
+                        <a href="#" onclick="switchTab('forms'); toggleMobileMenu();" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:bg-slate-800"><i class="fa-solid fa-file-lines w-5 text-cyan-400"></i><span>แบบฟอร์ม</span></a>
+                        <a href="#" onclick="switchTab('vouchers'); toggleMobileMenu();" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:bg-slate-800"><i class="fa-solid fa-receipt w-5 text-rose-400"></i><span>งานฎีกา</span></a>
+                        <a href="#" onclick="switchTab('vouchersSummary'); toggleMobileMenu();" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:bg-slate-800"><i class="fa-solid fa-chart-pie w-5 text-pink-400"></i><span>แดชบอร์ดสรุปงานฎีกา</span></a>
+                        <a href="#" onclick="switchTab('allDocs'); toggleMobileMenu();" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:bg-slate-800"><i class="fa-solid fa-folder-tree w-5 text-teal-400"></i><span>รวมทะเบียนทั้งหมด</span></a>
+                        <a href="#" onclick="switchTab('overdue'); toggleMobileMenu();" class="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm text-slate-300 hover:bg-slate-800"><i class="fa-solid fa-triangle-exclamation w-5 text-red-400"></i><span>งานเกินกำหนด</span></a>
+                    </nav>
+                    <div class="pt-4 border-t border-slate-800 space-y-2">
+                        <button id="switchRoleBtnMobile" onclick="openLoginScreen(); toggleMobileMenu();" class="w-full py-2 bg-slate-800 rounded-lg text-sm">สลับสิทธิ์การใช้งาน</button>
+                        <button onclick="logout()" class="w-full py-2 bg-red-950/50 text-red-400 rounded-lg text-sm">ออกจากระบบ</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dynamic Tab Content Views -->
+            <main class="flex-1 p-4 md:p-8 overflow-y-auto pb-20 md:pb-8">
+                
+                <!-- 1. DASHBOARD TAB -->
+                <div id="view-dashboard" class="tab-view space-y-6">
+                    <!-- แถบเลือกปีสำหรับกรองภาพรวมแดชบอร์ด -->
+                    <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-xs flex flex-col md:flex-row justify-between items-center gap-4">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                                <i class="fa-solid fa-calendar-days"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-gray-800">เลือกปีสำหรับกรองภาพรวมแดชบอร์ด</h3>
+                                <p class="text-xs text-gray-500">แสดงผลสถิติและกราฟเฉพาะปีที่เลือก (หรือเลือกทั้งหมด)</p>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-auto">
+                            <select id="globalFilterYear" onchange="renderAll()" class="w-full md:w-48 px-3 py-2 border border-gray-300 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-blue-500 focus:outline-none bg-blue-50/50 text-blue-900">
+                                <option value="">ทุกปี (All Years)</option>
+                                <option value="2569" selected>ปี 2569</option>
+                                <option value="2570">ปี 2570</option>
+                                <option value="2571">ปี 2571</option>
+                                <option value="2572">ปี 2572</option>
+                                <option value="2573">ปี 2573</option>
+                                <option value="2574">ปี 2574</option>
+                                <option value="2575">ปี 2575</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
+                        <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-xs flex flex-col justify-between">
+                            <span class="text-xs font-semibold text-gray-500 uppercase">หนังสือทั้งหมด</span>
+                            <div class="flex items-end justify-between mt-2">
+                                <span id="statTotal" class="text-2xl md:text-3xl font-bold text-gray-800">0</span>
+                                <div class="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center"><i class="fa-solid fa-folder"></i></div>
+                            </div>
+                        </div>
+                        <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-xs flex flex-col justify-between">
+                            <span class="text-xs font-semibold text-gray-500 uppercase">รอรับทราบ</span>
+                            <div class="flex items-end justify-between mt-2">
+                                <span id="statPending" class="text-2xl md:text-3xl font-bold text-amber-600">0</span>
+                                <div class="w-9 h-9 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center"><i class="fa-solid fa-clock"></i></div>
+                            </div>
+                        </div>
+                        <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-xs flex flex-col justify-between">
+                            <span class="text-xs font-semibold text-gray-500 uppercase">กำลังดำเนินการ</span>
+                            <div class="flex items-end justify-between mt-2">
+                                <span id="statProgress" class="text-2xl md:text-3xl font-bold text-blue-600">0</span>
+                                <div class="w-9 h-9 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center"><i class="fa-solid fa-spinner"></i></div>
+                            </div>
+                        </div>
+                        <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-xs flex flex-col justify-between">
+                            <span class="text-xs font-semibold text-gray-500 uppercase">เสร็จสิ้นแล้ว</span>
+                            <div class="flex items-end justify-between mt-2">
+                                <span id="statDone" class="text-2xl md:text-3xl font-bold text-emerald-600">0</span>
+                                <div class="w-9 h-9 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center"><i class="fa-solid fa-circle-check"></i></div>
+                            </div>
+                        </div>
+                        <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-xs flex flex-col justify-between col-span-2 lg:col-span-1">
+                            <span class="text-xs font-semibold text-gray-500 uppercase">เกินกำหนดส่ง</span>
+                            <div class="flex items-end justify-between mt-2">
+                                <span id="statOverdue" class="text-2xl md:text-3xl font-bold text-red-600">0</span>
+                                <div class="w-9 h-9 rounded-xl bg-red-50 text-red-600 flex items-center justify-center"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs flex flex-col">
+                            <h3 class="font-bold text-gray-800 mb-4 text-sm uppercase tracking-wider">สัดส่วนประเภทหนังสือ</h3>
+                            <div class="relative flex-1 flex items-center justify-center min-h-[220px]">
+                                <canvas id="typeChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs lg:col-span-2 flex flex-col">
+                            <h3 class="font-bold text-gray-800 mb-4 text-sm uppercase tracking-wider">ภาพรวมสถานะการทำงาน</h3>
+                            <div class="relative flex-1 flex items-center justify-center min-h-[220px]">
+                                <canvas id="statusChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl border border-gray-200 shadow-xs overflow-hidden">
+                        <div class="p-4 border-b border-gray-100 flex items-center justify-between">
+                            <h3 class="font-bold text-gray-800">หนังสือเร่งด่วน / งานค้างดำเนินการ</h3>
+                            <button onclick="switchTab('allDocs')" class="text-xs font-semibold text-blue-600 hover:text-blue-800">ดูทั้งหมด →</button>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead class="bg-gray-50 text-xs text-gray-500 uppercase">
+                                    <tr>
+                                        <th class="p-3">เลขทะเบียน</th>
+                                        <th class="p-3">เรื่อง / ผู้ส่ง</th>
+                                        <th class="p-3">ผู้รับผิดชอบ</th>
+                                        <th class="p-3">ความเร่งด่วน</th>
+                                        <th class="p-3">กำหนดเสร็จ</th>
+                                        <th class="p-3 text-center">ไฟล์แนบ</th>
+                                        <th class="p-3 text-center">จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="dashboardTableBody" class="divide-y divide-gray-100 text-sm"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 2. MY INBOX TAB -->
+                <div id="view-myInbox" class="tab-view hidden space-y-6">
+                    <div class="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs">
+                        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-5">
+                            <div>
+                                <h2 class="text-lg font-bold text-gray-800">กล่องงานของฉัน (My Inbox)</h2>
+                                <p class="text-xs text-gray-500">รายการหนังสือและเอกสารทั้งหมดที่คุณได้รับมอบหมาย</p>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead class="bg-gray-50 text-xs text-gray-500 uppercase">
+                                    <tr>
+                                        <th class="p-3">เลขทะเบียน</th>
+                                        <th class="p-3">ประเภท</th>
+                                        <th class="p-3">เรื่อง / ผู้ส่ง</th>
+                                        <th class="p-3">สถานะรับทราบ</th>
+                                        <th class="p-3">สถานะงาน</th>
+                                        <th class="p-3 text-center">ไฟล์แนบ</th>
+                                        <th class="p-3 text-center">การกระทำ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="myInboxTableBody" class="divide-y divide-gray-100 text-sm"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 3. INCOMING DOCS TAB -->
+                <div id="view-incoming" class="tab-view hidden space-y-6">
+                    <div class="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs">
+                        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-5">
+                            <div>
+                                <h2 class="text-lg font-bold text-gray-800">ทะเบียนหนังสือรับ (ปีปฏิทิน)</h2>
+                                <p class="text-xs text-gray-500">จัดการและตรวจสอบหนังสือรับเข้ากองช่าง อบต.ไร่ใต้ (เรียงตามเลขรับกองช่าง จากมากไปหาน้อย)</p>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                                <select id="filterYearIncoming" onchange="renderTables()" class="px-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                    <option value="">ทุกปี (All Years)</option>
+                                    <option value="2569" selected>ปี 2569</option>
+                                    <option value="2570">ปี 2570</option>
+                                    <option value="2571">ปี 2571</option>
+                                    <option value="2572">ปี 2572</option>
+                                    <option value="2573">ปี 2573</option>
+                                    <option value="2574">ปี 2574</option>
+                                    <option value="2575">ปี 2575</option>
+                                </select>
+                                <div class="relative w-full md:w-60">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400"><i class="fa-solid fa-search"></i></span>
+                                    <input type="text" id="searchIncoming" onkeyup="renderTables()" placeholder="ค้นหา ผู้ส่ง, เรื่อง, เลขที่..." class="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                </div>
+                                <button id="btnImportIncoming" onclick="triggerExcelImport('incoming')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-xl text-sm transition shrink-0" title="นำเข้าข้อมูลจากไฟล์ Excel">
+                                    <i class="fa-solid fa-file-excel mr-1"></i> นำเข้า Excel
+                                </button>
+                                <button onclick="exportCSV('incoming')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-sm transition shrink-0"><i class="fa-solid fa-file-excel mr-1"></i> CSV</button>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead class="bg-gray-50 text-xs text-gray-500 uppercase">
+                                    <tr>
+                                        <th class="p-3">เลขรับกองช่าง</th>
+                                        <th class="p-3">เลขรับส่วนกลาง / วันที่</th>
+                                        <th class="p-3">เลขที่หนังสือ / ลงวันที่</th>
+                                        <th class="p-3">เรื่อง / ผู้ส่ง</th>
+                                        <th class="p-3">ความเร่งด่วน</th>
+                                        <th class="p-3">สถานะดำเนินการ</th>
+                                        <th class="p-3 text-center">ไฟล์แนบ</th>
+                                        <th class="p-3 text-center">จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="incomingTableBody" class="divide-y divide-gray-100 text-sm"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 4. OUTGOING DOCS TAB -->
+                <div id="view-outgoing" class="tab-view hidden space-y-6">
+                    <div class="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs">
+                        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-5">
+                            <div>
+                                <h2 class="text-lg font-bold text-gray-800">ทะเบียนหนังสือส่ง (ปีปฏิทิน)</h2>
+                                <p class="text-xs text-gray-500">จัดการและตรวจสอบหนังสือส่งออกจากกองช่าง อบต.ไร่ใต้ (เรียงตามวันที่ จากล่าสุดย้อนไป)</p>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                                <select id="filterYearOutgoing" onchange="renderTables()" class="px-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                    <option value="">ทุกปี (All Years)</option>
+                                    <option value="2569" selected>ปี 2569</option>
+                                    <option value="2570">ปี 2570</option>
+                                    <option value="2571">ปี 2571</option>
+                                    <option value="2572">ปี 2572</option>
+                                    <option value="2573">ปี 2573</option>
+                                    <option value="2574">ปี 2574</option>
+                                    <option value="2575">ปี 2575</option>
+                                </select>
+                                <div class="relative w-full md:w-60">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400"><i class="fa-solid fa-search"></i></span>
+                                    <input type="text" id="searchOutgoing" onkeyup="renderTables()" placeholder="ค้นหา ผู้รับ, เรื่อง, เลขที่..." class="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                </div>
+                                <button id="btnImportOutgoing" onclick="triggerExcelImport('outgoing')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-xl text-sm transition shrink-0" title="นำเข้าข้อมูลจากไฟล์ Excel">
+                                    <i class="fa-solid fa-file-excel mr-1"></i> นำเข้า Excel
+                                </button>
+                                <button onclick="exportCSV('outgoing')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-sm transition shrink-0"><i class="fa-solid fa-file-excel mr-1"></i> CSV</button>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead class="bg-gray-50 text-xs text-gray-500 uppercase">
+                                    <tr>
+                                        <th class="p-3">ปีปฏิทิน</th>
+                                        <th class="p-3">เลขที่หนังสือส่ง / วันที่</th>
+                                        <th class="p-3">เรื่อง / ผู้รับ</th>
+                                        <th class="p-3">สถานะดำเนินการ</th>
+                                        <th class="p-3 text-center">ไฟล์แนบ</th>
+                                        <th class="p-3 text-center">จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="outgoingTableBody" class="divide-y divide-gray-100 text-sm"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 5. ORDERS TAB -->
+                <div id="view-orders" class="tab-view hidden space-y-6">
+                    <div class="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs">
+                        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-5">
+                            <div>
+                                <h2 class="text-lg font-bold text-gray-800">ทะเบียนคำสั่ง (ปีปฏิทิน)</h2>
+                                <p class="text-xs text-gray-500">คำสั่งและประกาศภายในกองช่าง อบต.ไร่ใต้ (เรียงตามเลขที่คำสั่ง จากมากไปน้อย)</p>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                                <select id="filterYearOrders" onchange="renderTables()" class="px-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                    <option value="">ทุกปี (All Years)</option>
+                                    <option value="2569" selected>ปี 2569</option>
+                                    <option value="2570">ปี 2570</option>
+                                    <option value="2571">ปี 2571</option>
+                                    <option value="2572">ปี 2572</option>
+                                    <option value="2573">ปี 2573</option>
+                                    <option value="2574">ปี 2574</option>
+                                    <option value="2575">ปี 2575</option>
+                                </select>
+                                <div class="relative w-full md:w-60">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400"><i class="fa-solid fa-search"></i></span>
+                                    <input type="text" id="searchOrders" onkeyup="renderTables()" placeholder="ค้นหาเรื่อง, เลขที่..." class="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                </div>
+                                <button id="btnImportOrders" onclick="triggerExcelImport('orders')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-xl text-sm transition shrink-0" title="นำเข้าข้อมูลจากไฟล์ Excel">
+                                    <i class="fa-solid fa-file-excel mr-1"></i> นำเข้า Excel
+                                </button>
+                                <button onclick="exportCSV('orders')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-sm transition shrink-0"><i class="fa-solid fa-file-excel mr-1"></i> CSV</button>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead class="bg-gray-50 text-xs text-gray-500 uppercase">
+                                    <tr>
+                                        <th class="p-3">ปีปฏิทิน</th>
+                                        <th class="p-3">เลขที่คำสั่ง / วันที่</th>
+                                        <th class="p-3">เรื่องคำสั่ง</th>
+                                        <th class="p-3">สถานะดำเนินการ</th>
+                                        <th class="p-3 text-center">ไฟล์แนบ</th>
+                                        <th class="p-3 text-center">จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ordersTableBody" class="divide-y divide-gray-100 text-sm"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 6. MEMOS TAB -->
+                <div id="view-memos" class="tab-view hidden space-y-6">
+                    <div class="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs">
+                        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-5">
+                            <div>
+                                <h2 class="text-lg font-bold text-gray-800">ทะเบียนบันทึกข้อความ (ปีงบประมาณ)</h2>
+                                <p class="text-xs text-gray-500">บันทึกข้อความภายในและระหว่างกอง (เรียงตามวันที่ จากล่าสุดย้อนไป)</p>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                                <select id="filterYearMemos" onchange="renderTables()" class="px-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                    <option value="">ทุกปี (All Years)</option>
+                                    <option value="2569" selected>ปีงบฯ 2569</option>
+                                    <option value="2570">ปีงบฯ 2570</option>
+                                    <option value="2571">ปีงบฯ 2571</option>
+                                    <option value="2572">ปีงบฯ 2572</option>
+                                    <option value="2573">ปีงบฯ 2573</option>
+                                    <option value="2574">ปีงบฯ 2574</option>
+                                    <option value="2575">ปีงบฯ 2575</option>
+                                </select>
+                                <div class="relative w-full md:w-60">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400"><i class="fa-solid fa-search"></i></span>
+                                    <input type="text" id="searchMemos" onkeyup="renderTables()" placeholder="ค้นหา งาน, เรียน, เรื่อง, เลขที่..." class="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                </div>
+                                <button id="btnImportMemos" onclick="triggerExcelImport('memos')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-xl text-sm transition shrink-0" title="นำเข้าข้อมูลจากไฟล์ Excel">
+                                    <i class="fa-solid fa-file-excel mr-1"></i> นำเข้า Excel
+                                </button>
+                                <button onclick="exportCSV('memos')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-sm transition shrink-0"><i class="fa-solid fa-file-excel mr-1"></i> CSV</button>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead class="bg-gray-50 text-xs text-gray-500 uppercase">
+                                    <tr>
+                                        <th class="p-3">ปีงบประมาณ</th>
+                                        <th class="p-3">เลขที่บันทึก / วันที่</th>
+                                        <th class="p-3">งาน / เรียน / เรื่อง</th>
+                                        <th class="p-3">สถานะดำเนินการ</th>
+                                        <th class="p-3 text-center">ไฟล์แนบ</th>
+                                        <th class="p-3 text-center">จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="memosTableBody" class="divide-y divide-gray-100 text-sm"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 7. FORMS TAB -->
+                <div id="view-forms" class="tab-view hidden space-y-6">
+                    <div class="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs">
+                        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-5">
+                            <div>
+                                <h2 class="text-lg font-bold text-gray-800">ทะเบียนแบบฟอร์ม</h2>
+                                <p class="text-xs text-gray-500">จัดการและตรวจสอบแบบฟอร์มภายในกองช่าง</p>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                                <div class="relative w-full md:w-60">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400"><i class="fa-solid fa-search"></i></span>
+                                    <input type="text" id="searchForms" onkeyup="renderTables()" placeholder="ค้นหา งาน, เลขที่แบบ, ชื่อแบบ..." class="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead class="bg-gray-50 text-xs text-gray-500 uppercase">
+                                    <tr>
+                                        <th class="p-3">งาน</th>
+                                        <th class="p-3">เลขที่แบบ</th>
+                                        <th class="p-3">ชื่อแบบฟอร์ม</th>
+                                        <th class="p-3 text-center">ไฟล์แนบ</th>
+                                        <th class="p-3 text-center">จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="formsTableBody" class="divide-y divide-gray-100 text-sm"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 8. VOUCHERS TAB (งานฎีกา - แยกตามปีงบประมาณ) -->
+                <div id="view-vouchers" class="tab-view hidden space-y-6">
+                    <div class="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs">
+                        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-5">
+                            <div>
+                                <h2 class="text-lg font-bold text-gray-800">ทะเบียนงานฎีกา (ปีงบประมาณ)</h2>
+                                <p class="text-xs text-gray-500">จัดการและตรวจสอบการเบิกจ่ายงานฎีกา (เรียงตามวันที่ จากล่าสุดย้อนไป)</p>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                                <select id="filterYearVouchers" onchange="renderTables()" class="px-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                    <option value="">ทุกปี (All Years)</option>
+                                    <option value="2569" selected>ปีงบฯ 2569</option>
+                                    <option value="2570">ปีงบฯ 2570</option>
+                                    <option value="2571">ปีงบฯ 2571</option>
+                                    <option value="2572">ปีงบฯ 2572</option>
+                                    <option value="2573">ปีงบฯ 2573</option>
+                                    <option value="2574">ปีงบฯ 2574</option>
+                                    <option value="2575">ปีงบฯ 2575</option>
+                                </select>
+                                <div class="relative w-full md:w-60">
+                                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400"><i class="fa-solid fa-search"></i></span>
+                                    <input type="text" id="searchVouchers" onkeyup="renderTables()" placeholder="ค้นหา เลขผู้เบิก, ผู้รับเงิน, โครงการ..." class="w-full pl-9 pr-4 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                                </div>
+                                <button id="btnImportVouchers" onclick="triggerExcelImport('vouchers')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-xl text-sm transition shrink-0" title="นำเข้าข้อมูลจากไฟล์ Excel">
+                                    <i class="fa-solid fa-file-excel mr-1"></i> นำเข้า Excel
+                                </button>
+                                <button onclick="exportCSV('vouchers')" class="bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-2 rounded-xl text-sm transition shrink-0"><i class="fa-solid fa-file-excel mr-1"></i> CSV</button>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead class="bg-gray-50 text-xs text-gray-500 uppercase">
+                                    <tr>
+                                        <th class="p-3">ปีงบประมาณ</th>
+                                        <th class="p-3">วันที่จัดทำ</th>
+                                        <th class="p-3">เลขที่ผู้เบิก / ผู้จัดทำ</th>
+                                        <th class="p-3">ประเภทฎีกา / ชื่อโครงการ</th>
+                                        <th class="p-3">ผู้รับเงิน</th>
+                                        <th class="p-3 text-right">จำนวนเงิน (บาท)</th>
+                                        <th class="p-3 text-center">จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="vouchersTableBody" class="divide-y divide-gray-100 text-sm"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Global Hidden File Input สำหรับรองรับการนำเข้า Excel ทุกหมวดหมู่ -->
+                <input type="file" id="globalExcelFileInput" accept=".xlsx, .xls, .csv" class="hidden" onchange="importExcelData(event)">
+
+                <!-- 9. VOUCHERS DASHBOARD SUMMARY TAB (แดชบอร์ดสรุปงานฎีกา) -->
+                <div id="view-vouchersSummary" class="tab-view hidden space-y-6">
+                    <!-- แถบเลือกปีสำหรับกรองงานฎีกา -->
+                    <div class="bg-white p-4 rounded-2xl border border-gray-200 shadow-xs flex flex-col md:flex-row justify-between items-center gap-4">
+                        <div class="flex items-center space-x-3">
+                            <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
+                                <i class="fa-solid fa-filter"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-bold text-gray-800">กรองข้อมูลสรุปงานฎีกาตามปีงบประมาณ</h3>
+                                <p class="text-xs text-gray-500">เลือกปีงบประมาณเพื่อดูยอดเงิน สัดส่วน และรายการฎีกาเฉพาะปีนั้น</p>
+                            </div>
+                        </div>
+                        <div class="w-full md:w-auto">
+                            <select id="filterSummaryYearVouchers" onchange="renderAll()" class="w-full md:w-48 px-3 py-2 border border-gray-300 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-rose-500 focus:outline-none bg-rose-50/50 text-rose-900">
+                                <option value="">ทุกปีงบประมาณ (All Years)</option>
+                                <option value="2569" selected>ปีงบฯ 2569</option>
+                                <option value="2570">ปีงบฯ 2570</option>
+                                <option value="2571">ปีงบฯ 2571</option>
+                                <option value="2572">ปีงบฯ 2572</option>
+                                <option value="2573">ปีงบฯ 2573</option>
+                                <option value="2574">ปีงบฯ 2574</option>
+                                <option value="2575">ปีงบฯ 2575</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Cards สถิติด้านบน -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs flex flex-col justify-between">
+                            <span class="text-xs font-semibold text-gray-500 uppercase">จำนวนฎีกาทั้งหมด</span>
+                            <div class="flex items-end justify-between mt-2">
+                                <span id="vouchStatTotal" class="text-2xl md:text-3xl font-bold text-gray-800">0</span>
+                                <div class="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center"><i class="fa-solid fa-receipt text-lg"></i></div>
+                            </div>
+                        </div>
+                        <div class="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs flex flex-col justify-between md:col-span-2">
+                            <span class="text-xs font-semibold text-gray-500 uppercase">ยอดเงินขอเบิกรวมทั้งหมด</span>
+                            <div class="flex items-end justify-between mt-2">
+                                <span id="vouchStatGrandTotal" class="text-2xl md:text-3xl font-bold text-rose-600">0.00 บาท</span>
+                                <div class="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center"><i class="fa-solid fa-baht-sign text-lg"></i></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- กราฟแสดงสัดส่วน -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                        <div class="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs flex flex-col">
+                            <h3 class="font-bold text-gray-800 mb-4 text-sm uppercase tracking-wider">สัดส่วนประเภทฎีกา (จำนวนรายการ)</h3>
+                            <div class="relative flex-1 flex items-center justify-center min-h-[240px]">
+                                <canvas id="voucherTypeChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs lg:col-span-2 flex flex-col">
+                            <h3 class="font-bold text-gray-800 mb-4 text-sm uppercase tracking-wider">ยอดเงินขอเบิกแยกตามประเภทฎีกา (บาท)</h3>
+                            <div class="relative flex-1 flex items-center justify-center min-h-[240px]">
+                                <canvas id="voucherAmountChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ตารางสรุปแยกตามประเภท และตารางรายการล่าสุด -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs">
+                            <h3 class="font-bold text-gray-800 mb-4">สรุปยอดเงินแยกตามประเภทฎีกา</h3>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left border-collapse">
+                                    <thead class="bg-gray-50 text-xs text-gray-500 uppercase">
+                                        <tr>
+                                            <th class="p-3">ประเภทฎีกา</th>
+                                            <th class="p-3 text-center">จำนวน</th>
+                                            <th class="p-3 text-right">ยอดเงินรวม (บาท)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="vouchersSummaryTableBody" class="divide-y divide-gray-100 text-sm"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs">
+                            <h3 class="font-bold text-gray-800 mb-4">รายการงานฎีกาล่าสุด</h3>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left border-collapse">
+                                    <thead class="bg-gray-50 text-xs text-gray-500 uppercase">
+                                        <tr>
+                                            <th class="p-3">เลขผู้เบิก</th>
+                                            <th class="p-3">โครงการ / ผู้รับเงิน</th>
+                                            <th class="p-3 text-right">จำนวนเงิน (บาท)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="vouchersRecentTableBody" class="divide-y divide-gray-100 text-sm"></tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 10. ALL DOCS TAB -->
+                <div id="view-allDocs" class="tab-view hidden space-y-6">
+                    <div class="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs">
+                        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-5">
+                            <div>
+                                <h2 class="text-lg font-bold text-gray-800">รวมทะเบียนเอกสารทั้งหมด</h2>
+                                <p class="text-xs text-gray-500">ค้นหา กรอง และพิมพ์รายงานภาพรวมสารบรรณ อบต.ไร่ใต้</p>
+                            </div>
+                            <div class="flex items-center space-x-2">
+                                <button onclick="window.print()" class="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-xl text-sm transition"><i class="fa-solid fa-print mr-1"></i> พิมพ์รายงาน A4</button>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto" id="printableArea">
+                            <table class="w-full text-left border-collapse">
+                                <thead class="bg-gray-50 text-xs text-gray-500 uppercase">
+                                    <tr>
+                                        <th class="p-3">ประเภท</th>
+                                        <th class="p-3">ปี</th>
+                                        <th class="p-3">เลขทะเบียน/เลขที่</th>
+                                        <th class="p-3">เรื่อง / ผู้ส่ง/ผู้รับ</th>
+                                        <th class="p-3">สถานะ</th>
+                                        <th class="p-3 text-center">ไฟล์แนบ</th>
+                                        <th class="p-3 text-center">จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="allDocsTableBody" class="divide-y divide-gray-100 text-sm"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 11. OVERDUE TAB -->
+                <div id="view-overdue" class="tab-view hidden space-y-6">
+                    <div class="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs">
+                        <h2 class="text-lg font-bold text-gray-800 mb-1">ติดตามงานเกินกำหนด (Overdue Tracker)</h2>
+                        <p class="text-xs text-gray-500 mb-5">รายการเอกสารที่เลยกำหนดเวลาแล้วเสร็จ ควรเร่งรัดติดตาม</p>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead class="bg-red-50 text-xs text-red-700 uppercase">
+                                    <tr>
+                                        <th class="p-3">ประเภท</th>
+                                        <th class="p-3">เลขทะเบียน</th>
+                                        <th class="p-3">เรื่อง</th>
+                                        <th class="p-3">ผู้รับผิดชอบ</th>
+                                        <th class="p-3">กำหนดเสร็จ</th>
+                                        <th class="p-3 text-center">ไฟล์แนบ</th>
+                                        <th class="p-3 text-center">จัดการ</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="overdueTableBody" class="divide-y divide-gray-100 text-sm"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- Mobile Bottom Nav Bar -->
+    <div id="mobileBottomNav" class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 h-16 flex items-center justify-around px-2 z-40 shadow-lg">
+        <button onclick="switchTab('dashboard')" class="mobile-nav-btn flex flex-col items-center justify-center text-blue-600 flex-1 py-1" data-tab="dashboard">
+            <i class="fa-solid fa-chart-pie text-lg"></i>
+            <span class="text-[10px] mt-0.5">หน้าแรก</span>
+        </button>
+        <button id="myInboxNavBottom" onclick="switchTab('myInbox')" class="mobile-nav-btn flex flex-col items-center justify-center text-gray-400 flex-1 py-1 relative" data-tab="myInbox">
+            <i class="fa-solid fa-inbox text-lg"></i>
+            <span class="text-[10px] mt-0.5">งานของฉัน</span>
+        </button>
+        <button onclick="switchTab('incoming')" class="mobile-nav-btn flex flex-col items-center justify-center text-gray-400 flex-1 py-1" data-tab="incoming">
+            <i class="fa-solid fa-file-arrow-down text-lg"></i>
+            <span class="text-[10px] mt-0.5">รับ</span>
+        </button>
+        <button onclick="switchTab('outgoing')" class="mobile-nav-btn flex flex-col items-center justify-center text-gray-400 flex-1 py-1" data-tab="outgoing">
+            <i class="fa-solid fa-file-arrow-up text-lg"></i>
+            <span class="text-[10px] mt-0.5">ส่ง</span>
+        </button>
+        <button onclick="switchTab('allDocs')" class="mobile-nav-btn flex flex-col items-center justify-center text-gray-400 flex-1 py-1" data-tab="allDocs">
+            <i class="fa-solid fa-folder-tree text-lg"></i>
+            <span class="text-[10px] mt-0.5">ทั้งหมด</span>
+        </button>
+    </div>
+
+    <!-- ==================== MODAL: ADD / EDIT DOCUMENT ==================== -->
+    <div id="documentModal" class="fixed inset-0 z-50 bg-slate-900/65 backdrop-blur-xs flex items-center justify-center hidden p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden my-auto">
+            
+            <!-- ส่วนหัวสีน้ำเงิน -->
+            <div class="bg-blue-600 px-6 py-4 text-white flex justify-between items-center sticky top-0 z-20 shrink-0 shadow-md">
+                <h3 id="modalTitle" class="font-bold text-lg">ลงทะเบียนหนังสือใหม่</h3>
+                <button type="button" onclick="closeDocumentModal()" class="text-white/80 hover:text-white text-xl focus:outline-none"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
+            <!-- ส่วนฟอร์มด้านใน -->
+            <form id="documentForm" onsubmit="saveDocument(event)" class="p-6 space-y-4 overflow-y-auto flex-1">
+                <input type="hidden" id="editDocId">
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">ประเภทหนังสือ</label>
+                        <select id="docType" onchange="toggleFormFields()" class="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm font-semibold">
+                            <option value="incoming">หนังสือรับ (ปีปฏิทิน)</option>
+                            <option value="outgoing">หนังสือส่ง (ปีปฏิทิน)</option>
+                            <option value="orders">คำสั่ง (ปีปฏิทิน)</option>
+                            <option value="memos">บันทึกข้อความ (ปีงบประมาณ)</option>
+                            <option value="forms">แบบฟอร์ม</option>
+                            <option value="vouchers">งานฎีกา (ปีงบประมาณ)</option>
+                        </select>
+                    </div>
+                    <div id="yearSelectWrapper">
+                        <label class="block text-sm font-medium text-gray-700 mb-1"><span id="yearLabelName">ปีปฏิทิน</span></label>
+                        <select id="selectedYear" onchange="updateModalRegPreview()" class="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm font-semibold text-blue-900 bg-blue-50">
+                            <option value="2569">2569</option>
+                            <option value="2570">2570</option>
+                            <option value="2571">2571</option>
+                            <option value="2572">2572</option>
+                            <option value="2573">2573</option>
+                            <option value="2574">2574</option>
+                            <option value="2575">2575</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- ฟิลด์เฉพาะตามประเภทเอกสาร -->
+                <div id="dynamicFormFields" class="space-y-4"></div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="standardMetaFields">
+                    <div id="assigneeWrapper">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">มอบหมายผู้รับผิดชอบ</label>
+                        <select id="docAssignee" class="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm">
+                            <option value="นิศาชล คงดี">นิศาชล คงดี (ผู้ช่วยเจ้าพนักงานธุรการ)</option>
+                            <option value="นายจิรพงษ์  พัฒนพันธ์">นายจิรพงษ์  พัฒนพันธ์ (ผู้อำนวยการกองช่าง)</option>
+                            <option value="นายศรายุทธ  สงวนรัษฐ์">นายศรายุทธ  สงวนรัษฐ์ (นายช่างโยธาชำนาญงาน)</option>
+                            <option value="นายพิทักษ์  โพธิ์ขาว">นายพิทักษ์  โพธิ์ขาว (นายช่างไฟฟ้าชำนาญงาน)</option>
+                            <option value="นายยิ่งอนันต์  สัทธรรม">นายยิ่งอนันต์  สัทธรรม (ผู้ช่วยนายช่างประปา)</option>
+                        </select>
+                    </div>
+                    <div id="dueDateWrapper">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">กำหนดวันเสร็จสิ้น</label>
+                        <input type="date" id="docDueDate" class="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm">
+                    </div>
+                </div>
+
+                <div id="fileAttachmentWrapper">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">แนบไฟล์เอกสาร (PDF / รูปภาพ) - ไม่บังคับ</label>
+                    <input type="file" id="docFile" accept=".pdf,image/*" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm file:mr-4 file:py-1 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+                    <p class="text-xs text-gray-400 mt-1">หากไม่เลือกไฟล์ ช่องไฟล์แนบในตารางจะเว้นว่างไว้</p>
+                </div>
+
+                <div class="flex justify-end space-x-3 pt-4 border-t border-gray-100">
+                    <button type="button" onclick="closeDocumentModal()" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm transition">ยกเลิก</button>
+                    <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-sm transition font-medium">บันทึกข้อมูล</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ==================== JAVASCRIPT LOGIC ==================== -->
+    <script>
+        const ADMIN_PASSWORD = "12345";
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxDo6zj8Jq89py3Hs46GeU5tJSejTT2GfrkahaVZBLXQszvdLd6piu-9M7M03sil32E9g/exec";
+
+        let documents = [];
+        let voucherTypeChartInstance = null;
+        let voucherAmountChartInstance = null;
+        let currentImportType = 'incoming'; // ตัวแปรเก็บประเภทปัจจุบันที่จะนำเข้า Excel
+
+        async function loadDocumentsFromSupabase() {
+            try {
+                const { data, error } = await supabaseClient
+                    .from('documents')
+                    .select('*')
+                    .order('id', { ascending: false });
+                
+                if (error) {
+                    console.error('Error loading documents from Supabase:', error);
+                } else {
+                    documents = (data || []).map(d => ({
+                        id: d.id,
+                        type: d.type,
+                        regNo: d.reg_no,
+                        yearStr: d.year_str,
+                        centralRegNo: d.central_reg_no,
+                        receiveDate: d.receive_date,
+                        sender: d.sender,
+                        urgency: d.urgency,
+                        docNumber: d.doc_number,
+                        docDate: d.doc_date,
+                        subject: d.subject,
+                        status: d.status,
+                        assignee: d.assignee,
+                        dueDate: d.due_date,
+                        ackStatus: d.ack_status || 'รอรับทราบ',
+                        ackTime: d.ack_time || '-',
+                        fileName: d.file_name || '',
+                        fileData: d.file_url || '',
+                        memoWork: d.memo_work || '',
+                        formCode: d.form_code || '',
+                        formName: d.form_name || '',
+                        voucherDate: d.voucher_date || '',
+                        voucherMaker: d.voucher_maker || '',
+                        voucherNo: d.voucher_no || '',
+                        voucherCategory: d.voucher_category || '',
+                        voucherPayee: d.voucher_payee || '',
+                        voucherAmount: d.voucher_amount || 0,
+                        voucherProject: d.voucher_project || ''
+                    }));
+                    renderAll();
+                }
+            } catch (err) {
+                console.error('Connection error:', err);
+            }
+        }
+
+        let currentUser = {
+            username: "admin",
+            name: "นิศาชล คงดี",
+            role: "admin",
+            roleName: "ผู้ดูแลระบบ"
+        };
+
+        let typeChartInstance = null;
+        let statusChartInstance = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            updateUserInterface();
+            loadDocumentsFromSupabase();
+            toggleFormFields();
+        });
+
+        async function loginAs(roleType) {
+            if (roleType === 'admin') {
+                const { value: password } = await Swal.fire({
+                    title: 'ยืนยันตัวตนผู้ดูแลระบบ',
+                    text: 'กรุณากรอกรหัสผ่านเพื่อเข้าสู่ระบบ Admin',
+                    input: 'password',
+                    inputPlaceholder: 'กรอกรหัสผ่านที่นี่...',
+                    inputAttributes: {
+                        autocapitalize: 'off',
+                        autocorrect: 'off'
+                    },
+                    showCancelButton: true,
+                    confirmButtonText: 'เข้าสู่ระบบ',
+                    cancelButtonText: 'ยกเลิก',
+                    confirmButtonColor: '#2563eb'
+                });
+
+                if (password === ADMIN_PASSWORD) {
+                    currentUser = { username: "admin", name: "นิศาชล คงดี", role: "admin", roleName: "ผู้ดูแลระบบ" };
+                    document.getElementById('loginScreen').classList.add('hidden');
+                    document.getElementById('appContent').classList.remove('hidden');
+                    updateUserInterface();
+                    loadDocumentsFromSupabase();
+
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'กำลังเข้าสู่ระบบ',
+                        timer: 1200,
+                        showConfirmButton: false
+                    });
+                } else if (password !== undefined) {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'รหัสผ่านไม่ถูกต้อง',
+                        text: 'คุณไม่มีสิทธิ์เข้าใช้งานในฐานะผู้ดูแลระบบ',
+                        confirmButtonText: 'ตกลง',
+                        confirmButtonColor: '#ef4444'
+                    });
+                }
+            } else {
+                currentUser = { username: "staff", name: "บุคลากรทั่วไป", role: "staff", roleName: "บุคลากร / เจ้าหน้าที่" };
+                document.getElementById('loginScreen').classList.add('hidden');
+                document.getElementById('appContent').classList.remove('hidden');
+                updateUserInterface();
+                loadDocumentsFromSupabase();
+
+                Swal.fire({
+                    icon: 'success',
+                    title: 'กำลังเข้าสู่ระบบ',
+                    timer: 1200,
+                    showConfirmButton: false
+                });
+            }
+        }
+
+        function openLoginScreen() {
+            document.getElementById('loginScreen').classList.remove('hidden');
+        }
+
+        function logout() {
+            document.getElementById('appContent').classList.add('hidden');
+            document.getElementById('loginScreen').classList.remove('hidden');
+        }
+
+        function updateUserInterface() {
+            const isAdmin = currentUser.role === 'admin' && currentUser.name === 'นิศาชล คงดี';
+
+            // ซ่อนเมนูกล่องงานของฉันจากผู้ใช้งาน Staff ทุกช่องทาง (Desktop / Mobile)
+            ['myInboxNavDesktop', 'myInboxNavDrawer', 'myInboxNavBottom'].forEach(id => {
+                const inboxNav = document.getElementById(id);
+                if (inboxNav) inboxNav.classList.toggle('hidden', !isAdmin);
+            });
+
+            document.getElementById('sidebarUserName').innerText = currentUser.name;
+            document.getElementById('sidebarUserRoleName').innerText = `สถานะ: ${currentUser.roleName}`;
+            document.getElementById('headerRoleName').innerText = currentUser.roleName;
+            document.getElementById('sidebarUserAvatar').innerText = currentUser.name.charAt(0);
+
+            const badgeColor = document.getElementById('headerRoleBadge');
+            const switchBtn = document.getElementById('switchRoleBtn');
+            const switchBtnMobile = document.getElementById('switchRoleBtnMobile');
+
+            // ควบคุมการแสดงผลปุ่ม "นำเข้า Excel" สำหรับทุกงาน (ซ่อนในหน้า staff และแสดงเฉพาะ admin)
+            const importBtnIds = ['btnImportIncoming', 'btnImportOutgoing', 'btnImportOrders', 'btnImportMemos', 'btnImportVouchers'];
+            importBtnIds.forEach(id => {
+                const btnEl = document.getElementById(id);
+                if (btnEl) {
+                    if (isAdmin) {
+                        btnEl.classList.remove('hidden');
+                    } else {
+                        btnEl.classList.add('hidden');
+                    }
+                }
+            });
+
+            if (isAdmin) {
+                badgeColor.className = "w-2.5 h-2.5 rounded-full bg-green-500";
+                document.getElementById('addDocBtn').classList.remove('hidden');
+                if (switchBtn) switchBtn.classList.remove('hidden');
+                if (switchBtnMobile) switchBtnMobile.classList.remove('hidden');
+            } else {
+                badgeColor.className = "w-2.5 h-2.5 rounded-full bg-amber-500";
+                document.getElementById('addDocBtn').classList.add('hidden');
+                if (switchBtn) switchBtn.classList.add('hidden');
+                if (switchBtnMobile) switchBtnMobile.classList.add('hidden');
+            }
+        }
+
+        function switchTab(tabId) {
+            if (tabId === 'myInbox' && currentUser.role !== 'admin') {
+                tabId = 'dashboard';
+            }
+            document.querySelectorAll('.tab-view').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`view-${tabId}`).classList.remove('hidden');
+
+            document.querySelectorAll('.nav-link').forEach(el => {
+                el.classList.remove('bg-blue-600', 'text-white');
+                el.classList.add('text-slate-300');
+                if (el.getAttribute('data-tab') === tabId) {
+                    el.classList.add('bg-blue-600', 'text-white');
+                    el.classList.remove('text-slate-300');
+                }
+            });
+
+            document.querySelectorAll('.mobile-nav-btn').forEach(el => {
+                el.classList.remove('text-blue-600');
+                el.classList.add('text-gray-400');
+                if (el.getAttribute('data-tab') === tabId) {
+                    el.classList.add('text-blue-600');
+                    el.classList.remove('text-gray-400');
+                }
+            });
+
+            const titles = {
+                dashboard: 'แดชบอร์ดสรุปผลงานสารบรรณ',
+                myInbox: 'กล่องงานของฉัน (My Inbox)',
+                incoming: 'ทะเบียนหนังสือรับ',
+                outgoing: 'ทะเบียนหนังสือส่ง',
+                orders: 'ทะเบียนคำสั่ง',
+                memos: 'ทะเบียนบันทึกข้อความ',
+                forms: 'ทะเบียนแบบฟอร์ม',
+                vouchers: 'ทะเบียนงานฎีกา',
+                vouchersSummary: 'แดชบอร์ดสรุปงานฎีกา',
+                allDocs: 'รวมทะเบียนเอกสารทั้งหมด',
+                overdue: 'ติดตามงานเกินกำหนด'
+            };
+            document.getElementById('pageTitle').innerText = titles[tabId] || 'ระบบสารบรรณ';
+            renderAll();
+        }
+
+        function toggleMobileMenu() {
+            document.getElementById('mobileDrawer').classList.toggle('hidden');
+        }
+
+        function renderAll() {
+            updateStats();
+            renderCharts();
+            renderVoucherCharts();
+            renderTables();
+        }
+
+        function updateStats() {
+            const globalYear = document.getElementById('globalFilterYear').value;
+            const filteredDocs = globalYear ? documents.filter(d => String(d.yearStr) === String(globalYear)) : documents;
+
+            const total = filteredDocs.length;
+            const pending = filteredDocs.filter(d => d.status === 'รอรับทราบ' || d.ackStatus === 'รอรับทราบ').length;
+            const progress = filteredDocs.filter(d => d.status === 'กำลังดำเนินการ' || d.status === 'เสนอเซนต์').length;
+            const done = filteredDocs.filter(d => d.status === 'เสร็จสิ้น' || d.status === 'ดำเนินการแล้ว').length;
+            
+            const today = new Date().toISOString().split('T')[0];
+            const overdue = filteredDocs.filter(d => d.dueDate && d.dueDate < today && d.status !== 'ดำเนินการแล้ว' && d.status !== 'เสร็จสิ้น').length;
+
+            document.getElementById('statTotal').innerText = total;
+            document.getElementById('statPending').innerText = pending;
+            document.getElementById('statProgress').innerText = progress;
+            document.getElementById('statDone').innerText = done;
+            document.getElementById('statOverdue').innerText = overdue;
+            document.getElementById('badgeOverdue').innerText = overdue;
+
+            const myCount = documents.filter(d => d.assignee === currentUser.name).length;
+            document.getElementById('badgeMyInbox').innerText = myCount;
+        }
+
+        function renderCharts() {
+            const globalYear = document.getElementById('globalFilterYear').value;
+            const filteredDocs = globalYear ? documents.filter(d => String(d.yearStr) === String(globalYear)) : documents;
+
+            const incomingCount = filteredDocs.filter(d => d.type === 'incoming').length;
+            const outgoingCount = filteredDocs.filter(d => d.type === 'outgoing').length;
+            const ordersCount = filteredDocs.filter(d => d.type === 'orders').length;
+            const memosCount = filteredDocs.filter(d => d.type === 'memos').length;
+            const formsCount = filteredDocs.filter(d => d.type === 'forms').length;
+            const vouchersCount = filteredDocs.filter(d => d.type === 'vouchers').length;
+
+            const pending = filteredDocs.filter(d => d.status === 'รอรับทราบ' || d.status === 'ลงรับแล้ว').length;
+            const progress = filteredDocs.filter(d => d.status === 'กำลังดำเนินการ' || d.status === 'เสนอเซนต์' || d.status === 'ออกเอกสาร').length;
+            const done = filteredDocs.filter(d => d.status === 'เสร็จสิ้น' || d.status === 'ดำเนินการแล้ว').length;
+
+            const ctxType = document.getElementById('typeChart').getContext('2d');
+            if (typeChartInstance) typeChartInstance.destroy();
+            typeChartInstance = new Chart(ctxType, {
+                type: 'doughnut',
+                data: {
+                    labels: ['หนังสือรับ', 'หนังสือส่ง', 'คำสั่ง', 'บันทึกข้อความ', 'แบบฟอร์ม', 'งานฎีกา'],
+                    datasets: [{
+                        data: [incomingCount, outgoingCount, ordersCount, memosCount, formsCount, vouchersCount],
+                        backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4', '#f43f5e']
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            const ctxStatus = document.getElementById('statusChart').getContext('2d');
+            if (statusChartInstance) statusChartInstance.destroy();
+            statusChartInstance = new Chart(ctxStatus, {
+                type: 'bar',
+                data: {
+                    labels: ['รอดำเนินการ', 'กำลังดำเนินการ / เสนอเซนต์', 'ดำเนินการแล้ว / เสร็จสิ้น'],
+                    datasets: [{
+                        label: 'จำนวนหนังสือ',
+                        data: [pending, progress, done],
+                        backgroundColor: ['#f59e0b', '#3b82f6', '#10b981']
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } } }
+            });
+        }
+
+        function renderVoucherCharts() {
+            const summaryYear = document.getElementById('filterSummaryYearVouchers').value;
+            const allVouchers = documents.filter(d => {
+                const matchType = (d.type === 'vouchers');
+                const matchYear = (!summaryYear || String(d.yearStr) === String(summaryYear));
+                return matchType && matchYear;
+            });
+
+            const categoryData = {};
+            allVouchers.forEach(v => {
+                const cat = v.voucherCategory || 'ไม่ระบุประเภท';
+                const amt = parseFloat(v.voucherAmount || 0);
+                if (!categoryData[cat]) {
+                    categoryData[cat] = { count: 0, total: 0 };
+                }
+                categoryData[cat].count += 1;
+                categoryData[cat].total += amt;
+            });
+
+            const labels = Object.keys(categoryData);
+            const counts = labels.map(l => categoryData[l].count);
+            const amounts = labels.map(l => categoryData[l].total);
+
+            const ctxVouchType = document.getElementById('voucherTypeChart').getContext('2d');
+            if (voucherTypeChartInstance) voucherTypeChartInstance.destroy();
+            voucherTypeChartInstance = new Chart(ctxVouchType, {
+                type: 'doughnut',
+                data: {
+                    labels: labels.length ? labels : ['ยังไม่มีข้อมูล'],
+                    datasets: [{
+                        data: labels.length ? counts : [1],
+                        backgroundColor: ['#f43f5e', '#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#06b6d4']
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            const ctxVouchAmt = document.getElementById('voucherAmountChart').getContext('2d');
+            if (voucherAmountChartInstance) voucherAmountChartInstance.destroy();
+            voucherAmountChartInstance = new Chart(ctxVouchAmt, {
+                type: 'bar',
+                data: {
+                    labels: labels.length ? labels : ['ยังไม่มีข้อมูล'],
+                    datasets: [{
+                        label: 'ยอดเงินขอเบิก (บาท)',
+                        data: labels.length ? amounts : [0],
+                        backgroundColor: '#f43f5e'
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+            });
+        }
+
+        function getNextRegNoForYear(type, yearStr) {
+            const matched = documents.filter(d => d.type === type && String(d.yearStr) === String(yearStr));
+            if (matched.length === 0) return 1;
+            const maxNo = Math.max(...matched.map(d => {
+                const num = parseInt(d.regNo);
+                return isNaN(num) ? 0 : num;
+            }));
+            return maxNo + 1;
+        }
+
+        function toggleFormFields() {
+            const type = document.getElementById('docType').value;
+            const container = document.getElementById('dynamicFormFields');
+            const yearLabel = document.getElementById('yearLabelName');
+            const yearWrapper = document.getElementById('yearSelectWrapper');
+            const standardMeta = document.getElementById('standardMetaFields');
+            const fileWrapper = document.getElementById('fileAttachmentWrapper');
+
+            if (type === 'forms') {
+                yearWrapper.style.display = 'none';
+                standardMeta.style.display = 'none';
+                fileWrapper.style.display = 'block';
+            } else {
+                yearWrapper.style.display = 'block';
+                standardMeta.style.display = 'grid';
+                fileWrapper.style.display = 'block';
+                if (type === 'memos' || type === 'vouchers') {
+                    yearLabel.innerText = 'ปีงบประมาณ';
+                } else {
+                    yearLabel.innerText = 'ปีปฏิทิน';
+                }
+            }
+
+            let html = '';
+            if (type === 'incoming') {
+                html = `
+                    <div class="p-3 bg-blue-50 border border-blue-200 rounded-xl flex items-center justify-between">
+                        <div>
+                            <span class="text-xs font-semibold text-blue-800 block">เลขรับกองช่าง (ระบบรันให้อัตโนมัติแบบ Read-only):</span>
+                            <span class="text-xs text-blue-600">อ้างอิงลำดับตามปีที่เลือกด้านบน</span>
+                        </div>
+                        <div id="previewRegNoBox" class="text-base font-bold text-blue-900 bg-white px-4 py-1.5 rounded-lg border border-blue-300 shadow-xs">
+                            -
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">เลขที่รับส่วนกลาง</label>
+                            <input type="text" id="fieldCentralReg" required placeholder="เช่น รับกลาง-102/2569" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">วันที่ลงรับ</label>
+                            <input type="date" id="fieldReceiveDate" required onchange="setDefaultDocDate(this.value)" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">ผู้ส่ง / หน่วยงานต้นสังกัด</label>
+                            <input type="text" id="fieldSender" required placeholder="เช่น อำเภอพิบูลมังสาหาร" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">ความเร่งด่วน</label>
+                            <select id="fieldUrgency" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm">
+                                <option value="ปกติ">ปกติ</option>
+                                <option value="ด่วน">ด่วน</option>
+                                <option value="ด่วนมาก">ด่วนมาก</option>
+                                <option value="ด่วนที่สุด">ด่วนที่สุด</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">เลขที่หนังสือ</label>
+                            <input type="text" id="fieldDocNumber" required placeholder="เช่น อบ 0023.23/ว 36" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">ลงวันที่</label>
+                            <input type="date" id="fieldDocDate" required class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">เรื่อง</label>
+                        <input type="text" id="fieldSubject" required placeholder="ระบุเรื่องหนังสือ" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">สถานะดำเนินการ</label>
+                        <select id="fieldStatus" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm font-semibold text-blue-700">
+                            <option value="ลงรับแล้ว">ลงรับแล้ว</option>
+                            <option value="เสนอเซนต์">เสนอเซนต์</option>
+                            <option value="ดำเนินการแล้ว">ดำเนินการแล้ว</option>
+                        </select>
+                    </div>
+                `;
+            } else if (type === 'outgoing') {
+                html = `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">เลขที่หนังสือส่ง</label>
+                            <input type="text" id="fieldDocNumber" required placeholder="เช่น อบ 0023.23/12" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">ลงวันที่</label>
+                            <input type="date" id="fieldDocDate" required class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">เรื่อง</label>
+                        <input type="text" id="fieldSubject" required placeholder="ระบุเรื่องหนังสือส่ง" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm">
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">ผู้รับ / หน่วยงานรับ</label>
+                            <input type="text" id="fieldSender" required placeholder="เช่น ท้องถิ่นจังหวัดอุบลราชธานี" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">สถานะดำเนินการ</label>
+                            <select id="fieldStatus" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm font-semibold text-blue-700">
+                                <option value="ออกเอกสาร">ออกเอกสาร</option>
+                                <option value="เสนอเซนต์">เสนอเซนต์</option>
+                                <option value="ดำเนินการแล้ว">ดำเนินการแล้ว</option>
+                            </select>
+                        </div>
+                    </div>
+                `;
+            } else if (type === 'orders') {
+                html = `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">เลขที่คำสั่ง</label>
+                            <input type="text" id="fieldDocNumber" required placeholder="เช่น ที่ 5/2569" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">ลงวันที่</label>
+                            <input type="date" id="fieldDocDate" required class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">เรื่อง</label>
+                        <input type="text" id="fieldSubject" required placeholder="ระบุเรื่องคำสั่ง" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">สถานะดำเนินการ</label>
+                        <select id="fieldStatus" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm font-semibold text-blue-700">
+                            <option value="ออกเอกสาร">ออกเอกสาร</option>
+                            <option value="เสนอเซนต์">เสนอเซนต์</option>
+                            <option value="ดำเนินการแล้ว">ดำเนินการแล้ว</option>
+                        </select>
+                    </div>
+                `;
+            } else if (type === 'memos') {
+                html = `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">งาน (ระบุประเภทงาน)</label>
+                            <input type="text" id="fieldMemoWork" required placeholder="เช่น งานโยธา, งานธุรการ" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">เลขที่บันทึก</label>
+                            <input type="text" id="fieldDocNumber" required placeholder="เช่น วส 001/2569" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">ลงวันที่</label>
+                            <input type="date" id="fieldDocDate" required class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">เรียน</label>
+                            <input type="text" id="fieldSender" required placeholder="เช่น นายกองค์การบริหารส่วนตำบลไร่ใต้" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">เรื่อง</label>
+                        <input type="text" id="fieldSubject" required placeholder="ระบุเรื่องบันทึกข้อความ" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">สถานะดำเนินการ</label>
+                        <select id="fieldStatus" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm font-semibold text-blue-700">
+                            <option value="ออกเอกสาร">ออกเอกสาร</option>
+                            <option value="เสนอเซนต์">เสนอเซนต์</option>
+                            <option value="ดำเนินการแล้ว">ดำเนินการแล้ว</option>
+                        </select>
+                    </div>
+                `;
+            } else if (type === 'forms') {
+                html = `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">งาน</label>
+                            <input type="text" id="fieldFormWork" required placeholder="เช่น งานโยธา, งานประปา" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">เลขที่แบบ</label>
+                            <input type="text" id="fieldFormCode" required placeholder="เช่น แบบ ปร.1" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อแบบฟอร์ม</label>
+                        <input type="text" id="fieldFormName" required placeholder="ระบุชื่อแบบฟอร์มเอกสาร" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm">
+                    </div>
+                `;
+            } else if (type === 'vouchers') {
+                html = `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">วันที่จัดทำ</label>
+                            <input type="date" id="fieldVoucherDate" required class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">ผู้จัดทำ</label>
+                            <input type="text" id="fieldVoucherMaker" required placeholder="ระบุชื่อผู้จัดทำฎีกา" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">เลขที่ผู้เบิก</label>
+                            <input type="text" id="fieldVoucherNo" required placeholder="เช่น ฎีกาที่ 12/2569" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">ประเภทฎีกา</label>
+                            <input type="text" id="fieldVoucherCategory" required placeholder="เช่น ค่าวัสดุ, ค่าจ้างเหมา" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">ผู้รับเงิน</label>
+                            <input type="text" id="fieldVoucherPayee" required placeholder="ระบุชื่อผู้รับเงิน" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">จำนวนเงินขอเบิก (บาท)</label>
+                            <input type="number" step="0.01" id="fieldVoucherAmount" required placeholder="0.00" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">ชื่อโครงการ</label>
+                        <input type="text" id="fieldVoucherProject" required placeholder="ระบุชื่อโครงการ" class="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm">
+                    </div>
+                `;
+            }
+            container.innerHTML = html;
+            updateModalRegPreview();
+        }
+
+        function updateModalRegPreview() {
+            const type = document.getElementById('docType').value;
+            const selectedYearStr = document.getElementById('selectedYear').value;
+            const editId = document.getElementById('editDocId').value;
+            const previewBox = document.getElementById('previewRegNoBox');
+
+            if (type === 'incoming' && previewBox) {
+                if (editId) {
+                    const doc = documents.find(d => d.id == editId);
+                    if (doc) {
+                        previewBox.innerText = `${doc.regNo} - ${selectedYearStr}`;
+                    }
+                } else {
+                    const nextRegNo = getNextRegNoForYear('incoming', selectedYearStr);
+                    previewBox.innerText = `${nextRegNo} - ${selectedYearStr}`;
+                }
+            }
+        }
+
+        function setDefaultDocDate(val) {
+            const docDateInput = document.getElementById('fieldDocDate');
+            if (docDateInput && !docDateInput.value) {
+                docDateInput.value = val;
+            }
+        }
+
+        function formatThaiDate(dateStr) {
+            if (!dateStr || dateStr === '-') return '-';
+            let parts = dateStr.split('T')[0].split('-');
+            if (parts.length !== 3) {
+                parts = dateStr.split('/');
+            }
+            if (parts.length === 3) {
+                let year = parseInt(parts[0]);
+                let month = parts[1];
+                let day = parts[2];
+                if (year < 2400) {
+                    year += 543;
+                }
+                return `${day}-${month}-${year}`;
+            }
+            return dateStr;
+        }
+
+        function renderTables() {
+            const isAdmin = currentUser.role === 'admin' && currentUser.name === 'นิศาชล คงดี';
+
+            const getActionButtons = (doc) => {
+                let html = `<button onclick="viewDoc(${doc.id})" class="text-blue-600 hover:text-blue-800 p-1" title="ดูรายละเอียด"><i class="fa-solid fa-eye"></i></button>`;
+                if (isAdmin) {
+                    html += `
+                        <button onclick="editDoc(${doc.id})" class="text-amber-600 hover:text-amber-800 p-1 ml-2" title="แก้ไข"><i class="fa-solid fa-pen-to-square"></i></button>
+                        <button onclick="deleteDoc(${doc.id})" class="text-red-600 hover:text-red-800 p-1 ml-2" title="ลบ"><i class="fa-solid fa-trash"></i></button>
+                    `;
+                }
+                return html;
+            };
+
+            const getFileAttachmentButton = (doc) => {
+                if (doc.fileData && doc.fileData.trim() !== "") {
+                    return `<a href="${doc.fileData}" target="_blank" class="inline-flex items-center px-2.5 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-medium transition" title="${doc.fileName || 'เปิดดูเอกสารแนบ'}">
+                        <i class="fa-solid fa-paperclip mr-1"></i> เปิดดูไฟล์
+                    </a>`;
+                }
+                return ``; 
+            };
+
+            const getStatusBadge = (status) => {
+                if (!status) return '-';
+                if (status === 'ดำเนินการแล้ว' || status === 'เสร็จสิ้น') return `<span class="bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full text-xs font-medium">${status}</span>`;
+                if (status === 'เสนอเซนต์' || status === 'กำลังดำเนินการ' || status === 'ออกเอกสาร') return `<span class="bg-blue-100 text-blue-800 px-2.5 py-1 rounded-full text-xs font-medium">${status}</span>`;
+                return `<span class="bg-amber-100 text-amber-800 px-2.5 py-1 rounded-full text-xs font-medium">${status}</span>`;
+            };
+
+            const formatRegDisplay = (doc) => {
+                if (doc.regNo && doc.regNo !== '-') {
+                    return `${doc.regNo} - ${doc.yearStr}`;
+                }
+                return `-`;
+            };
+
+            // 1. Dashboard Table (กรองตามปี Global Filter)
+            const globalYear = document.getElementById('globalFilterYear').value;
+            const filteredDashDocs = globalYear ? documents.filter(d => String(d.yearStr) === String(globalYear)) : documents;
+            const dashDocs = filteredDashDocs.slice(0, 5);
+
+            document.getElementById('dashboardTableBody').innerHTML = dashDocs.length ? dashDocs.map(d => `
+                <tr class="hover:bg-gray-50">
+                    <td class="p-3 font-bold text-blue-600">${formatRegDisplay(d)}</td>
+                    <td class="p-3">
+                        <div class="font-medium text-gray-800 truncate max-w-xs">${d.subject || d.formName || d.voucherProject}</div>
+                        <div class="text-xs text-gray-500">จาก/ถึง: ${d.sender || d.voucherPayee || '-'}</div>
+                    </td>
+                    <td class="p-3 text-gray-600">${d.assignee || d.voucherMaker || '-'}</td>
+                    <td class="p-3"><span class="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-xs font-medium">${d.urgency || 'ปกติ'}</span></td>
+                    <td class="p-3 text-gray-600">${formatThaiDate(d.dueDate)}</td>
+                    <td class="p-3 text-center">${getFileAttachmentButton(d)}</td>
+                    <td class="p-3 text-center">${getActionButtons(d)}</td>
+                </tr>
+            `).join('') : `<tr><td colspan="7" class="p-6 text-center text-gray-400">ยังไม่มีข้อมูลในระบบสำหรับปีนี้</td></tr>`;
+
+            // 2. My Inbox Table
+            const myDocs = documents.filter(d => d.assignee === currentUser.name);
+            document.getElementById('myInboxTableBody').innerHTML = myDocs.length ? myDocs.map(d => `
+                <tr class="hover:bg-gray-50">
+                    <td class="p-3 font-bold text-blue-600">${d.type === 'outgoing' ? (d.docNumber || '-') : d.type === 'vouchers' ? (d.voucherNo || '-') : formatRegDisplay(d)}</td>
+                    <td class="p-3 uppercase text-xs font-semibold text-gray-500">${d.type}</td>
+                    <td class="p-3"><div class="font-medium text-gray-800">${d.type === 'vouchers' ? (d.voucherProject || '-') : (d.subject || '-')}</div></td>
+                    <td class="p-3">
+                        ${d.ackStatus === 'รับทราบแล้ว' ? `<span class="text-emerald-600 text-xs font-medium"><i class="fa-solid fa-check-circle mr-1"></i>${d.ackTime}</span>` : `<button onclick="acknowledgeDoc(${d.id})" class="bg-amber-500 hover:bg-amber-600 text-white text-xs px-3 py-1 rounded-lg transition">กดรับทราบงาน</button>`}
+                    </td>
+                    <td class="p-3">${getStatusBadge(d.status)}</td>
+                    <td class="p-3 text-center">${getFileAttachmentButton(d)}</td>
+                    <td class="p-3 text-center">
+                        <button onclick="updateDocStatusPrompt(${d.id})" class="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2.5 py-1 rounded-lg transition">เปลี่ยนสถานะ</button>
+                    </td>
+                </tr>
+            `).join('') : `<tr><td colspan="7" class="p-6 text-center text-gray-400">ไม่มีงานที่ได้รับมอบหมายในขณะนี้</td></tr>`;
+
+            // 3. Incoming Table (1. หนังสือรับ: เรียงตาม เลขรับกองช่าง จากมากไปหาน้อย)
+            const filterYearInc = document.getElementById('filterYearIncoming').value;
+            const searchInc = document.getElementById('searchIncoming').value.toLowerCase();
+            const incDocs = documents.filter(d => {
+                const matchType = (d.type === 'incoming');
+                const matchYear = (!filterYearInc || String(d.yearStr) === String(filterYearInc));
+                const matchText = ((d.subject && d.subject.toLowerCase().includes(searchInc)) || (d.sender && d.sender.toLowerCase().includes(searchInc)) || (d.docNumber && d.docNumber.toLowerCase().includes(searchInc)) || (d.centralRegNo && d.centralRegNo.toLowerCase().includes(searchInc)));
+                return matchType && matchYear && matchText;
+            }).sort((a, b) => parseInt(b.regNo || 0) - parseInt(a.regNo || 0));
+
+            document.getElementById('incomingTableBody').innerHTML = incDocs.length ? incDocs.map(d => `
+                <tr class="hover:bg-gray-50">
+                    <td class="p-3 font-bold text-blue-600">${d.regNo} - ${d.yearStr}</td>
+                    <td class="p-3 text-xs"><span class="font-semibold">${d.centralRegNo}</span><br><span class="text-gray-400">${formatThaiDate(d.receiveDate)}</span></td>
+                    <td class="p-3 text-xs"><span class="font-semibold">${d.docNumber}</span><br><span class="text-gray-400">${formatThaiDate(d.docDate)}</span></td>
+                    <td class="p-3"><div class="font-medium text-gray-800">${d.subject}</div><div class="text-xs text-gray-500">ผู้ส่ง: ${d.sender}</div></td>
+                    <td class="p-3"><span class="bg-amber-100 text-amber-700 px-2 py-0.5 rounded text-xs">${d.urgency}</span></td>
+                    <td class="p-3">${getStatusBadge(d.status)}</td>
+                    <td class="p-3 text-center">${getFileAttachmentButton(d)}</td>
+                    <td class="p-3 text-center">${getActionButtons(d)}</td>
+                </tr>
+            `).join('') : `<tr><td colspan="8" class="p-6 text-center text-gray-400">ไม่พบข้อมูลหนังสือรับ</td></tr>`;
+
+            // 4. Outgoing Table (2. หนังสือส่ง: เรียงตาม วันที่ จากล่าสุดย้อนไป)
+            const filterYearOut = document.getElementById('filterYearOutgoing').value;
+            const searchOut = document.getElementById('searchOutgoing').value.toLowerCase();
+            const outDocs = documents.filter(d => {
+                const matchType = (d.type === 'outgoing');
+                const matchYear = (!filterYearOut || String(d.yearStr) === String(filterYearOut));
+                const matchText = ((d.subject && d.subject.toLowerCase().includes(searchOut)) || (d.sender && d.sender.toLowerCase().includes(searchOut)) || (d.docNumber && d.docNumber.toLowerCase().includes(searchOut)));
+                return matchType && matchYear && matchText;
+            }).sort((a, b) => new Date(b.docDate || 0) - new Date(a.docDate || 0));
+
+            document.getElementById('outgoingTableBody').innerHTML = outDocs.length ? outDocs.map(d => `
+                <tr class="hover:bg-gray-50">
+                    <td class="p-3 font-bold text-emerald-600">ปี ${d.yearStr}</td>
+                    <td class="p-3 text-xs"><span class="font-semibold">${d.docNumber}</span><br><span class="text-gray-400">${formatThaiDate(d.docDate)}</span></td>
+                    <td class="p-3"><div class="font-medium text-gray-800">${d.subject}</div><div class="text-xs text-gray-500">ผู้รับ: ${d.sender}</div></td>
+                    <td class="p-3">${getStatusBadge(d.status)}</td>
+                    <td class="p-3 text-center">${getFileAttachmentButton(d)}</td>
+                    <td class="p-3 text-center">${getActionButtons(d)}</td>
+                </tr>
+            `).join('') : `<tr><td colspan="6" class="p-6 text-center text-gray-400">ไม่พบข้อมูลหนังสือส่ง</td></tr>`;
+
+            // 5. Orders Table (3. คำสั่ง: เรียงตาม เลขที่คำสั่ง จากมากไปน้อย)
+            const filterYearOrd = document.getElementById('filterYearOrders').value;
+            const searchOrd = document.getElementById('searchOrders').value.toLowerCase();
+            const ordDocs = documents.filter(d => {
+                const matchType = (d.type === 'orders');
+                const matchYear = (!filterYearOrd || String(d.yearStr) === String(filterYearOrd));
+                const matchText = ((d.subject && d.subject.toLowerCase().includes(searchOrd)) || (d.docNumber && d.docNumber.toLowerCase().includes(searchOrd)));
+                return matchType && matchYear && matchText;
+            }).sort((a, b) => {
+                const numA = parseInt((a.docNumber || '').replace(/[^0-9]/g, '')) || 0;
+                const numB = parseInt((b.docNumber || '').replace(/[^0-9]/g, '')) || 0;
+                return numB - numA;
+            });
+
+            document.getElementById('ordersTableBody').innerHTML = ordDocs.length ? ordDocs.map(d => `
+                <tr class="hover:bg-gray-50">
+                    <td class="p-3 font-bold text-amber-600">ปี ${d.yearStr}</td>
+                    <td class="p-3 text-xs"><span class="font-semibold">${d.docNumber}</span><br><span class="text-gray-400">${formatThaiDate(d.docDate)}</span></td>
+                    <td class="p-3"><div class="font-medium text-gray-800">${d.subject}</div></td>
+                    <td class="p-3">${getStatusBadge(d.status)}</td>
+                    <td class="p-3 text-center">${getFileAttachmentButton(d)}</td>
+                    <td class="p-3 text-center">${getActionButtons(d)}</td>
+                </tr>
+            `).join('') : `<tr><td colspan="6" class="p-6 text-center text-gray-400">ไม่พบข้อมูลคำสั่ง</td></tr>`;
+
+            // 6. Memos Table (4. บันทึกข้อความ: เรียงตาม วันที่ จากล่าสุดย้อนไป)
+            const filterYearMem = document.getElementById('filterYearMemos').value;
+            const searchMem = document.getElementById('searchMemos').value.toLowerCase();
+            const memDocs = documents.filter(d => {
+                const matchType = (d.type === 'memos');
+                const matchYear = (!filterYearMem || String(d.yearStr) === String(filterYearMem));
+                const matchText = ((d.subject && d.subject.toLowerCase().includes(searchMem)) || (d.sender && d.sender.toLowerCase().includes(searchMem)) || (d.docNumber && d.docNumber.toLowerCase().includes(searchMem)) || (d.memoWork && d.memoWork.toLowerCase().includes(searchMem)));
+                return matchType && matchYear && matchText;
+            }).sort((a, b) => new Date(b.docDate || 0) - new Date(a.docDate || 0));
+
+            document.getElementById('memosTableBody').innerHTML = memDocs.length ? memDocs.map(d => `
+                <tr class="hover:bg-gray-50">
+                    <td class="p-3 font-bold text-purple-600">ปีงบฯ ${d.yearStr}</td>
+                    <td class="p-3 text-xs"><span class="font-semibold">${d.docNumber}</span><br><span class="text-gray-400">${formatThaiDate(d.docDate)}</span></td>
+                    <td class="p-3">
+                        <span class="inline-block bg-purple-100 text-purple-800 text-[10px] px-2 py-0.5 rounded-full font-semibold mb-1">งาน: ${d.memoWork || '-'}</span>
+                        <div class="font-medium text-gray-800">เรียน: ${d.sender}</div>
+                        <div class="text-xs text-gray-500">เรื่อง: ${d.subject}</div>
+                    </td>
+                    <td class="p-3">${getStatusBadge(d.status)}</td>
+                    <td class="p-3 text-center">${getFileAttachmentButton(d)}</td>
+                    <td class="p-3 text-center">${getActionButtons(d)}</td>
+                </tr>
+            `).join('') : `<tr><td colspan="6" class="p-6 text-center text-gray-400">ไม่พบข้อมูลบันทึกข้อความ</td></tr>`;
+
+            // 7. Forms Table
+            const searchForm = document.getElementById('searchForms') ? document.getElementById('searchForms').value.toLowerCase() : '';
+            const formDocs = documents.filter(d => {
+                const matchType = (d.type === 'forms');
+                const matchText = ((d.memoWork && d.memoWork.toLowerCase().includes(searchForm)) || (d.formCode && d.formCode.toLowerCase().includes(searchForm)) || (d.formName && d.formName.toLowerCase().includes(searchForm)));
+                return matchType && matchText;
+            });
+            document.getElementById('formsTableBody').innerHTML = formDocs.length ? formDocs.map(d => `
+                <tr class="hover:bg-gray-50">
+                    <td class="p-3 font-bold text-cyan-600">${d.memoWork || '-'}</td>
+                    <td class="p-3 font-semibold text-gray-800">${d.formCode || '-'}</td>
+                    <td class="p-3 text-gray-800">${d.formName || '-'}</td>
+                    <td class="p-3 text-center">${getFileAttachmentButton(d)}</td>
+                    <td class="p-3 text-center">${getActionButtons(d)}</td>
+                </tr>
+            `).join('') : `<tr><td colspan="5" class="p-6 text-center text-gray-400">ไม่พบข้อมูลแบบฟอร์ม</td></tr>`;
+
+            // 8. Vouchers Table (5. ฎีกา: เรียงตาม วันที่ จากล่าสุดย้อนไป)
+            const filterYearVouch = document.getElementById('filterYearVouchers').value;
+            const searchVoucher = document.getElementById('searchVouchers') ? document.getElementById('searchVouchers').value.toLowerCase() : '';
+            const voucherDocs = documents.filter(d => {
+                const matchType = (d.type === 'vouchers');
+                const matchYear = (!filterYearVouch || String(d.yearStr) === String(filterYearVouch));
+                const matchText = ((d.voucherNo && d.voucherNo.toLowerCase().includes(searchVoucher)) || (d.voucherMaker && d.voucherMaker.toLowerCase().includes(searchVoucher)) || (d.voucherPayee && d.voucherPayee.toLowerCase().includes(searchVoucher)) || (d.voucherProject && d.voucherProject.toLowerCase().includes(searchVoucher)) || (d.voucherCategory && d.voucherCategory.toLowerCase().includes(searchVoucher)));
+                return matchType && matchYear && matchText;
+            }).sort((a, b) => new Date(b.voucherDate || 0) - new Date(a.voucherDate || 0));
+
+            document.getElementById('vouchersTableBody').innerHTML = voucherDocs.length ? voucherDocs.map(d => `
+                <tr class="hover:bg-gray-50">
+                    <td class="p-3 font-bold text-rose-600">ปีงบฯ ${d.yearStr || '-'}</td>
+                    <td class="p-3 text-xs text-gray-600">${formatThaiDate(d.voucherDate)}</td>
+                    <td class="p-3 text-xs"><span class="font-bold text-rose-700">${d.voucherNo}</span><br><span class="text-gray-400">ผู้จัดทำ: ${d.voucherMaker}</span></td>
+                    <td class="p-3">
+                        <span class="inline-block bg-rose-100 text-rose-800 text-[10px] px-2 py-0.5 rounded-full font-semibold mb-1">${d.voucherCategory}</span>
+                        <div class="font-medium text-gray-800">${d.voucherProject}</div>
+                    </td>
+                    <td class="p-3 text-gray-800">${d.voucherPayee}</td>
+                    <td class="p-3 text-right font-bold text-rose-700">${Number(d.voucherAmount || 0).toLocaleString('th-TH', {minimumFractionDigits: 2})}</td>
+                    <td class="p-3 text-center">${getActionButtons(d)}</td>
+                </tr>
+            `).join('') : `<tr><td colspan="7" class="p-6 text-center text-gray-400">ไม่พบข้อมูลงานฎีกาสำหรับปีนี้</td></tr>`;
+
+            // 9. Vouchers Summary & Dashboard Data Rendering (กรองตามปีงบประมาณที่เลือกในหน้าสรุป)
+            const summaryYear = document.getElementById('filterSummaryYearVouchers').value;
+            const allVouchers = documents.filter(d => {
+                const matchType = (d.type === 'vouchers');
+                const matchYear = (!summaryYear || String(d.yearStr) === String(summaryYear));
+                return matchType && matchYear;
+            }).sort((a, b) => new Date(b.voucherDate || 0) - new Date(a.voucherDate || 0));
+
+            let grandTotal = 0;
+            const categorySummary = {};
+            allVouchers.forEach(v => {
+                const cat = v.voucherCategory || 'ไม่ระบุประเภท';
+                const amt = parseFloat(v.voucherAmount || 0);
+                grandTotal += amt;
+                if (!categorySummary[cat]) {
+                    categorySummary[cat] = { count: 0, total: 0 };
+                }
+                categorySummary[cat].count += 1;
+                categorySummary[cat].total += amt;
+            });
+
+            document.getElementById('vouchStatTotal').innerText = allVouchers.length;
+            document.getElementById('vouchStatGrandTotal').innerText = `${grandTotal.toLocaleString('th-TH', {minimumFractionDigits: 2})} บาท`;
+
+            const summaryTbody = document.getElementById('vouchersSummaryTableBody');
+            const summaryKeys = Object.keys(categorySummary);
+            summaryTbody.innerHTML = summaryKeys.length ? summaryKeys.map(cat => `
+                <tr class="hover:bg-gray-50">
+                    <td class="p-3 font-medium text-gray-800">${cat}</td>
+                    <td class="p-3 text-center font-semibold text-gray-600">${categorySummary[cat].count} รายการ</td>
+                    <td class="p-3 text-right font-bold text-rose-700">${categorySummary[cat].total.toLocaleString('th-TH', {minimumFractionDigits: 2})} บาท</td>
+                </tr>
+            `).join('') : `<tr><td colspan="3" class="p-6 text-center text-gray-400">ยังไม่มีข้อมูลสำหรับสรุปงานฎีกาในปีนี้</td></tr>`;
+
+            const recentTbody = document.getElementById('vouchersRecentTableBody');
+            recentTbody.innerHTML = allVouchers.length ? allVouchers.slice(0, 5).map(v => `
+                <tr class="hover:bg-gray-50">
+                    <td class="p-3 font-bold text-rose-600 text-xs">${v.voucherNo}</td>
+                    <td class="p-3">
+                        <div class="font-medium text-gray-800 text-xs truncate max-w-xs">${v.voucherProject}</div>
+                        <div class="text-[10px] text-gray-500">ผู้รับ: ${v.voucherPayee}</div>
+                    </td>
+                    <td class="p-3 text-right font-bold text-rose-700 text-xs">${Number(v.voucherAmount || 0).toLocaleString('th-TH', {minimumFractionDigits: 2})}</td>
+                </tr>
+            `).join('') : `<tr><td colspan="3" class="p-6 text-center text-gray-400">ไม่มีรายการงานฎีกาในปีนี้</td></tr>`;
+
+            // 10. All Docs Table
+            document.getElementById('allDocsTableBody').innerHTML = documents.length ? documents.map(d => `
+                <tr class="hover:bg-gray-50">
+                    <td class="p-3 uppercase text-xs font-semibold text-gray-500">${d.type}</td>
+                    <td class="p-3 font-bold text-gray-700">${d.yearStr || '-'}</td>
+                    <td class="p-3 font-bold text-blue-600">${formatRegDisplay(d)} <span class="font-normal text-xs text-gray-500">(${d.docNumber || d.formCode || d.voucherNo || '-'})</span></td>
+                    <td class="p-3"><div class="font-medium text-gray-800">${d.subject || d.formName || d.voucherProject || '-'}</div></td>
+                    <td class="p-3">${getStatusBadge(d.status)}</td>
+                    <td class="p-3 text-center">${getFileAttachmentButton(d)}</td>
+                    <td class="p-3 text-center">${getActionButtons(d)}</td>
+                </tr>
+            `).join('') : `<tr><td colspan="7" class="p-6 text-center text-gray-400">ยังไม่มีเอกสารในระบบทั้งหมด</td></tr>`;
+
+            // 11. Overdue Table
+            const today = new Date().toISOString().split('T')[0];
+            const overdueDocs = documents.filter(d => d.dueDate && d.dueDate < today && d.status !== 'ดำเนินการแล้ว' && d.status !== 'เสร็จสิ้น');
+            document.getElementById('overdueTableBody').innerHTML = overdueDocs.length ? overdueDocs.map(d => `
+                <tr class="hover:bg-red-50/50">
+                    <td class="p-3 uppercase text-xs font-semibold text-gray-500">${d.type}</td>
+                    <td class="p-3 font-bold text-red-600">${formatRegDisplay(d)}</td>
+                    <td class="p-3"><div class="font-medium text-gray-800">${d.subject || '-'}</div></td>
+                    <td class="p-3 text-gray-600">${d.assignee || '-'}</td>
+                    <td class="p-3 text-red-600 font-semibold">${formatThaiDate(d.dueDate)}</td>
+                    <td class="p-3 text-center">${getFileAttachmentButton(d)}</td>
+                    <td class="p-3 text-center">${getActionButtons(d)}</td>
+                </tr>
+            `).join('') : `<tr><td colspan="6" class="p-6 text-center text-gray-400">ไม่มีงานค้างเกินกำหนดในขณะนี้</td></tr>`;
+        }
+
+        function openDocumentModal() {
+            if (currentUser.role !== 'admin' || currentUser.name !== 'นิศาชล คงดี') {
+                Swal.fire('ไม่อนุญาต', 'คุณไม่มีสิทธิ์เพิ่มข้อมูล (เฉพาะผู้ดูแลระบบ นิศาชล คงดี เท่านั้น)', 'warning');
+                return;
+            }
+            document.getElementById('modalTitle').innerText = 'ลงทะเบียนหนังสือใหม่';
+            document.getElementById('documentForm').reset();
+            document.getElementById('editDocId').value = '';
+            document.getElementById('docType').value = 'incoming';
+            document.getElementById('selectedYear').value = '2569';
+            toggleFormFields();
+            document.getElementById('documentModal').classList.remove('hidden');
+        }
+
+        function closeDocumentModal() {
+            document.getElementById('documentModal').classList.add('hidden');
+        }
+
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+            });
+        }
+
+        async function saveDocument(event) {
+            event.preventDefault();
+            if (currentUser.role !== 'admin' || currentUser.name !== 'นิศาชล คงดี') return;
+
+            const editId = document.getElementById('editDocId').value;
+            const type = document.getElementById('docType').value;
+            const selectedYearStr = document.getElementById('selectedYear').value;
+            const fileInput = document.getElementById('docFile');
+
+            let fileName = '';
+            let fileData = '';
+
+            if (fileInput && fileInput.files && fileInput.files[0]) {
+                Swal.fire({
+                    title: 'กำลังอัปโหลดไฟล์แนบ...',
+                    text: 'กรุณารอสักครู่ ระบบกำลังส่งไฟล์ขึ้น Google Drive',
+                    allowOutsideClick: false,
+                    didOpen: () => { Swal.showLoading(); }
+                });
+
+                const file = fileInput.files[0];
+                fileName = file.name;
+
+                try {
+                    const base64String = await fileToBase64(file);
+                    const base64Data = base64String.split(',')[1];
+
+                    const response = await fetch(GOOGLE_SCRIPT_URL, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            fileData: base64Data,
+                            mimeType: file.type,
+                            fileName: fileName
+                        })
+                    });
+
+                    const result = await response.json();
+                    if (result.status === 'success') {
+                        fileData = result.fileUrl;
+                    }
+                } catch (error) {
+                    console.error('Fetch Error:', error);
+                }
+            }
+
+            const docNumber = document.getElementById('fieldDocNumber') ? document.getElementById('fieldDocNumber').value : '';
+            const docDate = document.getElementById('fieldDocDate') ? document.getElementById('fieldDocDate').value : '';
+            const subject = document.getElementById('fieldSubject') ? document.getElementById('fieldSubject').value : '';
+            const sender = document.getElementById('fieldSender') ? document.getElementById('fieldSender').value : '';
+            const status = document.getElementById('fieldStatus') ? document.getElementById('fieldStatus').value : 'ลงรับแล้ว';
+            
+            let centralRegNo = '-';
+            let receiveDate = '-';
+            let urgency = 'ปกติ';
+
+            if (type === 'incoming') {
+                centralRegNo = document.getElementById('fieldCentralReg').value;
+                receiveDate = document.getElementById('fieldReceiveDate').value;
+                urgency = document.getElementById('fieldUrgency').value;
+            }
+
+            const assignee = document.getElementById('docAssignee') ? document.getElementById('docAssignee').value : 'นิศาชล คงดี';
+            const dueDate = document.getElementById('docDueDate') ? document.getElementById('docDueDate').value : '';
+
+            const memoWork = document.getElementById('fieldMemoWork') ? document.getElementById('fieldMemoWork').value : (type === 'forms' ? document.getElementById('fieldFormWork').value : '');
+            const formCode = document.getElementById('fieldFormCode') ? document.getElementById('fieldFormCode').value : '';
+            const formName = document.getElementById('fieldFormName') ? document.getElementById('fieldFormName').value : '';
+
+            const voucherDate = document.getElementById('fieldVoucherDate') ? document.getElementById('fieldVoucherDate').value : '';
+            const voucherMaker = document.getElementById('fieldVoucherMaker') ? document.getElementById('fieldVoucherMaker').value : '';
+            const voucherNo = document.getElementById('fieldVoucherNo') ? document.getElementById('fieldVoucherNo').value : '';
+            const voucherCategory = document.getElementById('fieldVoucherCategory') ? document.getElementById('fieldVoucherCategory').value : '';
+            const voucherPayee = document.getElementById('fieldVoucherPayee') ? document.getElementById('fieldVoucherPayee').value : '';
+            const voucherAmount = document.getElementById('fieldVoucherAmount') ? parseFloat(document.getElementById('fieldVoucherAmount').value || 0) : 0;
+            const voucherProject = document.getElementById('fieldVoucherProject') ? document.getElementById('fieldVoucherProject').value : '';
+
+            Swal.fire({
+                title: 'กำลังบันทึกข้อมูล...',
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            if (editId) {
+                const updatePayload = {
+                    type: type,
+                    doc_number: docNumber,
+                    doc_date: docDate,
+                    subject: subject,
+                    sender: sender,
+                    status: status,
+                    assignee: assignee,
+                    due_date: dueDate,
+                    year_str: selectedYearStr,
+                    central_reg_no: type === 'incoming' ? centralRegNo : '-',
+                    receive_date: type === 'incoming' ? receiveDate : '-',
+                    urgency: type === 'incoming' ? urgency : 'ปกติ',
+                    memo_work: memoWork,
+                    form_code: formCode,
+                    form_name: formName,
+                    voucher_date: voucherDate,
+                    voucher_maker: voucherMaker,
+                    voucher_no: voucherNo,
+                    voucher_category: voucherCategory,
+                    voucher_payee: voucherPayee,
+                    voucher_amount: voucherAmount,
+                    voucher_project: voucherProject
+                };
+                if (fileName && fileData) {
+                    updatePayload.file_name = fileName;
+                    updatePayload.file_url = fileData;
+                }
+
+                const { error } = await supabaseClient
+                    .from('documents')
+                    .update(updatePayload)
+                    .eq('id', editId);
+
+                if (error) {
+                    Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
+                } else {
+                    Swal.fire('สำเร็จ', 'อัปเดตข้อมูลเรียบร้อยแล้ว', 'success');
+                    closeDocumentModal();
+                    loadDocumentsFromSupabase();
+                }
+            } else {
+                const nextRegNo = type === 'incoming' ? getNextRegNoForYear('incoming', selectedYearStr) : '-';
+                const newId = Date.now();
+
+                const insertPayload = {
+                    id: newId,
+                    type: type,
+                    reg_no: nextRegNo,
+                    year_str: selectedYearStr,
+                    central_reg_no: type === 'incoming' ? centralRegNo : '-',
+                    receive_date: type === 'incoming' ? receiveDate : '-',
+                    sender: sender,
+                    urgency: type === 'incoming' ? urgency : 'ปกติ',
+                    doc_number: docNumber,
+                    doc_date: docDate,
+                    subject: subject,
+                    status: status,
+                    assignee: assignee,
+                    due_date: dueDate,
+                    ack_status: 'รอรับทราบ',
+                    ack_time: '-',
+                    file_name: fileName || '',
+                    file_url: fileData || '',
+                    memo_work: memoWork,
+                    form_code: formCode,
+                    form_name: formName,
+                    voucher_date: voucherDate,
+                    voucher_maker: voucherMaker,
+                    voucher_no: voucherNo,
+                    voucher_category: voucherCategory,
+                    voucher_payee: voucherPayee,
+                    voucher_amount: voucherAmount,
+                    voucher_project: voucherProject
+                };
+
+                const { error } = await supabaseClient
+                    .from('documents')
+                    .insert([insertPayload]);
+
+                if (error) {
+                    Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
+                } else {
+                    Swal.fire('สำเร็จ', 'บันทึกข้อมูลเรียบร้อยแล้ว', 'success');
+                    closeDocumentModal();
+                    loadDocumentsFromSupabase();
+                }
+            }
+        }
+
+        function editDoc(id) {
+            if (currentUser.role !== 'admin' || currentUser.name !== 'นิศาชล คงดี') {
+                Swal.fire('ไม่อนุญาต', 'คุณไม่มีสิทธิ์แก้ไขข้อมูล', 'warning');
+                return;
+            }
+            const doc = documents.find(d => d.id === id);
+            if (!doc) return;
+
+            document.getElementById('modalTitle').innerText = 'แก้ไขข้อมูล';
+            document.getElementById('editDocId').value = doc.id;
+            document.getElementById('docType').value = doc.type;
+            document.getElementById('selectedYear').value = doc.yearStr || '2569';
+            toggleFormFields();
+
+            setTimeout(() => {
+                if (document.getElementById('fieldDocNumber')) document.getElementById('fieldDocNumber').value = doc.docNumber || '';
+                if (document.getElementById('fieldDocDate')) document.getElementById('fieldDocDate').value = doc.docDate || '';
+                if (document.getElementById('fieldSubject')) document.getElementById('fieldSubject').value = doc.subject || '';
+                if (document.getElementById('fieldSender')) document.getElementById('fieldSender').value = doc.sender || '';
+                if (document.getElementById('fieldStatus')) document.getElementById('fieldStatus').value = doc.status || 'ลงรับแล้ว';
+                if (document.getElementById('fieldCentralReg')) document.getElementById('fieldCentralReg').value = doc.centralRegNo || '';
+                if (document.getElementById('fieldReceiveDate')) document.getElementById('fieldReceiveDate').value = doc.receiveDate || '';
+                if (document.getElementById('fieldUrgency')) document.getElementById('fieldUrgency').value = doc.urgency || 'ปกติ';
+                if (document.getElementById('docAssignee')) document.getElementById('docAssignee').value = doc.assignee || '';
+                if (document.getElementById('docDueDate')) document.getElementById('docDueDate').value = doc.dueDate || '';
+                if (document.getElementById('fieldMemoWork')) document.getElementById('fieldMemoWork').value = doc.memoWork || '';
+                if (document.getElementById('fieldFormWork')) document.getElementById('fieldFormWork').value = doc.memoWork || '';
+                if (document.getElementById('fieldFormCode')) document.getElementById('fieldFormCode').value = doc.formCode || '';
+                if (document.getElementById('fieldFormName')) document.getElementById('fieldFormName').value = doc.formName || '';
+                if (document.getElementById('fieldVoucherDate')) document.getElementById('fieldVoucherDate').value = doc.voucherDate || '';
+                if (document.getElementById('fieldVoucherMaker')) document.getElementById('fieldVoucherMaker').value = doc.voucherMaker || '';
+                if (document.getElementById('fieldVoucherNo')) document.getElementById('fieldVoucherNo').value = doc.voucherNo || '';
+                if (document.getElementById('fieldVoucherCategory')) document.getElementById('fieldVoucherCategory').value = doc.voucherCategory || '';
+                if (document.getElementById('fieldVoucherPayee')) document.getElementById('fieldVoucherPayee').value = doc.voucherPayee || '';
+                if (document.getElementById('fieldVoucherAmount')) document.getElementById('fieldVoucherAmount').value = doc.voucherAmount || 0;
+                if (document.getElementById('fieldVoucherProject')) document.getElementById('fieldVoucherProject').value = doc.voucherProject || '';
+            }, 50);
+
+            document.getElementById('documentModal').classList.remove('hidden');
+        }
+
+        function deleteDoc(id) {
+            if (currentUser.role !== 'admin' || currentUser.name !== 'นิศาชล คงดี') {
+                Swal.fire('ไม่อนุญาต', 'คุณไม่มีสิทธิ์ลบข้อมูล', 'warning');
+                return;
+            }
+            Swal.fire({
+                title: 'ยืนยันการลบ?',
+                text: 'คุณต้องการลบรายการนี้ใช่หรือไม่',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonText: 'ยกเลิก',
+                confirmButtonText: 'ยืนยันลบ'
+            }).then(async (result) => {
+                if (result.isConfirmed) {
+                    const { error } = await supabaseClient
+                        .from('documents')
+                        .delete()
+                        .eq('id', id);
+
+                    if (error) {
+                        Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
+                    } else {
+                        loadDocumentsFromSupabase();
+                        Swal.fire('ลบสำเร็จ', 'รายการถูกลบออกจากระบบแล้ว', 'success');
+                    }
+                }
+            });
+        }
+
+        function viewDoc(id) {
+            const doc = documents.find(d => d.id === id);
+            if (!doc) return;
+
+            let extraHtml = '';
+            if (doc.type === 'memos') {
+                extraHtml = `<p><b>ปีงบประมาณ:</b> ${doc.yearStr || '-'}</p><p><b>งาน:</b> ${doc.memoWork || '-'}</p>`;
+            } else if (doc.type === 'forms') {
+                extraHtml = `<p><b>งาน:</b> ${doc.memoWork || '-'}</p><p><b>เลขที่แบบ:</b> ${doc.formCode || '-'}</p><p><b>ชื่อแบบฟอร์ม:</b> ${doc.formName || '-'}</p>`;
+            } else if (doc.type === 'vouchers') {
+                extraHtml = `<p><b>ปีงบประมาณ:</b> ${doc.yearStr || '-'}</p><p><b>วันที่จัดทำ:</b> ${formatThaiDate(doc.voucherDate)}</p><p><b>ผู้จัดทำ:</b> ${doc.voucherMaker || '-'}</p><p><b>เลขที่ผู้เบิก:</b> ${doc.voucherNo || '-'}</p><p><b>ประเภทฎีกา:</b> ${doc.voucherCategory || '-'}</p><p><b>ผู้รับเงิน:</b> ${doc.voucherPayee || '-'}</p><p><b>จำนวนเงินขอเบิก:</b> ${Number(doc.voucherAmount || 0).toLocaleString('th-TH', {minimumFractionDigits: 2})} บาท</p><p><b>ชื่อโครงการ:</b> ${doc.voucherProject || '-'}</p>`;
+            }
+
+            Swal.fire({
+                title: `รายละเอียดเอกสาร (${doc.type.toUpperCase()})`,
+                html: `
+                    <div class="text-left space-y-2 text-sm bg-gray-50 p-4 rounded-xl border border-gray-200">
+                        ${doc.regNo && doc.regNo !== '-' ? `<p><b>เลขรับกองช่าง:</b> ${doc.regNo} - ${doc.yearStr}</p>` : (doc.type !== 'memos' && doc.type !== 'vouchers' && doc.yearStr ? `<p><b>ปี:</b> ${doc.yearStr}</p>` : '')}
+                        ${extraHtml}
+                        ${doc.docNumber ? `<p><b>เลขที่หนังสือ:</b> ${doc.docNumber} (ลงวันที่ ${formatThaiDate(doc.docDate)})</p>` : ''}
+                        ${doc.subject ? `<p><b>เรื่อง:</b> ${doc.subject}</p>` : ''}
+                        ${doc.sender ? `<p><b>ผู้ส่ง/ผู้รับ/เรียน:</b> ${doc.sender}</p>` : ''}
+                        ${doc.status ? `<p><b>สถานะดำเนินการ:</b> <span class="text-blue-600 font-semibold">${doc.status}</span></p>` : ''}
+                        ${doc.assignee ? `<p><b>ผู้รับผิดชอบ:</b> ${doc.assignee}</p>` : ''}
+                        <div class="pt-2 border-t border-gray-200 flex items-center justify-between">
+                            <span><b>ไฟล์แนบ:</b> ${doc.fileName || 'ไม่มีเอกสารแนบ'}</span>
+                            ${doc.fileData && doc.fileData.trim() !== '' ? `<a href="${doc.fileData}" target="_blank" class="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium hover:bg-blue-700 transition"><i class="fa-solid fa-external-link-alt mr-1"></i> เปิดดูไฟล์</a>` : ''}
+                        </div>
+                    </div>
+                `,
+                confirmButtonText: 'ปิด'
+            });
+        }
+
+        async function acknowledgeDoc(id) {
+            const doc = documents.find(d => d.id === id);
+            if (doc) {
+                const now = new Date();
+                const ackTimeStr = `${now.getDate()} ม.ค. ${now.getFullYear()} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+                
+                const { error } = await supabaseClient
+                    .from('documents')
+                    .update({
+                        ack_status: 'รับทราบแล้ว',
+                        ack_time: ackTimeStr,
+                        status: 'กำลังดำเนินการ'
+                    })
+                    .eq('id', id);
+
+                if (error) {
+                    Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
+                } else {
+                    loadDocumentsFromSupabase();
+                    Swal.fire('สำเร็จ', 'กดรับทราบงานเรียบร้อยแล้ว', 'success');
+                }
+            }
+        }
+
+        function updateDocStatusPrompt(id) {
+            const doc = documents.find(d => d.id === id);
+            if (!doc) return;
+
+            Swal.fire({
+                title: 'เปลี่ยนสถานะการดำเนินงาน',
+                input: 'select',
+                inputOptions: {
+                    'รอรับทราบ': 'รอรับทราบ',
+                    'ลงรับแล้ว': 'ลงรับแล้ว',
+                    'ออกเอกสาร': 'ออกเอกสาร',
+                    'เสนอเซนต์': 'เสนอเซนต์',
+                    'กำลังดำเนินการ': 'กำลังดำเนินการ',
+                    'ดำเนินการแล้ว': 'ดำเนินการแล้ว',
+                    'เสร็จสิ้น': 'เสร็จสิ้น'
+                },
+                inputValue: doc.status,
+                showCancelButton: true,
+                confirmButtonText: 'บันทึก',
+                cancelButtonText: 'ยกเลิก'
+            }).then(async (result) => {
+                if (result.isConfirmed && result.value) {
+                    const { error } = await supabaseClient
+                        .from('documents')
+                        .update({ status: result.value })
+                        .eq('id', id);
+
+                    if (error) {
+                        Swal.fire('เกิดข้อผิดพลาด', error.message, 'error');
+                    } else {
+                        loadDocumentsFromSupabase();
+                        Swal.fire('สำเร็จ', 'อัปเดตสถานะเรียบร้อยแล้ว', 'success');
+                    }
+                }
+            });
+        }
+
+        function excelDateToISOString(excelDate) {
+            if (!excelDate) return new Date().toISOString().split('T')[0];
+            if (typeof excelDate === 'string' && excelDate.includes('-')) {
+                let parts = excelDate.split('-');
+                let y = parseInt(parts[0]);
+                if (y > 2400) {
+                    y -= 543;
+                    return `${y}-${parts[1]}-${parts[2]}`;
+                }
+                return excelDate;
+            }
+            const num = parseFloat(excelDate);
+            if (!isNaN(num)) {
+                const utc_days = Math.floor(num - 25569);
+                const utc_value = utc_days * 86400;
+                const date_info = new Date(utc_value * 1000);
+                const year = date_info.getFullYear();
+                const month = String(date_info.getMonth() + 1).padStart(2, '0');
+                const day = String(date_info.getDate()).padStart(2, '0');
+                return `${year}-${month}-${day}`;
+            }
+            return new Date().toISOString().split('T')[0];
+        }
+
+        function triggerExcelImport(type) {
+            if (currentUser.role !== 'admin' || currentUser.name !== 'นิศาชล คงดี') {
+                Swal.fire('ไม่อนุญาต', 'เฉพาะผู้ดูแลระบบเท่านั้นที่มีสิทธิ์นำเข้าข้อมูล', 'warning');
+                return;
+            }
+            currentImportType = type;
+            document.getElementById('globalExcelFileInput').click();
+        }
+
+        async function importExcelData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const rows = XLSX.utils.sheet_to_json(worksheet);
+
+                    if (!rows || rows.length === 0) {
+                        Swal.fire('แจ้งเตือน', 'ไม่พบข้อมูลภายในไฟล์ Excel ที่เลือก', 'warning');
+                        return;
+                    }
+
+                    Swal.fire({
+                        title: 'กำลังนำเข้าข้อมูล...',
+                        text: `พบข้อมูลทั้งหมด ${rows.length} รายการ กำลังบันทึกลงฐานข้อมูล`,
+                        allowOutsideClick: false,
+                        didOpen: () => { Swal.showLoading(); }
+                    });
+
+                    let successCount = 0, errorCount = 0;
+                    let selectedYearStr = '2569';
+                    if (currentImportType === 'incoming') selectedYearStr = document.getElementById('filterYearIncoming').value || '2569';
+                    else if (currentImportType === 'outgoing') selectedYearStr = document.getElementById('filterYearOutgoing').value || '2569';
+                    else if (currentImportType === 'orders') selectedYearStr = document.getElementById('filterYearOrders').value || '2569';
+                    else if (currentImportType === 'memos') selectedYearStr = document.getElementById('filterYearMemos').value || '2569';
+                    else if (currentImportType === 'vouchers') selectedYearStr = document.getElementById('filterYearVouchers').value || '2569';
+
+                    for (let row of rows) {
+                        const newId = Date.now() + Math.floor(Math.random() * 10000);
+                        let newDocObj = { id: newId, type: currentImportType, year_str: selectedYearStr, status: 'ลงรับแล้ว', assignee: 'นิศาชล คงดี', due_date: '', ack_status: 'รอรับทราบ', ack_time: '-', file_name: '', file_url: '' };
+
+                        if (currentImportType === 'incoming') {
+                            newDocObj.reg_no = getNextRegNoForYear('incoming', selectedYearStr);
+                            newDocObj.central_reg_no = row['เลขรับส่วนกลาง'] || row['central_reg_no'] || '-';
+                            newDocObj.receive_date = excelDateToISOString(row['วันที่ลงรับ'] || row['receive_date']);
+                            newDocObj.doc_number = row['เลขที่หนังสือ'] || row['doc_number'] || '-';
+                            newDocObj.doc_date = excelDateToISOString(row['ลงวันที่'] || row['doc_date']);
+                            newDocObj.subject = row['เรื่อง'] || row['subject'] || 'ไม่มีชื่อเรื่อง';
+                            newDocObj.sender = row['ผู้ส่ง'] || row['sender'] || '-';
+                            newDocObj.urgency = row['ความเร่งด่วน'] || row['urgency'] || 'ปกติ';
+                        } else if (currentImportType === 'outgoing') {
+                            newDocObj.reg_no = '-';
+                            newDocObj.doc_number = row['เลขที่หนังสือส่ง'] || row['doc_number'] || '-';
+                            newDocObj.doc_date = excelDateToISOString(row['ลงวันที่'] || row['doc_date']);
+                            newDocObj.subject = row['เรื่อง'] || row['subject'] || 'ไม่มีชื่อเรื่อง';
+                            newDocObj.sender = row['ผู้รับ'] || row['sender'] || '-';
+                            newDocObj.status = row['สถานะ'] || row['status'] || 'ออกเอกสาร';
+                        } else if (currentImportType === 'orders') {
+                            newDocObj.reg_no = '-';
+                            newDocObj.doc_number = row['เลขที่คำสั่ง'] || row['doc_number'] || '-';
+                            newDocObj.doc_date = excelDateToISOString(row['ลงวันที่'] || row['doc_date']);
+                            newDocObj.subject = row['เรื่อง'] || row['subject'] || 'ไม่มีชื่อเรื่อง';
+                            newDocObj.status = row['สถานะ'] || row['status'] || 'ออกเอกสาร';
+                        } else if (currentImportType === 'memos') {
+                            newDocObj.reg_no = '-';
+                            newDocObj.memo_work = row['งาน'] || row['memo_work'] || 'งานสารบรรณ';
+                            newDocObj.doc_number = row['เลขที่บันทึก'] || row['doc_number'] || '-';
+                            newDocObj.doc_date = excelDateToISOString(row['ลงวันที่'] || row['doc_date']);
+                            newDocObj.sender = row['เรียน'] || row['sender'] || '-';
+                            newDocObj.subject = row['เรื่อง'] || row['subject'] || 'ไม่มีชื่อเรื่อง';
+                            newDocObj.status = row['สถานะ'] || row['status'] || 'ออกเอกสาร';
+                        } else if (currentImportType === 'vouchers') {
+                            newDocObj.reg_no = '-';
+                            newDocObj.voucher_date = excelDateToISOString(row['วันที่จัดทำ'] || row['voucher_date']);
+                            newDocObj.voucher_maker = row['ผู้จัดทำ'] || row['voucher_maker'] || '-';
+                            newDocObj.voucher_no = row['เลขที่ผู้เบิก'] || row['voucher_no'] || '-';
+                            newDocObj.voucher_category = row['ประเภทฎีกา'] || row['voucher_category'] || '-';
+                            newDocObj.voucher_payee = row['ผู้รับเงิน'] || row['voucher_payee'] || '-';
+                            newDocObj.voucher_amount = parseFloat(row['จำนวนเงิน'] || row['voucher_amount'] || 0);
+                            newDocObj.voucher_project = row['ชื่อโครงการ'] || row['voucher_project'] || '-';
+                        }
+
+                        const { error } = await supabaseClient.from('documents').insert([newDocObj]);
+                        if (error) {
+                            errorCount++;
+                        } else {
+                            successCount++;
+                        }
+                    }
+
+                    event.target.value = '';
+                    loadDocumentsFromSupabase();
+
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'นำเข้าข้อมูลสำเร็จ',
+                        text: `นำเข้าสำเร็จ ${successCount} รายการ ${errorCount > 0 ? '(ล้มเหลว ' + errorCount + ' รายการ)' : ''}`
+                    });
+
+                } catch (err) {
+                    console.error(err);
+                    Swal.fire('เกิดข้อผิดพลาด', 'ไม่สามารถอ่านไฟล์ Excel ได้ กรุณาตรวจสอบรูปแบบไฟล์', 'error');
+                    event.target.value = '';
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function exportCSV(type) {
+            const columnsByType = {
+                incoming: [
+                    ['เลขรับกองช่าง', d => d.regNo],
+                    ['เลขรับส่วนกลาง', d => d.centralRegNo],
+                    ['วันที่ลงรับ', d => d.receiveDate],
+                    ['เลขที่หนังสือ', d => d.docNumber],
+                    ['ลงวันที่', d => d.docDate],
+                    ['เรื่อง', d => d.subject],
+                    ['ผู้ส่ง', d => d.sender],
+                    ['ความเร่งด่วน', d => d.urgency],
+                    ['สถานะ', d => d.status]
+                ],
+                outgoing: [
+                    ['เลขที่หนังสือส่ง', d => d.docNumber],
+                    ['ลงวันที่', d => d.docDate],
+                    ['เรื่อง', d => d.subject],
+                    ['ผู้รับ', d => d.sender],
+                    ['สถานะ', d => d.status]
+                ],
+                orders: [
+                    ['เลขที่คำสั่ง', d => d.docNumber],
+                    ['ลงวันที่', d => d.docDate],
+                    ['เรื่อง', d => d.subject],
+                    ['สถานะ', d => d.status]
+                ],
+                memos: [
+                    ['งาน', d => d.memoWork],
+                    ['เลขที่บันทึก', d => d.docNumber],
+                    ['ลงวันที่', d => d.docDate],
+                    ['เรียน', d => d.sender],
+                    ['เรื่อง', d => d.subject],
+                    ['สถานะ', d => d.status]
+                ],
+                vouchers: [
+                    ['วันที่จัดทำ', d => d.voucherDate],
+                    ['ผู้จัดทำ', d => d.voucherMaker],
+                    ['เลขที่ผู้เบิก', d => d.voucherNo],
+                    ['ประเภทฎีกา', d => d.voucherCategory],
+                    ['ผู้รับเงิน', d => d.voucherPayee],
+                    ['จำนวนเงิน', d => d.voucherAmount],
+                    ['ชื่อโครงการ', d => d.voucherProject]
+                ]
+            };
+
+            const columns = columnsByType[type];
+            if (!columns) {
+                Swal.fire('แจ้งเตือน', 'ไม่พบรูปแบบการส่งออกของทะเบียนนี้', 'warning');
+                return;
+            }
+
+            const filtered = documents.filter(d => d.type === type);
+            if (!filtered.length) {
+                Swal.fire('แจ้งเตือน', 'ไม่มีข้อมูลสำหรับส่งออก', 'info');
+                return;
+            }
+
+            const escapeCSV = value => {
+                const text = value === null || value === undefined ? '' : String(value);
+                return '"' + text.replace(/"/g, '""') + '"';
+            };
+            const rows = [
+                columns.map(([heading]) => escapeCSV(heading)).join(','),
+                ...filtered.map(record => columns.map(([, getter]) => escapeCSV(getter(record))).join(','))
+            ];
+            const csvContent = '\uFEFF' + rows.join('\r\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `saraban_${type}_${new Date().toISOString().slice(0, 10)}.csv`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
