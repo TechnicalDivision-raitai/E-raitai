@@ -36,15 +36,6 @@ export const UserManualModal: React.FC<UserManualModalProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <a
-            href="/standalone_raitai_engineering.html"
-            download="ระบบบริหารจัดการงานโครงการกองช่าง_อบตไร่ใต้.html"
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold shadow-xs transition"
-            title="ดาวน์โหลดเป็นไฟล์ HTML เดียว ใช้งานได้ทันทีไม่ต้องติดตั้งโปรแกรม"
-          >
-            <Download className="w-4 h-4" />
-            <span>ดาวน์โหลดไฟล์ HTML เดียว (.html)</span>
-          </a>
 
           <button
             onClick={downloadSampleExcelTemplate}

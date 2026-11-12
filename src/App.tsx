@@ -26,7 +26,8 @@ import {
   resetToDefaultProjects,
   clearAllProjects,
   getStoredUser,
-  saveStoredUser
+  saveStoredUser,
+  clearStoredUser
 } from './services/storage';
 import {
   fetchProjectsFromGoogleSheet,
@@ -34,12 +35,12 @@ import {
   getAutoSyncEnabled
 } from './services/googleSync';
 import { CURRENT_USER, STAFF_USER } from './data/mockData';
-import { getCurrentThaiFiscalYear, calculateProjectProgress } from './utils/thaiDate';
+import { getCurrentThaiFiscalYear, calculateProjectProgress, isProjectCompletedOrDisbursed } from './utils/thaiDate';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 
 export default function App() {
   const [projects, setProjects] = useState<Project[]>(() => getStoredProjects());
-  const [currentUser, setCurrentUser] = useState<UserProfile>(() => getStoredUser());
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => getStoredUser());
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
@@ -126,7 +127,7 @@ export default function App() {
 
   // Update a single project (for Acknowledge / status change)
   const handleUpdateSingleProject = (updated: Project) => {
-    if (currentUser.role !== 'admin') {
+    if (currentUser?.role !== 'admin') {
       Swal.fire('ไม่อนุญาต', 'สิทธิ์เจ้าหน้าที่ (Staff) ไม่สามารถเปลี่ยนสถานะหรือแก้ไขข้อมูลได้', 'error');
       return;
     }
@@ -143,7 +144,10 @@ export default function App() {
 
   // Handle Logout
   const handleLogout = () => {
+    clearStoredUser();
+    setCurrentUser(null);
     setIsLoginModalOpen(true);
+    showToast('ออกจากระบบเรียบร้อยแล้ว', 'info');
   };
 
   // Calculate available fiscal years (Requirement 10: แสดงปีปัจจุบันก่อน โดยอ้างอิงตามปีงบประมาณและแสดงเฉพาะปีที่มีข้อมูล หากมีการเพิ่มภายหลังให้แสดงในตัวกรองอัตโนมัติในทุกหมวด)
@@ -169,7 +173,7 @@ export default function App() {
 
   // Handle Save Project (Create / Update) - Requirement 4 & 7: Protected from staff, auto 12-step progress
   const handleSaveProject = (projectData: Project) => {
-    if (currentUser.role !== 'admin') {
+    if (currentUser?.role !== 'admin') {
       Swal.fire('ไม่อนุญาต', 'สิทธิ์เจ้าหน้าที่ (Staff) ไม่สามารถบันทึกหรือแก้ไขข้อมูลในระบบได้', 'error');
       return;
     }
@@ -208,7 +212,7 @@ export default function App() {
 
   // Handle Delete Project (Requirement 7: Admin only)
   const handleDeleteProject = (project: Project) => {
-    if (currentUser.role !== 'admin') {
+    if (currentUser?.role !== 'admin') {
       Swal.fire('ไม่อนุญาต', 'เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถลบข้อมูลโครงการได้', 'warning');
       return;
     }
@@ -242,7 +246,7 @@ export default function App() {
 
   // Handle Excel Import (Requirement 3: Upsert merge by projectCode/contractNo/name & preserve empty fields)
   const handleImportSuccess = (imported: Project[]) => {
-    if (currentUser.role !== 'admin') {
+    if (currentUser?.role !== 'admin') {
       Swal.fire('ไม่อนุญาต', 'เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถนำเข้าข้อมูลโครงการได้', 'warning');
       return;
     }
@@ -285,7 +289,7 @@ export default function App() {
 
   // Clear all projects to start fresh (Clean Slate Mode for real usage)
   const handleClearAllData = () => {
-    if (currentUser.role !== 'admin') {
+    if (currentUser?.role !== 'admin') {
       Swal.fire('ไม่อนุญาต', 'เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถล้างข้อมูลโครงการได้', 'warning');
       return;
     }
@@ -314,17 +318,7 @@ export default function App() {
     });
   };
 
-  const categoryNames: Record<string, string> = {
-    all: 'ทุกหมวดงบประมาณ',
-    regular_annual: 'งบประมาณรายจ่ายประจำปี',
-    central_fund: 'งบกลาง',
-    accumulated_fund: 'จ่ายขาดเงินสะสม',
-    advance_subsidy: 'เงินทุนสำรองเงินสะสม',
-    specific_subsidy: 'เงินอุดหนุนเฉพาะกิจ',
-    donation: 'เงินบริจาค/เงินช่วยเหลือ'
-  };
-
-  const currentCategoryTitle = filter.category ? categoryNames[filter.category] || 'ทะเบียนโครงการ' : 'ทะเบียนโครงการ';
+  const currentCategoryTitle = filter.category && filter.category !== 'all' ? filter.category : 'ทะเบียนโครงการทั้งหมด';
 
   const pageTitles: Record<string, string> = {
     dashboard: 'สรุปผลงานโครงการกองช่าง อบต.ไร่ใต้',
@@ -338,6 +332,36 @@ export default function App() {
     google_sheets: 'ฐานข้อมูลหลัก Google Sheet & คลังเอกสาร Drive',
     manual: 'คู่มือการใช้งานระบบ & สรุปผลการทดสอบ'
   };
+
+  // Mandatory Login Screen: If not logged in, force Login screen before accessing the system
+  if (!currentUser) {
+    return (
+      <div className="min-h-screen bg-slate-900 flex items-center justify-center font-['Kanit',sans-serif]">
+        {/* Toast Notification Container */}
+        {toast && (
+          <div className="fixed bottom-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-2xl shadow-xl border bg-white animate-in slide-in-from-bottom-3 duration-200">
+            {toast.type === 'success' && <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />}
+            {toast.type === 'error' && <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />}
+            {toast.type === 'info' && <Info className="w-5 h-5 text-blue-600 shrink-0" />}
+            <span className="text-xs font-semibold text-gray-800">{toast.message}</span>
+            <button
+              onClick={() => setToast(null)}
+              className="p-1 text-gray-400 hover:text-gray-600 rounded-lg ml-2"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
+        <LoginModal
+          isOpen={true}
+          onClose={() => {}}
+          onLoginSuccess={handleLoginSuccess}
+          canCancel={false}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col font-['Kanit',sans-serif] text-gray-800">
@@ -425,6 +449,8 @@ export default function App() {
             <VouchersSummaryView
               projects={projects}
               availableYears={availableYears}
+              selectedYear={filter.fiscalYear}
+              onSelectYear={yr => setFilter(prev => ({ ...prev, fiscalYear: yr }))}
               onSelectProject={(p: Project, tab?: number) => {
                 setSelectedProjectForDetail(p);
                 setSelectedDetailTab(tab || 1);
@@ -469,10 +495,10 @@ export default function App() {
             />
           )}
 
-          {/* 5. Overdue Tracker */}
+          {/* 5. Overdue Tracker (หยุดเตือนเมื่อโครงการเสร็จหรือเบิกจ่ายแล้ว) */}
           {currentTab === 'overdue' && (
             <ProjectTable
-              projects={projects}
+              projects={projects.filter(p => !isProjectCompletedOrDisbursed(p))}
               filter={{ ...filter, status: 'overdue' }}
               setFilter={setFilter}
               availableYears={availableYears}
@@ -547,7 +573,7 @@ export default function App() {
         </main>
       </div>
 
-      {/* Project Add / Edit Modal (6 categories) */}
+      {/* Project Add / Edit Modal (Dynamic categories) */}
       <ProjectModal
         isOpen={isProjectModalOpen}
         onClose={() => {
@@ -556,6 +582,7 @@ export default function App() {
         }}
         onSave={handleSaveProject}
         initialProject={projectToEdit}
+        existingCategories={Array.from(new Set(projects.map(p => p.budgetCategory).filter(Boolean)))}
       />
 
       {/* Project Official Details Modal (8 tabs, printable) */}
@@ -584,12 +611,16 @@ export default function App() {
         currentUser={currentUser}
       />
 
-      {/* Login Screen Modal (matching e-Saraban login flow) */}
+      {/* Login Screen Modal: Mandatory before access if not logged in */}
       <LoginModal
-        isOpen={isLoginModalOpen}
-        onClose={() => setIsLoginModalOpen(false)}
+        isOpen={!currentUser || isLoginModalOpen}
+        onClose={() => {
+          if (currentUser) {
+            setIsLoginModalOpen(false);
+          }
+        }}
         onLoginSuccess={handleLoginSuccess}
-        canCancel={true}
+        canCancel={Boolean(currentUser)}
       />
     </div>
   );

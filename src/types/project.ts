@@ -8,13 +8,7 @@ export type ProjectStatus =
   | 'completed'         // ดำเนินการแล้วเสร็จ (เบิกจ่ายเรียบร้อย)
   | 'overdue';          // เกินกำหนดสัญญา
 
-export type BudgetCategory =
-  | 'เงินสะสม'
-  | 'งบประมาณรายจ่าย'
-  | 'เงินอุดหนุนเฉพาะกิจ'
-  | 'เงินอุดหนุนทั่วไป'
-  | 'เงินกู้/งบกลาง'
-  | 'เงินบริจาค/อื่นๆ';
+export type BudgetCategory = string;
 
 export interface CommitteeMember {
   id: string;
@@ -110,6 +104,8 @@ export interface Project {
   refPriceDate?: string;
   refPrice?: number;
   torCommittees: CommitteeMember[];
+  torRemunerationPayee?: string;   // ผู้รับเงินค่าตอบแทนผู้จัดทำ TOR
+  torRemunerationAmount?: number;  // ยอดเงินค่าตอบแทนผู้จัดทำ TOR (บาท)
 
   // หมวด 3: คำสั่งควบคุมงานและตรวจรับ
   inspectOrderNo?: string;

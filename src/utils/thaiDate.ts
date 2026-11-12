@@ -204,3 +204,18 @@ export function calculateProjectProgress(p: any): number {
   const steps = countCompletedSteps(p);
   return Math.min(100, Math.round((steps / 12) * 100));
 }
+
+/**
+ * Checks if a project is completed or fully disbursed (stop overdue alert)
+ */
+export function isProjectCompletedOrDisbursed(p: any): boolean {
+  if (!p) return false;
+  if (p.status === 'completed') return true;
+  // If all disbursements are paid and there is at least one paid disbursement
+  if (p.disbursements && p.disbursements.length > 0) {
+    const hasDisbursements = p.disbursements.length > 0;
+    const allPaid = p.disbursements.every((d: any) => d.status === 'paid');
+    if (hasDisbursements && allPaid) return true;
+  }
+  return false;
+}

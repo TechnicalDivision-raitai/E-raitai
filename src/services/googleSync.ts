@@ -1,9 +1,9 @@
 import { Project, AttachmentFile } from '../types/project';
 
 export const DEFAULT_GOOGLE_SCRIPT_URL =
-  'https://script.google.com/macros/s/AKfycbyStljsOi5V1YVWAddO1hLihIZzur6GZ-WZ61EOYza7_DneqB72x1TYiuhiBbYjWKBh/exec';
+  'https://script.google.com/macros/s/AKfycbxyD9NaXWuYcsXJ-_Ki3E7DbzCL1KIhL7DW2HmdDWbiqkgHbe-wyOWxYnIMepV_JXWTCw/exec';
 
-const SCRIPT_URL_KEY = 'raitai_google_script_url_v6';
+const SCRIPT_URL_KEY = 'raitai_google_script_url_v7';
 const AUTO_SYNC_KEY = 'raitai_auto_sync_enabled_v6';
 const LAST_SYNC_KEY = 'raitai_last_sync_timestamp_v6';
 

@@ -12,7 +12,7 @@ import {
   HardHat
 } from 'lucide-react';
 import { Project, UserProfile } from '../types/project';
-import { getDaysRemaining } from '../utils/thaiDate';
+import { getDaysRemaining, isProjectCompletedOrDisbursed } from '../utils/thaiDate';
 import { FileSpreadsheet, Cloud } from 'lucide-react';
 
 interface HeaderProps {
@@ -51,13 +51,14 @@ export const Header: React.FC<HeaderProps> = ({
   const [showNotifications, setShowNotifications] = useState(false);
   const isAdmin = currentUser.role === 'admin';
 
-  // Generate notifications for overdue projects and projects expiring within 30 days
+  // Generate notifications for overdue projects and projects expiring within 30 days (หยุดเตือนเมื่อโครงการเสร็จหรือเบิกจ่ายแล้ว)
   const alerts = projects
+    .filter(p => !isProjectCompletedOrDisbursed(p))
     .map(p => {
       const remaining = getDaysRemaining(p.endDate);
       const isUrgent =
-        remaining.isOverdue ||
-        (remaining.days <= 30 && p.status !== 'completed' && p.endDate);
+        (remaining.isOverdue || (remaining.days <= 30 && remaining.days >= 0)) &&
+        Boolean(p.endDate);
 
       return {
         project: p,

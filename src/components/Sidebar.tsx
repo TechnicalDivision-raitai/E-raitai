@@ -20,6 +20,7 @@ import {
   Cloud
 } from 'lucide-react';
 import { UserProfile, Project } from '../types/project';
+import { isProjectCompletedOrDisbursed } from '../utils/thaiDate';
 
 interface SidebarProps {
   currentTab: string;
@@ -47,7 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   selectedCategory = 'all'
 }) => {
   const isAdmin = currentUser.role === 'admin';
-  const overdueCount = projects.filter(p => p.status === 'overdue').length;
+  const overdueCount = projects.filter(p => p.status === 'overdue' && !isProjectCompletedOrDisbursed(p)).length;
 
   // Requirement 5: ตัวเลขกล่องงานของฉันนับเฉพาะโครงการที่เริ่มดำเนินงานแล้วและยังไม่เสร็จ โดยคำนึงถึงผู้รับผิดชอบหรือผู้ควบคุมงาน
   const myInboxCount = projects.filter(p => {
@@ -164,61 +165,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </span>
           </button>
 
-          {/* Section: ทะเบียนแยกตามหมวดงบประมาณ */}
+          {/* Section: ทะเบียนแยกตามหมวดงบประมาณ (แสดงเฉพาะหมวดที่มีโครงการบันทึกอยู่) */}
           <div className="pt-3 pb-1 px-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
             ทะเบียนแยกตามหมวดงบ
           </div>
-
-          {/* 1. เงินสะสม */}
-          <button
-            onClick={() => {
-              onSelectCategoryFilter?.('เงินสะสม');
-              setCurrentTab('projects');
-              setIsMobileOpen(false);
-            }}
-            className={`w-full flex items-center space-x-3 px-3 py-2 rounded-xl text-xs transition ${
-              currentTab === 'projects' && selectedCategory === 'เงินสะสม'
-                ? 'bg-slate-800 text-amber-300 font-bold border-2 border-amber-400 shadow-md ring-2 ring-amber-400/25'
-                : 'text-slate-300 hover:bg-slate-800 hover:text-white border border-transparent font-medium'
-            }`}
-          >
-            <Coins className="w-4 h-4 text-amber-400 shrink-0" />
-            <span>เงินสะสม (จ่ายขาด)</span>
-          </button>
-
-          {/* 2. งบประมาณรายจ่ายประจำปี */}
-          <button
-            onClick={() => {
-              onSelectCategoryFilter?.('งบประมาณรายจ่าย');
-              setCurrentTab('projects');
-              setIsMobileOpen(false);
-            }}
-            className={`w-full flex items-center space-x-3 px-3 py-2 rounded-xl text-xs transition ${
-              currentTab === 'projects' && selectedCategory === 'งบประมาณรายจ่าย'
-                ? 'bg-slate-800 text-blue-300 font-bold border-2 border-blue-400 shadow-md ring-2 ring-blue-400/25'
-                : 'text-slate-300 hover:bg-slate-800 hover:text-white border border-transparent font-medium'
-            }`}
-          >
-            <Layers className="w-4 h-4 text-blue-400 shrink-0" />
-            <span>งบประมาณรายจ่ายประจำปี</span>
-          </button>
-
-          {/* 3. เงินอุดหนุนเฉพาะกิจ */}
-          <button
-            onClick={() => {
-              onSelectCategoryFilter?.('เงินอุดหนุนเฉพาะกิจ');
-              setCurrentTab('projects');
-              setIsMobileOpen(false);
-            }}
-            className={`w-full flex items-center space-x-3 px-3 py-2 rounded-xl text-xs transition ${
-              currentTab === 'projects' && selectedCategory === 'เงินอุดหนุนเฉพาะกิจ'
-                ? 'bg-slate-800 text-purple-300 font-bold border-2 border-purple-400 shadow-md ring-2 ring-purple-400/25'
-                : 'text-slate-300 hover:bg-slate-800 hover:text-white border border-transparent font-medium'
-            }`}
-          >
-            <Layers className="w-4 h-4 text-purple-400 shrink-0" />
-            <span>เงินอุดหนุนเฉพาะกิจ</span>
-          </button>
 
           {/* รวมทะเบียนโครงการทั้งหมด */}
           <button
@@ -227,15 +177,50 @@ export const Sidebar: React.FC<SidebarProps> = ({
               setCurrentTab('projects');
               setIsMobileOpen(false);
             }}
-            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl transition ${
+            className={`w-full flex items-center space-x-3 px-3 py-2 rounded-xl transition ${
               currentTab === 'projects' && (selectedCategory === 'all' || !selectedCategory)
                 ? 'bg-emerald-600 text-white font-bold border-2 border-emerald-300 shadow-md ring-2 ring-emerald-400/25'
-                : 'text-slate-300 hover:bg-slate-800 hover:text-white border border-transparent font-medium'
+                : 'text-slate-300 hover:bg-slate-800 hover:text-white border border-transparent font-medium text-xs'
             }`}
           >
             <FolderTree className="w-4 h-4 text-teal-400 shrink-0" />
-            <span>รวมทะเบียนโครงการทั้งหมด</span>
+            <span className="flex-1 text-left">รวมทะเบียนทั้งหมด</span>
+            <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded-full text-slate-300 font-bold">
+              {projects.length}
+            </span>
           </button>
+
+          {/* Dynamic Categories: Only show categories that have recorded projects */}
+          {Array.from(new Set(projects.map(p => p.budgetCategory).filter(Boolean)))
+            .sort((a, b) => a.localeCompare(b, 'th'))
+            .map(cat => {
+              const count = projects.filter(p => p.budgetCategory === cat).length;
+              const isSelected = currentTab === 'projects' && selectedCategory === cat;
+
+              return (
+                <button
+                  key={cat}
+                  onClick={() => {
+                    onSelectCategoryFilter?.(cat);
+                    setCurrentTab('projects');
+                    setIsMobileOpen(false);
+                  }}
+                  className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded-xl text-xs transition ${
+                    isSelected
+                      ? 'bg-slate-800 text-emerald-300 font-bold border-2 border-emerald-400 shadow-md ring-2 ring-emerald-400/25'
+                      : 'text-slate-300 hover:bg-slate-800 hover:text-white border border-transparent font-medium'
+                  }`}
+                >
+                  <Layers className={`w-4 h-4 shrink-0 ${isSelected ? 'text-emerald-400' : 'text-slate-400'}`} />
+                  <span className="flex-1 text-left truncate" title={cat}>
+                    {cat}
+                  </span>
+                  <span className="text-[10px] bg-slate-800/80 px-1.5 py-0.5 rounded-md text-slate-400 font-bold">
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
 
           {/* Section: รายงานและติดตาม */}
           <div className="pt-3 pb-1 px-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">

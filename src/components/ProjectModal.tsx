@@ -39,13 +39,15 @@ interface ProjectModalProps {
   onClose: () => void;
   onSave: (project: Project) => void;
   initialProject?: Project | null;
+  existingCategories?: string[];
 }
 
 export const ProjectModal: React.FC<ProjectModalProps> = ({
   isOpen,
   onClose,
   onSave,
-  initialProject
+  initialProject,
+  existingCategories = []
 }) => {
   const [activeTab, setActiveTab] = useState<number>(1);
 
@@ -64,7 +66,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       approvedBudget: 0,
       description: '',
       location: 'ต.ไร่ใต้ อ.พิบูลมังสาหาร จ.อุบลราชธานี',
-      responsiblePerson: 'นายศรายุทธ  สงวนรัษฐ์',
+      responsiblePerson: '',
       notes: '',
 
       torOrderNo: '',
@@ -76,6 +78,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       torCommittees: [
         { id: 'cm-1', name: '', position: '', role: 'ประธานกรรมการ', phone: '' }
       ],
+      torRemunerationPayee: '',
+      torRemunerationAmount: 0,
 
       inspectOrderNo: '',
       inspectOrderDate: '',
@@ -125,7 +129,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
           approvedBudget: 0,
           description: '',
           location: 'ต.ไร่ใต้ อ.พิบูลมังสาหาร จ.อุบลราชธานี',
-          responsiblePerson: 'นายศรายุทธ  สงวนรัษฐ์',
+          responsiblePerson: '',
           notes: '',
 
           torOrderNo: '',
@@ -137,6 +141,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
           torCommittees: [
             { id: 'cm-1', name: '', position: '', role: 'ประธานกรรมการ', phone: '' }
           ],
+          torRemunerationPayee: '',
+          torRemunerationAmount: 0,
 
           inspectOrderNo: '',
           inspectOrderDate: '',
@@ -563,17 +569,32 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     หมวดงบประมาณ <span className="text-rose-500">*</span>
                   </label>
-                  <select
-                    value={formData.budgetCategory}
-                    onChange={e => setFormData({ ...formData, budgetCategory: e.target.value as BudgetCategory })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                  >
-                    <option value="เงินสะสม">เงินสะสม</option>
-                    <option value="งบประมาณรายจ่าย">งบประมาณรายจ่าย</option>
-                    <option value="เงินอุดหนุนเฉพาะกิจ">เงินอุดหนุนเฉพาะกิจ</option>
-                    <option value="เงินอุดหนุนทั่วไป">เงินอุดหนุนทั่วไป</option>
-                    <option value="เงินกู้/งบกลาง">เงินกู้/งบกลาง</option>
-                  </select>
+                  <input
+                    type="text"
+                    list="budget-categories-list"
+                    value={formData.budgetCategory || ''}
+                    onChange={e => setFormData({ ...formData, budgetCategory: e.target.value })}
+                    placeholder="พิมพ์ชื่อหมวด เช่น กันเงินงบประมาณ..."
+                    required
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                  />
+                  <datalist id="budget-categories-list">
+                    {Array.from(
+                      new Set([
+                        'เงินสะสม',
+                        'งบประมาณรายจ่าย',
+                        'เงินอุดหนุนเฉพาะกิจ',
+                        'เงินอุดหนุนทั่วไป',
+                        'เงินกู้/งบกลาง',
+                        'กันเงินงบประมาณ',
+                        ...existingCategories
+                      ])
+                    ).map(cat => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                  </datalist>
                 </div>
 
                 <div>
@@ -647,17 +668,21 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     ผู้รับผิดชอบโครงการ (กองช่าง อบต.ไร่ใต้)
                   </label>
-                  <select
-                    value={formData.responsiblePerson}
+                  <input
+                    type="text"
+                    list="personnel-suggestions"
+                    value={formData.responsiblePerson || ''}
                     onChange={e => setFormData({ ...formData, responsiblePerson: e.target.value })}
+                    placeholder="กรอกชื่อผู้รับผิดชอบโครงการ..."
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                  >
+                  />
+                  <datalist id="personnel-suggestions">
                     {RAI_TAI_PERSONNEL.map(p => (
                       <option key={p.name} value={p.name}>
                         {p.name} ({p.position})
                       </option>
                     ))}
-                  </select>
+                  </datalist>
                 </div>
               </div>
 
@@ -941,6 +966,53 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                       </button>
                     </div>
                   ))}
+                </div>
+              </div>
+
+              {/* รายการค่าตอบแทนผู้จัดทำ TOR (Requirement 2) */}
+              <div className="bg-emerald-50/70 p-4 rounded-2xl border border-emerald-200/90 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Coins className="w-4 h-4 text-emerald-700" />
+                    <span className="text-xs font-bold text-emerald-950">
+                      ค่าตอบแทนผู้จัดทำ TOR / กำหนดแบบรูปรายการ
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-emerald-700 font-medium">
+                    (เบิกจ่ายตามระเบียบกระทรวงการคลัง)
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      ชื่อผู้รับเงินค่าตอบแทน TOR
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.torRemunerationPayee || ''}
+                      onChange={e => setFormData({ ...formData, torRemunerationPayee: e.target.value })}
+                      placeholder="เช่น นายธวัชชัย มีทรัพย์ (หรือผู้จัดทำ TOR)..."
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      ยอดเงินค่าตอบแทน TOR (บาท)
+                    </label>
+                    <input
+                      type="number"
+                      value={formData.torRemunerationAmount || ''}
+                      onChange={e => setFormData({ ...formData, torRemunerationAmount: Number(e.target.value) })}
+                      placeholder="เช่น 1500"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-emerald-800 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    />
+                    {Boolean(formData.torRemunerationAmount) && (
+                      <span className="text-[10px] text-slate-500 mt-0.5 block">
+                        {formatCurrency(formData.torRemunerationAmount)} บาท
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 

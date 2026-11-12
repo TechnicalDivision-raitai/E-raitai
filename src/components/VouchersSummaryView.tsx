@@ -17,16 +17,18 @@ interface VouchersSummaryViewProps {
   projects: Project[];
   availableYears: number[];
   onSelectProject: (p: Project) => void;
+  selectedYear?: string | number;
+  onSelectYear?: (year: string | number) => void;
 }
 
 export const VouchersSummaryView: React.FC<VouchersSummaryViewProps> = ({
   projects,
   availableYears,
-  onSelectProject
+  onSelectProject,
+  selectedYear = 'all',
+  onSelectYear
 }) => {
-  const [selectedYear, setSelectedYear] = useState<string | number>(() => getCurrentThaiFiscalYear());
-
-  // Filter projects by fiscal year
+  // Filter projects by fiscal year (from top header filter)
   const filteredProjects = useMemo(() => {
     if (!selectedYear || selectedYear === 'all') return projects;
     return projects.filter(p => p.fiscalYear === Number(selectedYear));
@@ -100,7 +102,7 @@ export const VouchersSummaryView: React.FC<VouchersSummaryViewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Filter Bar (identical to Saraban Vouchers Summary) */}
+      {/* Top Filter Info Bar (Single Top Header Filter Used) */}
       <div className="bg-white p-4 rounded-2xl border border-gray-200 shadow-xs flex flex-col md:flex-row justify-between items-center gap-4">
         <div className="flex items-center space-x-3">
           <div className="w-10 h-10 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center font-bold">
@@ -108,26 +110,19 @@ export const VouchersSummaryView: React.FC<VouchersSummaryViewProps> = ({
           </div>
           <div>
             <h3 className="font-bold text-gray-800 font-heading">
-              กรองข้อมูลสรุปงานฎีกาตามปีงบประมาณ
+              สรุปรายงานข้อมูลฎีกาและการเบิกจ่าย
             </h3>
             <p className="text-xs text-gray-500">
-              เลือกปีงบประมาณเพื่อดูยอดเงิน สัดส่วน และรายการฎีกาเฉพาะปีนั้น
+              ควบคุมตัวกรองปีงบประมาณผ่านแถบด้านบน (Header) แสดงยอดเงิน สัดส่วน และรายการฎีกาตามปีที่เลือก
             </p>
           </div>
         </div>
-        <div className="w-full md:w-auto">
-          <select
-            value={selectedYear}
-            onChange={e => setSelectedYear(e.target.value === 'all' ? 'all' : Number(e.target.value))}
-            className="w-full md:w-56 px-3 py-2 border border-gray-300 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-rose-500 focus:outline-hidden bg-rose-50/50 text-rose-900 cursor-pointer"
-          >
-            <option value="all">ทุกปีงบประมาณ (All Years)</option>
-            {availableYears.map(yr => (
-              <option key={yr} value={yr}>
-                ปีงบฯ {yr}
-              </option>
-            ))}
-          </select>
+        <div className="flex items-center gap-2 bg-rose-50/80 border border-rose-200/90 rounded-xl px-4 py-2">
+          <Calendar className="w-4 h-4 text-rose-600" />
+          <span className="text-xs font-semibold text-rose-900">ปีงบประมาณที่กรอง:</span>
+          <span className="text-sm font-bold text-rose-950">
+            {selectedYear === 'all' ? 'ทุกปีงบประมาณ' : `พ.ศ. ${selectedYear}`}
+          </span>
         </div>
       </div>
 

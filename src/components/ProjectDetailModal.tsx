@@ -344,6 +344,24 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                     )}
                   </div>
                 </div>
+
+                {(project.torRemunerationAmount || project.torRemunerationPayee) && (
+                  <div className="grid grid-cols-1 md:grid-cols-3 bg-emerald-50/40">
+                    <div className="bg-emerald-50 font-bold text-emerald-900 p-2.5 md:col-span-1">
+                      ค่าตอบแทนผู้จัดทำ TOR
+                    </div>
+                    <div className="p-2.5 text-slate-900 md:col-span-2">
+                      <span className="font-semibold text-emerald-800">
+                        {project.torRemunerationAmount ? `${formatCurrency(project.torRemunerationAmount)} บาท` : '-'}
+                      </span>
+                      {project.torRemunerationPayee && (
+                        <span className="text-slate-600 ml-2">
+                          (ผู้รับเงิน: {project.torRemunerationPayee})
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
               <SectionAttachments
                 attachments={project.attachments}

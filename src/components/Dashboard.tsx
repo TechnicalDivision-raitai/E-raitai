@@ -230,11 +230,13 @@ export const Dashboard: React.FC<DashboardProps> = ({
               className="w-full bg-emerald-950/60 border border-emerald-500/40 text-white rounded-xl px-3 py-2 text-xs font-medium focus:outline-hidden focus:ring-2 focus:ring-emerald-400"
             >
               <option value="all">ทุกหมวดงบประมาณ</option>
-              <option value="เงินสะสม">เงินสะสม</option>
-              <option value="งบประมาณรายจ่าย">งบประมาณรายจ่าย</option>
-              <option value="เงินอุดหนุนเฉพาะกิจ">เงินอุดหนุนเฉพาะกิจ</option>
-              <option value="เงินอุดหนุนทั่วไป">เงินอุดหนุนทั่วไป</option>
-              <option value="เงินกู้/งบกลาง">เงินกู้/งบกลาง</option>
+              {Array.from(new Set(projects.map(p => p.budgetCategory).filter(Boolean)))
+                .sort((a, b) => a.localeCompare(b, 'th'))
+                .map(cat => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
             </select>
           </div>
 

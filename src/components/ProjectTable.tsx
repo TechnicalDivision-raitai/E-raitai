@@ -221,11 +221,13 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
             className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-medium focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
           >
             <option value="all">ทุกหมวดงบประมาณ</option>
-            <option value="เงินสะสม">เงินสะสม</option>
-            <option value="งบประมาณรายจ่าย">งบประมาณรายจ่าย</option>
-            <option value="เงินอุดหนุนเฉพาะกิจ">เงินอุดหนุนเฉพาะกิจ</option>
-            <option value="เงินอุดหนุนทั่วไป">เงินอุดหนุนทั่วไป</option>
-            <option value="เงินกู้/งบกลาง">เงินกู้/งบกลาง</option>
+            {Array.from(new Set(projects.map(p => p.budgetCategory).filter(Boolean)))
+              .sort((a, b) => a.localeCompare(b, 'th'))
+              .map(cat => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
           </select>
         </div>
 

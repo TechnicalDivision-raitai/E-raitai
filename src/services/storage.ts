@@ -58,24 +58,34 @@ export function clearAllProjects(): Project[] {
   return [];
 }
 
-export function getStoredUser(): UserProfile {
+const SESSION_USER_KEY = 'raitai_engineering_session_user';
+
+export function getStoredUser(): UserProfile | null {
   try {
-    const raw = localStorage.getItem(USER_KEY);
+    const raw = sessionStorage.getItem(SESSION_USER_KEY);
     if (!raw) {
-      localStorage.setItem(USER_KEY, JSON.stringify(CURRENT_USER));
-      return CURRENT_USER;
+      return null;
     }
     return JSON.parse(raw);
   } catch {
-    return CURRENT_USER;
+    return null;
   }
 }
 
 export function saveStoredUser(user: UserProfile): void {
   try {
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
+    sessionStorage.setItem(SESSION_USER_KEY, JSON.stringify(user));
   } catch (e) {
     console.error('Failed to save user', e);
+  }
+}
+
+export function clearStoredUser(): void {
+  try {
+    sessionStorage.removeItem(SESSION_USER_KEY);
+    localStorage.removeItem(USER_KEY);
+  } catch (e) {
+    console.error('Failed to clear user', e);
   }
 }
 
