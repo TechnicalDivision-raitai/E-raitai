@@ -102,9 +102,111 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     return Array.from(names).sort((a, b) => a.localeCompare(b, 'th'));
   }, [existingProjects]);
 
+  // Extract recorded official positions across personnel directory and all existing projects
+  const suggestedPositions = React.useMemo(() => {
+    const positions = new Set<string>();
+
+    const addCleanPos = (raw?: string | null) => {
+      const clean = normalizeName(raw);
+      if (clean && clean.length >= 2) {
+        positions.add(clean);
+      }
+    };
+
+    // 1. Personnel directory positions
+    RAI_TAI_PERSONNEL.forEach(p => addCleanPos(p.position));
+
+    // 2. Scan all existing projects
+    existingProjects.forEach(p => {
+      if (p.supervisorName) {
+        const match = p.supervisorName.match(/\(([^)]+)\)/);
+        if (match && match[1]) {
+          addCleanPos(match[1]);
+        }
+      }
+      (p.torCommittees || []).forEach(c => addCleanPos(c.position));
+      (p.inspectCommittees || []).forEach(c => addCleanPos(c.position));
+    });
+
+    return Array.from(positions).sort((a, b) => a.localeCompare(b, 'th'));
+  }, [existingProjects]);
+
+  // Standardized Remuneration Titles
+  const REMUNERATION_TITLES: Record<CommitteeRemuneration['type'], string> = {
+    tor_author: 'ค่าตอบแทนผู้จัดทำ TOR / กำหนดแบบรูปรายการ',
+    tor: 'ค่าตอบแทนคณะกรรมการกำหนดราคากลาง',
+    supervisor: 'ค่าตอบแทนผู้ควบคุมงาน',
+    inspection: 'ค่าตอบแทนคณะกรรมการตรวจรับงานจ้าง'
+  };
+
+  // Infer remuneration category from its title text
+  const inferRemunerationType = (
+    title: string,
+    fallback: CommitteeRemuneration['type']
+  ): CommitteeRemuneration['type'] => {
+    const clean = (title || '').trim();
+    if (clean.includes('ราคากลาง')) return 'tor';
+    if (clean.toUpperCase().includes('TOR') || clean.includes('จัดทำแบบ') || clean.includes('ผู้จัดทำ')) {
+      return 'tor_author';
+    }
+    if (clean.includes('ควบคุมงาน')) return 'supervisor';
+    if (clean.includes('ตรวจรับ')) return 'inspection';
+    return fallback;
+  };
+
+  // Automatically resolve payee name from Tab 2 (TOR) and Tab 3 (Supervisor & Inspection)
+  const getDefaultPayeeByType = (
+    type: CommitteeRemuneration['type'],
+    projectData: Project
+  ): string => {
+    const formatCommitteePayee = (members?: CommitteeMember[]): string => {
+      const valid = (members || []).filter(m => normalizeName(m.name).length > 0);
+      if (valid.length === 0) return '';
+      const chairman = valid.find(m => m.role === 'ประธานกรรมการ') || valid[0];
+      const leadName = normalizeName(chairman.name);
+      return valid.length > 1 ? `${leadName} และคณะ` : leadName;
+    };
+
+    switch (type) {
+      case 'tor_author':
+        return normalizeName(projectData.torAuthor) || normalizeName(projectData.torRemunerationPayee);
+      case 'tor':
+        return formatCommitteePayee(projectData.torCommittees);
+      case 'supervisor':
+        return normalizeName((projectData.supervisorName || '').replace(/\s*\(.*?\)\s*/g, ''));
+      case 'inspection':
+        return formatCommitteePayee(projectData.inspectCommittees);
+      default:
+        return '';
+    }
+  };
+
+  // Normalize legacy TOR title and auto-fill empty payee names from Tab 2 / Tab 3
+  const syncRemunerationsWithTabs = (projectData: Project): Project => {
+    const updatedRemunerations = (projectData.remunerations || []).map(r => {
+      const normalizedTitle =
+        r.title === 'ค่าตอบแทนคณะกรรมการจัดทำแบบรูปและราคากลาง'
+          ? REMUNERATION_TITLES.tor
+          : r.title;
+      const inferredType = inferRemunerationType(normalizedTitle, r.type);
+      const currentPayee = normalizeName(r.payeeName);
+      const autoPayee = getDefaultPayeeByType(inferredType, projectData);
+      return {
+        ...r,
+        type: inferredType,
+        title: normalizedTitle,
+        payeeName: currentPayee || autoPayee
+      };
+    });
+    return {
+      ...projectData,
+      remunerations: updatedRemunerations
+    };
+  };
+
   // Form State
   const [formData, setFormData] = useState<Project>(() => {
-    if (initialProject) return JSON.parse(JSON.stringify(initialProject));
+    if (initialProject) return syncRemunerationsWithTabs(JSON.parse(JSON.stringify(initialProject)));
     const nextYear = 2569;
     return {
       id: `prj-${Date.now()}`,
@@ -166,7 +268,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   React.useEffect(() => {
     if (isOpen) {
       if (initialProject) {
-        setFormData(JSON.parse(JSON.stringify(initialProject)));
+        setFormData(syncRemunerationsWithTabs(JSON.parse(JSON.stringify(initialProject))));
       } else {
         const nextYear = 2569;
         setFormData({
@@ -227,6 +329,13 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       setActiveTab(1);
     }
   }, [isOpen, initialProject]);
+
+  // Keep empty remuneration payees synchronized with Tab 2 & Tab 3 when opening Tab 6
+  React.useEffect(() => {
+    if (activeTab === 6) {
+      setFormData(prev => syncRemunerationsWithTabs(prev));
+    }
+  }, [activeTab]);
 
   if (!isOpen) return null;
 
@@ -346,12 +455,6 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
 
   // Category 6: Remuneration Helpers
   const addRemuneration = (type: 'tor_author' | 'tor' | 'supervisor' | 'inspection') => {
-    const titles = {
-      tor_author: 'ค่าตอบแทนผู้จัดทำ TOR / กำหนดแบบรูปรายการ',
-      tor: 'ค่าตอบแทนคณะกรรมการจัดทำแบบรูปและราคากลาง',
-      supervisor: 'ค่าตอบแทนผู้ควบคุมงาน',
-      inspection: 'ค่าตอบแทนคณะกรรมการตรวจรับงานจ้าง'
-    };
     const defaultAmounts = {
       tor_author: 1500,
       tor: 4500,
@@ -365,8 +468,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
         {
           id: `rem-${Date.now()}`,
           type,
-          title: titles[type],
-          payeeName: type === 'tor_author' && prev.torAuthor ? prev.torAuthor : '',
+          title: REMUNERATION_TITLES[type],
+          payeeName: getDefaultPayeeByType(type, prev),
           amount: defaultAmounts[type],
           withdrawDate: '',
           petitionNo: '',
@@ -985,17 +1088,19 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                           className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
                         />
                       </div>
-                      <input
-                        type="text"
-                        value={c.position}
-                        onChange={e => {
-                          const updated = [...formData.torCommittees];
-                          updated[idx].position = e.target.value;
-                          setFormData({ ...formData, torCommittees: updated });
-                        }}
-                        placeholder="ตำแหน่งราชการ..."
-                        className="flex-1 px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
-                      />
+                      <div className="flex-1 w-full">
+                        <AutoSuggestInput
+                          value={c.position || ''}
+                          onChange={val => {
+                            const updated = [...formData.torCommittees];
+                            updated[idx].position = val;
+                            setFormData({ ...formData, torCommittees: updated });
+                          }}
+                          suggestions={suggestedPositions}
+                          placeholder="ตำแหน่งราชการ..."
+                          className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                        />
+                      </div>
                       <select
                         value={c.role}
                         onChange={e => {
@@ -1178,17 +1283,19 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                           className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
                         />
                       </div>
-                      <input
-                        type="text"
-                        value={c.position}
-                        onChange={e => {
-                          const updated = [...formData.inspectCommittees];
-                          updated[idx].position = e.target.value;
-                          setFormData({ ...formData, inspectCommittees: updated });
-                        }}
-                        placeholder="ตำแหน่ง..."
-                        className="flex-1 px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
-                      />
+                      <div className="flex-1 w-full">
+                        <AutoSuggestInput
+                          value={c.position || ''}
+                          onChange={val => {
+                            const updated = [...formData.inspectCommittees];
+                            updated[idx].position = val;
+                            setFormData({ ...formData, inspectCommittees: updated });
+                          }}
+                          suggestions={suggestedPositions}
+                          placeholder="ตำแหน่ง..."
+                          className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                        />
+                      </div>
                       <select
                         value={c.role}
                         onChange={e => {
@@ -1923,6 +2030,14 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                 </button>
               </div>
 
+              {/* Datalist of Standard Remuneration Titles */}
+              <datalist id="remuneration-title-options">
+                <option value={REMUNERATION_TITLES.tor_author} />
+                <option value={REMUNERATION_TITLES.tor} />
+                <option value={REMUNERATION_TITLES.supervisor} />
+                <option value={REMUNERATION_TITLES.inspection} />
+              </datalist>
+
               {/* Remuneration Records */}
               <div className="space-y-2">
                 {formData.remunerations.length === 0 ? (
@@ -1940,10 +2055,26 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                           <label className="block text-[10px] font-medium text-slate-500">ประเภท/รายการ</label>
                           <input
                             type="text"
+                            list="remuneration-title-options"
                             value={rem.title}
                             onChange={e => {
+                              const newTitle = e.target.value;
                               const updated = [...formData.remunerations];
-                              updated[idx].title = e.target.value;
+                              const prevType = updated[idx].type;
+                              const nextType = inferRemunerationType(newTitle, prevType);
+                              const prevAutoPayee = normalizeName(getDefaultPayeeByType(prevType, formData));
+                              const nextAutoPayee = getDefaultPayeeByType(nextType, formData);
+                              const currentPayee = normalizeName(updated[idx].payeeName);
+
+                              updated[idx] = {
+                                ...updated[idx],
+                                title: newTitle,
+                                type: nextType,
+                                payeeName:
+                                  !currentPayee || (nextType !== prevType && currentPayee === prevAutoPayee)
+                                    ? nextAutoPayee || updated[idx].payeeName
+                                    : updated[idx].payeeName
+                              };
                               setFormData({ ...formData, remunerations: updated });
                             }}
                             className="w-full px-2 py-1 bg-white border border-slate-300 rounded-md font-medium"

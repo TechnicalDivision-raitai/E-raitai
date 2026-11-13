@@ -111,7 +111,7 @@ export const INITIAL_PROJECTS: Project[] = [
       {
         id: 'rem-1',
         type: 'tor',
-        title: 'ค่าตอบแทนคณะกรรมการจัดทำแบบรูปและราคากลาง',
+        title: 'ค่าตอบแทนคณะกรรมการกำหนดราคากลาง',
         payeeName: 'นายธวัชชัย มีทรัพย์ และคณะ',
         amount: 4500,
         withdrawDate: '2024-10-20',
