@@ -68,7 +68,7 @@ export const UserManualModal: React.FC<UserManualModalProps> = ({
               <li>เพิ่ม แก้ไข และ<strong>ลบโครงการ</strong>ได้</li>
               <li>นำเข้าและส่งออก Excel ทะเบียนโครงการ</li>
               <li>ดูและพิมพ์เอกสารและรายงานราชการทุกประเภท</li>
-              <li>จัดการการซิงค์ข้อมูล Google Sheet & Drive</li>
+              <li>บันทึกและสำรองข้อมูลโครงการเข้าสู่ระบบคลาวด์อัตโนมัติ</li>
             </ul>
           </div>
 
@@ -181,8 +181,8 @@ export const UserManualModal: React.FC<UserManualModalProps> = ({
                 desc: 'ซ่อนปุ่มสลับสิทธิ์การใช้งานจากหน้า Staff (แสดงเฉพาะ Admin), ตรวจสอบสิทธิ์ดูข้อมูลอย่างเดียวเมื่อเป็น Staff'
               },
               {
-                title: 'ฐานข้อมูลหลัก Google Sheet & Drive',
-                desc: 'ซิงค์ข้อมูลทะเบียนโครงการและคลังเอกสารแนบผ่าน Google Cloud อัตโนมัติ'
+                title: 'สำรองข้อมูล Google Sheet & Drive อัตโนมัติ',
+                desc: 'ซิงค์ข้อมูลทะเบียนโครงการและแนบไฟล์เข้าคลังเอกสาร Google Drive อัตโนมัติ'
               }
             ].map((test, idx) => (
               <div key={idx} className="flex items-start gap-2.5 p-2.5 rounded-xl bg-slate-50 border border-slate-100">

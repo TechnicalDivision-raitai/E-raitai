@@ -2,11 +2,11 @@ import { Project, UserProfile } from '../types/project';
 import { CURRENT_USER, INITIAL_PROJECTS } from '../data/mockData';
 
 import {
-  getGoogleScriptUrl,
+  DEFAULT_GOOGLE_SCRIPT_URL,
   uploadFileToGoogleDrive
 } from './googleSync';
 
-export const GOOGLE_SCRIPT_URL = getGoogleScriptUrl();
+export const GOOGLE_SCRIPT_URL = DEFAULT_GOOGLE_SCRIPT_URL;
 export const ADMIN_PASSWORD = '12345';
 
 const STORAGE_KEY = 'raitai_engineering_projects_v5';
@@ -24,12 +24,13 @@ export function getStoredProjects(): Project[] {
       return INITIAL_PROJECTS;
     }
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length > 0) {
-      // Validate that projects conform to 2569-2575 range
-      const hasOldYears = parsed.some((p: Project) => p.fiscalYear < 2569);
-      if (hasOldYears) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_PROJECTS));
-        return INITIAL_PROJECTS;
+    if (Array.isArray(parsed)) {
+      if (parsed.length > 0) {
+        const hasOldYears = parsed.some((p: Project) => p.fiscalYear < 2569);
+        if (hasOldYears) {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(INITIAL_PROJECTS));
+          return INITIAL_PROJECTS;
+        }
       }
       return parsed;
     }

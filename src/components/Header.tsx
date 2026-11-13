@@ -13,7 +13,6 @@ import {
 } from 'lucide-react';
 import { Project, UserProfile } from '../types/project';
 import { getDaysRemaining, isProjectCompletedOrDisbursed } from '../utils/thaiDate';
-import { FileSpreadsheet, Cloud } from 'lucide-react';
 
 interface HeaderProps {
   onOpenMobileMenu: () => void;
@@ -28,8 +27,6 @@ interface HeaderProps {
   projects: Project[];
   currentUser: UserProfile;
   onSelectProject: (p: Project) => void;
-  onOpenGoogleSheetsModal?: () => void;
-  syncStatus?: 'synced' | 'syncing' | 'error' | 'idle';
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -44,9 +41,7 @@ export const Header: React.FC<HeaderProps> = ({
   onResetData,
   projects,
   currentUser,
-  onSelectProject,
-  onOpenGoogleSheetsModal,
-  syncStatus = 'synced'
+  onSelectProject
 }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const isAdmin = currentUser.role === 'admin';
@@ -183,35 +178,6 @@ export const Header: React.FC<HeaderProps> = ({
             </div>
           )}
         </div>
-
-        {/* Google Sheet Cloud Sync Badge */}
-        {onOpenGoogleSheetsModal && (
-          <button
-            onClick={onOpenGoogleSheetsModal}
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition shadow-2xs ${
-              syncStatus === 'syncing'
-                ? 'bg-blue-50 text-blue-700 border-blue-200 animate-pulse'
-                : syncStatus === 'error'
-                ? 'bg-amber-50 text-amber-800 border-amber-300'
-                : 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
-            }`}
-            title="ศูนย์ข้อมูลกลาง Google Sheet & Google Drive (คลิกเพื่อดูสถานะ/ซิงค์)"
-          >
-            <FileSpreadsheet className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span className="hidden md:inline">
-              {syncStatus === 'syncing' ? 'กำลังซิงค์...' : 'Google Sheet ฐานข้อมูล'}
-            </span>
-            <span
-              className={`w-2 h-2 rounded-full ${
-                syncStatus === 'syncing'
-                  ? 'bg-blue-500 animate-ping'
-                  : syncStatus === 'error'
-                  ? 'bg-amber-500'
-                  : 'bg-emerald-500'
-              }`}
-            />
-          </button>
-        )}
 
         {/* Add Project Button (Shown for Admin, exactly matching Saraban addDocBtn) */}
         {isAdmin && (

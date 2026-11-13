@@ -15,7 +15,6 @@ import { ProjectTimelineView } from './components/ProjectTimelineView';
 import { ReportsView } from './components/ReportsView';
 import { ExcelImportModal } from './components/ExcelImportModal';
 import { UserManualModal } from './components/UserManualModal';
-import { GoogleSheetsModal } from './components/GoogleSheetsModal';
 import { LoginModal } from './components/LoginModal';
 import { MyInboxView } from './components/MyInboxView';
 import { VouchersSummaryView } from './components/VouchersSummaryView';
@@ -31,8 +30,7 @@ import {
 } from './services/storage';
 import {
   fetchProjectsFromGoogleSheet,
-  syncProjectsToGoogleSheet,
-  getAutoSyncEnabled
+  syncProjectsToGoogleSheet
 } from './services/googleSync';
 import { CURRENT_USER, STAFF_USER } from './data/mockData';
 import { getCurrentThaiFiscalYear, calculateProjectProgress, isProjectCompletedOrDisbursed } from './utils/thaiDate';
@@ -57,11 +55,7 @@ export default function App() {
   const [selectedProjectForDetail, setSelectedProjectForDetail] = useState<Project | null>(null);
   const [selectedDetailTab, setSelectedDetailTab] = useState<number>(1);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState<boolean>(false);
-  const [isGoogleSheetsModalOpen, setIsGoogleSheetsModalOpen] = useState<boolean>(false);
   const [projectToEdit, setProjectToEdit] = useState<Project | null>(null);
-
-  // Cloud Sync Status State
-  const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error' | 'idle'>('idle');
 
   // Toast Notification State
   const [toast, setToast] = useState<{
@@ -80,19 +74,15 @@ export default function App() {
   useEffect(() => {
     let isMounted = true;
     const loadFromCloudSheet = async () => {
-      setSyncStatus('syncing');
       try {
         const res = await fetchProjectsFromGoogleSheet();
         if (isMounted && res.success && Array.isArray(res.projects) && res.projects.length > 0) {
           setProjects(res.projects);
           saveStoredProjects(res.projects);
-          setSyncStatus('synced');
           showToast(`ดึงข้อมูลจาก Google Sheet อัตโนมัติสำเร็จ (${res.projects.length} รายการ)`, 'success');
-        } else if (isMounted) {
-          setSyncStatus('synced');
         }
-      } catch (err) {
-        if (isMounted) setSyncStatus('idle');
+      } catch {
+        // Silent fallback to local storage
       }
     };
 
@@ -107,20 +97,15 @@ export default function App() {
     setProjects(newProjects);
     saveStoredProjects(newProjects);
 
-    if (!skipCloudSync && getAutoSyncEnabled()) {
-      setSyncStatus('syncing');
+    if (!skipCloudSync) {
       syncProjectsToGoogleSheet(newProjects)
         .then(res => {
-          if (res.success) {
-            setSyncStatus('synced');
-          } else {
+          if (!res.success) {
             console.warn('Auto cloud sync notice:', res.error);
-            setSyncStatus('error');
           }
         })
         .catch(err => {
           console.warn('Auto cloud sync error:', err);
-          setSyncStatus('error');
         });
     }
   };
@@ -329,7 +314,6 @@ export default function App() {
     timeline: 'ไทม์ไลน์ 12 ขั้นตอนดำเนินงานโครงการ',
     reports: 'ออกรายงานและสถิติโครงการ',
     excel_import: 'นำเข้าข้อมูลทะเบียนโครงการจาก Excel',
-    google_sheets: 'ฐานข้อมูลหลัก Google Sheet & คลังเอกสาร Drive',
     manual: 'คู่มือการใช้งานระบบ & สรุปผลการทดสอบ'
   };
 
@@ -419,8 +403,6 @@ export default function App() {
             setSelectedProjectForDetail(p);
             setSelectedDetailTab(tab || 1);
           }}
-          onOpenGoogleSheetsModal={() => setIsGoogleSheetsModalOpen(true)}
-          syncStatus={syncStatus}
         />
 
         {/* Dynamic View Router */}
@@ -583,6 +565,7 @@ export default function App() {
         onSave={handleSaveProject}
         initialProject={projectToEdit}
         existingCategories={Array.from(new Set(projects.map(p => p.budgetCategory).filter(Boolean)))}
+        existingProjects={projects}
       />
 
       {/* Project Official Details Modal (8 tabs, printable) */}
@@ -596,18 +579,6 @@ export default function App() {
           setProjectToEdit(p);
           setIsProjectModalOpen(true);
         }}
-        currentUser={currentUser}
-      />
-
-      {/* Google Sheets Cloud Database Sync Modal */}
-      <GoogleSheetsModal
-        isOpen={isGoogleSheetsModalOpen || currentTab === 'google_sheets'}
-        onClose={() => {
-          setIsGoogleSheetsModalOpen(false);
-          if (currentTab === 'google_sheets') setCurrentTab('projects');
-        }}
-        projects={projects}
-        onUpdateProjects={updateProjects}
         currentUser={currentUser}
       />
 

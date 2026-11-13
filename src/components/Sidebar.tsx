@@ -16,8 +16,7 @@ import {
   ChevronRight,
   X,
   CalendarClock,
-  Layers,
-  Cloud
+  Layers
 } from 'lucide-react';
 import { UserProfile, Project } from '../types/project';
 import { isProjectCompletedOrDisbursed } from '../utils/thaiDate';
@@ -297,26 +296,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <span>นำเข้าข้อมูล Excel</span>
             </button>
           )}
-
-          {/* ฐานข้อมูลหลัก Google Sheet & Drive */}
-          <button
-            onClick={() => {
-              setCurrentTab('google_sheets');
-              setIsMobileOpen(false);
-            }}
-            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg font-medium transition ${
-              currentTab === 'google_sheets'
-                ? 'bg-emerald-600 text-white shadow-md'
-                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-            }`}
-          >
-            <div className="flex items-center space-x-3">
-              <Cloud className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>ฐานข้อมูล Google Sheet & Drive</span>
-            </div>
-            <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-          </button>
-
 
           {/* คู่มือ & สรุปผลงาน */}
           <button

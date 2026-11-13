@@ -33,6 +33,7 @@ import {
 } from '../types/project';
 import { formatCurrency, formatThaiDate, calculateProjectProgress, countCompletedSteps } from '../utils/thaiDate';
 import { uploadFileToDrive } from '../services/storage';
+import { AutoSuggestInput } from './AutoSuggestInput';
 
 interface ProjectModalProps {
   isOpen: boolean;
@@ -40,6 +41,7 @@ interface ProjectModalProps {
   onSave: (project: Project) => void;
   initialProject?: Project | null;
   existingCategories?: string[];
+  existingProjects?: Project[];
 }
 
 export const ProjectModal: React.FC<ProjectModalProps> = ({
@@ -47,9 +49,58 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   onClose,
   onSave,
   initialProject,
-  existingCategories = []
+  existingCategories = [],
+  existingProjects = []
 }) => {
   const [activeTab, setActiveTab] = useState<number>(1);
+
+  // Helper to normalize Thai names (collapse multiple spaces into a single space and trim)
+  const normalizeName = (name?: string | null): string => {
+    if (!name) return '';
+    return name.replace(/\s+/g, ' ').trim();
+  };
+
+  // Extract recorded person names across all existing projects and personnel directory
+  const suggestedPersonNames = React.useMemo(() => {
+    const names = new Set<string>();
+
+    const addClean = (raw?: string | null) => {
+      const clean = normalizeName(raw);
+      if (clean && clean.length >= 2) {
+        names.add(clean);
+      }
+    };
+
+    // 1. Personnel directory
+    RAI_TAI_PERSONNEL.forEach(p => addClean(p.name));
+
+    // 2. Scan all existing projects
+    existingProjects.forEach(p => {
+      addClean(p.responsiblePerson);
+      addClean(p.torAuthor);
+      if (p.supervisorName) {
+        // Strip position inside parentheses e.g. "นายอนันต์ ศรีสุข (นายช่างโยธา)" -> "นายอนันต์ ศรีสุข"
+        const cleanNameOnly = p.supervisorName.replace(/\s*\(.*?\)\s*/g, '');
+        addClean(cleanNameOnly);
+        addClean(p.supervisorName);
+      }
+      (p.torCommittees || []).forEach(c => addClean(c.name));
+      (p.inspectCommittees || []).forEach(c => addClean(c.name));
+      (p.remunerations || []).forEach(r => addClean(r.payeeName));
+    });
+
+    return Array.from(names).sort((a, b) => a.localeCompare(b, 'th'));
+  }, [existingProjects]);
+
+  // Extract recorded contractor names across all existing projects
+  const suggestedContractorNames = React.useMemo(() => {
+    const names = new Set<string>();
+    existingProjects.forEach(p => {
+      const clean = normalizeName(p.contractorName);
+      if (clean && clean.length >= 2) names.add(clean);
+    });
+    return Array.from(names).sort((a, b) => a.localeCompare(b, 'th'));
+  }, [existingProjects]);
 
   // Form State
   const [formData, setFormData] = useState<Project>(() => {
@@ -294,11 +345,18 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   };
 
   // Category 6: Remuneration Helpers
-  const addRemuneration = (type: 'tor' | 'supervisor' | 'inspection') => {
+  const addRemuneration = (type: 'tor_author' | 'tor' | 'supervisor' | 'inspection') => {
     const titles = {
+      tor_author: 'ค่าตอบแทนผู้จัดทำ TOR / กำหนดแบบรูปรายการ',
       tor: 'ค่าตอบแทนคณะกรรมการจัดทำแบบรูปและราคากลาง',
       supervisor: 'ค่าตอบแทนผู้ควบคุมงาน',
       inspection: 'ค่าตอบแทนคณะกรรมการตรวจรับงานจ้าง'
+    };
+    const defaultAmounts = {
+      tor_author: 1500,
+      tor: 4500,
+      supervisor: 3000,
+      inspection: 4500
     };
     setFormData(prev => ({
       ...prev,
@@ -308,8 +366,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
           id: `rem-${Date.now()}`,
           type,
           title: titles[type],
-          payeeName: '',
-          amount: 4500,
+          payeeName: type === 'tor_author' && prev.torAuthor ? prev.torAuthor : '',
+          amount: defaultAmounts[type],
           withdrawDate: '',
           petitionNo: '',
           status: 'pending'
@@ -668,21 +726,13 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     ผู้รับผิดชอบโครงการ (กองช่าง อบต.ไร่ใต้)
                   </label>
-                  <input
-                    type="text"
-                    list="personnel-suggestions"
+                  <AutoSuggestInput
                     value={formData.responsiblePerson || ''}
-                    onChange={e => setFormData({ ...formData, responsiblePerson: e.target.value })}
-                    placeholder="กรอกชื่อผู้รับผิดชอบโครงการ..."
+                    onChange={val => setFormData({ ...formData, responsiblePerson: val })}
+                    suggestions={suggestedPersonNames}
+                    placeholder="พิมพ์ชื่อเพื่อค้นหา เช่น นายศรายุทธ..."
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                   />
-                  <datalist id="personnel-suggestions">
-                    {RAI_TAI_PERSONNEL.map(p => (
-                      <option key={p.name} value={p.name}>
-                        {p.name} ({p.position})
-                      </option>
-                    ))}
-                  </datalist>
                 </div>
               </div>
 
@@ -846,11 +896,11 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     ผู้จัดทำ TOR
                   </label>
-                  <input
-                    type="text"
+                  <AutoSuggestInput
                     value={formData.torAuthor || ''}
-                    onChange={e => setFormData({ ...formData, torAuthor: e.target.value })}
-                    placeholder="ชื่อผู้จัดทำร่างขอบเขตของงาน..."
+                    onChange={val => setFormData({ ...formData, torAuthor: val })}
+                    suggestions={suggestedPersonNames}
+                    placeholder="พิมพ์ชื่อเพื่อค้นหา เช่น นายธวัชชัย..."
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                   />
                 </div>
@@ -922,17 +972,19 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                       <span className="text-xs font-bold text-slate-400 w-6 text-center">
                         {idx + 1}
                       </span>
-                      <input
-                        type="text"
-                        value={c.name}
-                        onChange={e => {
-                          const updated = [...formData.torCommittees];
-                          updated[idx].name = e.target.value;
-                          setFormData({ ...formData, torCommittees: updated });
-                        }}
-                        placeholder="ชื่อ-นามสกุล..."
-                        className="flex-1 px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
-                      />
+                      <div className="flex-1 w-full">
+                        <AutoSuggestInput
+                          value={c.name || ''}
+                          onChange={val => {
+                            const updated = [...formData.torCommittees];
+                            updated[idx].name = val;
+                            setFormData({ ...formData, torCommittees: updated });
+                          }}
+                          suggestions={suggestedPersonNames}
+                          placeholder="ชื่อ-นามสกุลกรรมการ..."
+                          className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                        />
+                      </div>
                       <input
                         type="text"
                         value={c.position}
@@ -966,53 +1018,6 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                       </button>
                     </div>
                   ))}
-                </div>
-              </div>
-
-              {/* รายการค่าตอบแทนผู้จัดทำ TOR (Requirement 2) */}
-              <div className="bg-emerald-50/70 p-4 rounded-2xl border border-emerald-200/90 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Coins className="w-4 h-4 text-emerald-700" />
-                    <span className="text-xs font-bold text-emerald-950">
-                      ค่าตอบแทนผู้จัดทำ TOR / กำหนดแบบรูปรายการ
-                    </span>
-                  </div>
-                  <span className="text-[11px] text-emerald-700 font-medium">
-                    (เบิกจ่ายตามระเบียบกระทรวงการคลัง)
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      ชื่อผู้รับเงินค่าตอบแทน TOR
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.torRemunerationPayee || ''}
-                      onChange={e => setFormData({ ...formData, torRemunerationPayee: e.target.value })}
-                      placeholder="เช่น นายธวัชชัย มีทรัพย์ (หรือผู้จัดทำ TOR)..."
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      ยอดเงินค่าตอบแทน TOR (บาท)
-                    </label>
-                    <input
-                      type="number"
-                      value={formData.torRemunerationAmount || ''}
-                      onChange={e => setFormData({ ...formData, torRemunerationAmount: Number(e.target.value) })}
-                      placeholder="เช่น 1500"
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-bold text-emerald-800 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                    />
-                    {Boolean(formData.torRemunerationAmount) && (
-                      <span className="text-[10px] text-slate-500 mt-0.5 block">
-                        {formatCurrency(formData.torRemunerationAmount)} บาท
-                      </span>
-                    )}
-                  </div>
                 </div>
               </div>
 
@@ -1126,11 +1131,11 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     ผู้ควบคุมงาน
                   </label>
-                  <input
-                    type="text"
+                  <AutoSuggestInput
                     value={formData.supervisorName || ''}
-                    onChange={e => setFormData({ ...formData, supervisorName: e.target.value })}
-                    placeholder="เช่น นายอนันต์ ศรีสุข (นายช่างโยธาชำนาญงาน)"
+                    onChange={val => setFormData({ ...formData, supervisorName: val })}
+                    suggestions={suggestedPersonNames}
+                    placeholder="พิมพ์ชื่อเพื่อค้นหา เช่น นายอนันต์ ศรีสุข..."
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                   />
                 </div>
@@ -1160,17 +1165,19 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                       <span className="text-xs font-bold text-slate-400 w-6 text-center">
                         {idx + 1}
                       </span>
-                      <input
-                        type="text"
-                        value={c.name}
-                        onChange={e => {
-                          const updated = [...formData.inspectCommittees];
-                          updated[idx].name = e.target.value;
-                          setFormData({ ...formData, inspectCommittees: updated });
-                        }}
-                        placeholder="ชื่อ-นามสกุล..."
-                        className="flex-1 px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
-                      />
+                      <div className="flex-1 w-full">
+                        <AutoSuggestInput
+                          value={c.name || ''}
+                          onChange={val => {
+                            const updated = [...formData.inspectCommittees];
+                            updated[idx].name = val;
+                            setFormData({ ...formData, inspectCommittees: updated });
+                          }}
+                          suggestions={suggestedPersonNames}
+                          placeholder="ชื่อ-นามสกุล..."
+                          className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                        />
+                      </div>
                       <input
                         type="text"
                         value={c.position}
@@ -1358,10 +1365,10 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     ชื่อผู้รับจ้าง
                   </label>
-                  <input
-                    type="text"
+                  <AutoSuggestInput
                     value={formData.contractorName || ''}
-                    onChange={e => setFormData({ ...formData, contractorName: e.target.value })}
+                    onChange={val => setFormData({ ...formData, contractorName: val })}
+                    suggestions={suggestedContractorNames}
                     placeholder="เช่น หจก. บุญบันดาลการช่างและโยธา"
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                   />
@@ -1872,7 +1879,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                     หมวดที่ 6: การเบิกค่าตอบแทนคณะกรรมการ
                   </h4>
                   <p className="text-xs text-slate-500">
-                    บันทึกค่าตอบแทน: คณะกรรมการราคากลาง, ผู้ควบคุมงาน และคณะกรรมการตรวจรับงานจ้าง
+                    บันทึกค่าตอบแทน: ผู้จัดทำ TOR, คณะกรรมการราคากลาง, ผู้ควบคุมงาน และคณะกรรมการตรวจรับงานจ้าง
                   </p>
                 </div>
                 <div className="text-right">
@@ -1886,6 +1893,13 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
               {/* Quick Add Buttons */}
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs font-semibold text-slate-600">เพิ่มรายการเบิก:</span>
+                <button
+                  type="button"
+                  onClick={() => addRemuneration('tor_author')}
+                  className="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-semibold border border-amber-300 transition shadow-2xs"
+                >
+                  + ผู้จัดทำ TOR
+                </button>
                 <button
                   type="button"
                   onClick={() => addRemuneration('tor')}
@@ -1937,14 +1951,14 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                         </div>
                         <div>
                           <label className="block text-[10px] font-medium text-slate-500">ผู้รับเงิน</label>
-                          <input
-                            type="text"
-                            value={rem.payeeName}
-                            onChange={e => {
+                          <AutoSuggestInput
+                            value={rem.payeeName || ''}
+                            onChange={val => {
                               const updated = [...formData.remunerations];
-                              updated[idx].payeeName = e.target.value;
+                              updated[idx].payeeName = val;
                               setFormData({ ...formData, remunerations: updated });
                             }}
+                            suggestions={suggestedPersonNames}
                             placeholder="ชื่อผู้แทนรับเงิน..."
                             className="w-full px-2 py-1 bg-white border border-slate-300 rounded-md"
                           />
