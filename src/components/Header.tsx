@@ -9,7 +9,10 @@ import {
   Printer,
   AlertTriangle,
   Clock,
-  HardHat
+  HardHat,
+  Cloud,
+  CloudOff,
+  RefreshCw
 } from 'lucide-react';
 import { Project, UserProfile } from '../types/project';
 import { getDaysRemaining, isProjectCompletedOrDisbursed } from '../utils/thaiDate';
@@ -27,6 +30,8 @@ interface HeaderProps {
   projects: Project[];
   currentUser: UserProfile;
   onSelectProject: (p: Project) => void;
+  syncStatus?: 'synced' | 'syncing' | 'error';
+  onRefreshSync?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -41,7 +46,9 @@ export const Header: React.FC<HeaderProps> = ({
   onResetData,
   projects,
   currentUser,
-  onSelectProject
+  onSelectProject,
+  syncStatus = 'synced',
+  onRefreshSync
 }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const isAdmin = currentUser.role === 'admin';
@@ -64,24 +71,24 @@ export const Header: React.FC<HeaderProps> = ({
     .filter(a => a.isUrgent);
 
   return (
-    <header className="sticky top-0 z-30 bg-white border-b border-gray-200 h-16 flex items-center justify-between px-4 md:px-8 shadow-xs no-print">
-      {/* Left: Mobile trigger & Page Title */}
-      <div className="flex items-center space-x-3">
+    <header className="sticky top-0 z-30 bg-white border-b border-gray-200 h-16 flex items-center justify-between gap-2 sm:gap-3 px-3 sm:px-5 lg:px-8 shadow-xs no-print">
+      {/* Left: Mobile/Tablet trigger & Page Title */}
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
         <button
           onClick={onOpenMobileMenu}
-          className="md:hidden text-gray-600 hover:text-gray-900 focus:outline-hidden text-xl p-1"
+          className="lg:hidden shrink-0 text-gray-600 hover:text-gray-900 focus:outline-hidden text-xl p-1.5 rounded-lg hover:bg-gray-100 transition"
           aria-label="Open menu"
         >
-          <Menu className="w-6 h-6" />
+          <Menu className="w-5 h-5 sm:w-6 sm:h-6" />
         </button>
-        <h1 className="text-base sm:text-lg md:text-xl font-bold text-gray-800 font-heading truncate">
+        <h1 className="text-sm sm:text-base lg:text-lg font-bold text-gray-800 font-heading truncate min-w-0">
           {pageTitle}
         </h1>
       </div>
 
       {/* Center / Year Filter */}
-      <div className="hidden lg:flex items-center space-x-2 bg-emerald-50/70 border border-emerald-200/80 rounded-xl px-3 py-1.5 shadow-2xs">
-        <Calendar className="w-4 h-4 text-emerald-700" />
+      <div className="hidden xl:flex items-center gap-2 bg-emerald-50/70 border border-emerald-200/80 rounded-xl px-3 py-1.5 shadow-2xs shrink-0 whitespace-nowrap">
+        <Calendar className="w-4 h-4 text-emerald-700 shrink-0" />
         <span className="text-xs font-semibold text-emerald-900">ปีงบประมาณ:</span>
         <select
           value={selectedYear}
@@ -98,15 +105,15 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       {/* Right: Actions & Role Badge */}
-      <div className="flex items-center space-x-2 sm:space-x-3">
+      <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
         {/* Notifications Dropdown */}
-        <div className="relative">
+        <div className="relative shrink-0">
           <button
             onClick={() => setShowNotifications(!showNotifications)}
             className="relative p-2 rounded-xl text-gray-600 hover:text-emerald-700 hover:bg-emerald-50 border border-gray-200 transition"
             title="การแจ้งเตือนงานเกินกำหนดและใกล้ครบสัญญา"
           >
-            <Bell className="w-5 h-5" />
+            <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
             {alerts.length > 0 && (
               <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-pulse shadow-xs">
                 {alerts.length}
@@ -179,28 +186,68 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </div>
 
-        {/* Add Project Button (Shown for Admin, exactly matching Saraban addDocBtn) */}
+        {/* Add Project Button (Shown for Admin) */}
         {isAdmin && (
           <button
             onClick={onOpenNewProjectModal}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-medium px-3.5 py-2 rounded-xl shadow-md transition flex items-center space-x-1.5 active:scale-95"
+            className="whitespace-nowrap shrink-0 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium px-2.5 sm:px-3.5 py-2 rounded-xl shadow-sm transition flex items-center gap-1.5 active:scale-95"
             title="ลงทะเบียนโครงการใหม่"
           >
-            <PlusCircle className="w-4 h-4" />
-            <span className="hidden sm:inline">ลงทะเบียนโครงการใหม่</span>
+            <PlusCircle className="w-4 h-4 shrink-0" />
+            <span className="hidden xl:inline">ลงทะเบียนโครงการใหม่</span>
+            <span className="hidden sm:inline xl:hidden">เพิ่มโครงการ</span>
             <span className="sm:hidden">เพิ่ม</span>
           </button>
         )}
 
-        {/* Role Badge Container matching Saraban header */}
-        <div className="bg-gray-100 border border-gray-200 px-3 py-1.5 rounded-xl flex items-center space-x-2 text-xs font-semibold">
+        {/* Google Sheet Sync Status Badge */}
+        <button
+          type="button"
+          onClick={onRefreshSync}
+          disabled={syncStatus === 'syncing'}
+          title={
+            syncStatus === 'syncing'
+              ? 'กำลังซิงค์ข้อมูลกับ Google Sheet...'
+              : syncStatus === 'error'
+              ? 'เชื่อมต่อ Google Sheet ไม่สำเร็จ (คลิกเพื่อลองซิงค์ใหม่)'
+              : 'ซิงค์ Google Sheet แล้ว (คลิกเพื่อซิงค์ข้อมูลล่าสุด)'
+          }
+          className={`whitespace-nowrap shrink-0 flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-xs font-medium border transition ${
+            syncStatus === 'syncing'
+              ? 'bg-blue-50 text-blue-700 border-blue-200 cursor-wait'
+              : syncStatus === 'error'
+              ? 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100'
+              : 'bg-sky-50/70 text-slate-700 border-sky-200 hover:bg-sky-100/70'
+          }`}
+        >
+          {syncStatus === 'syncing' ? (
+            <RefreshCw className="w-4 h-4 text-blue-600 animate-spin shrink-0" />
+          ) : syncStatus === 'error' ? (
+            <CloudOff className="w-4 h-4 text-amber-600 shrink-0" />
+          ) : (
+            <Cloud className="w-4 h-4 text-slate-700 shrink-0" />
+          )}
+          <span className="hidden sm:inline whitespace-nowrap">
+            {syncStatus === 'syncing'
+              ? 'กำลังซิงค์...'
+              : syncStatus === 'error'
+              ? 'ซิงค์ไม่สำเร็จ'
+              : 'ซิงค์ Google Sheet แล้ว'}
+          </span>
+        </button>
+
+        {/* Role Badge Container */}
+        <div className="whitespace-nowrap shrink-0 bg-gray-100 border border-gray-200 px-2.5 sm:px-3 py-1.5 rounded-xl flex items-center gap-1.5 text-xs font-semibold">
           <span
-            className={`w-2.5 h-2.5 rounded-full ${
+            className={`w-2.5 h-2.5 rounded-full shrink-0 ${
               isAdmin ? 'bg-green-500' : 'bg-amber-500'
             }`}
           />
-          <span className="text-gray-700 hidden sm:inline">
+          <span className="text-gray-700 hidden xl:inline">
             {isAdmin ? 'ผู้ดูแลระบบ (Admin)' : 'เจ้าหน้าที่ (Staff)'}
+          </span>
+          <span className="text-gray-700 inline xl:hidden">
+            {isAdmin ? 'Admin' : 'Staff'}
           </span>
         </div>
       </div>

@@ -56,6 +56,7 @@ export default function App() {
   const [selectedDetailTab, setSelectedDetailTab] = useState<number>(1);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState<boolean>(false);
   const [projectToEdit, setProjectToEdit] = useState<Project | null>(null);
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error'>('syncing');
 
   // Toast Notification State
   const [toast, setToast] = useState<{
@@ -74,15 +75,22 @@ export default function App() {
   useEffect(() => {
     let isMounted = true;
     const loadFromCloudSheet = async () => {
+      setSyncStatus('syncing');
       try {
         const res = await fetchProjectsFromGoogleSheet();
-        if (isMounted && res.success && Array.isArray(res.projects) && res.projects.length > 0) {
-          setProjects(res.projects);
-          saveStoredProjects(res.projects);
-          showToast(`ดึงข้อมูลจาก Google Sheet อัตโนมัติสำเร็จ (${res.projects.length} รายการ)`, 'success');
+        if (!isMounted) return;
+        if (res.success) {
+          if (Array.isArray(res.projects) && res.projects.length > 0) {
+            setProjects(res.projects);
+            saveStoredProjects(res.projects);
+            showToast(`ดึงข้อมูลจาก Google Sheet อัตโนมัติสำเร็จ (${res.projects.length} รายการ)`, 'success');
+          }
+          setSyncStatus('synced');
+        } else {
+          setSyncStatus('error');
         }
       } catch {
-        // Silent fallback to local storage
+        if (isMounted) setSyncStatus('error');
       }
     };
 
@@ -92,20 +100,47 @@ export default function App() {
     };
   }, []);
 
+  // Manual quick refresh from Google Sheet when clicking status badge
+  const handleRefreshCloudSync = async () => {
+    setSyncStatus('syncing');
+    try {
+      const res = await fetchProjectsFromGoogleSheet();
+      if (res.success) {
+        if (Array.isArray(res.projects) && res.projects.length > 0) {
+          setProjects(res.projects);
+          saveStoredProjects(res.projects);
+        }
+        setSyncStatus('synced');
+        showToast('ซิงค์ข้อมูล Google Sheet ล่าสุดเรียบร้อยแล้ว', 'success');
+      } else {
+        setSyncStatus('error');
+        showToast(res.error || 'ไม่สามารถซิงค์ Google Sheet ได้', 'error');
+      }
+    } catch {
+      setSyncStatus('error');
+      showToast('เกิดข้อผิดพลาดในการเชื่อมต่อ Google Sheet', 'error');
+    }
+  };
+
   // 2. Save projects locally & auto-backup to Google Sheet
   const updateProjects = (newProjects: Project[], skipCloudSync = false) => {
     setProjects(newProjects);
     saveStoredProjects(newProjects);
 
     if (!skipCloudSync) {
+      setSyncStatus('syncing');
       syncProjectsToGoogleSheet(newProjects)
         .then(res => {
-          if (!res.success) {
+          if (res.success) {
+            setSyncStatus('synced');
+          } else {
             console.warn('Auto cloud sync notice:', res.error);
+            setSyncStatus('error');
           }
         })
         .catch(err => {
           console.warn('Auto cloud sync error:', err);
+          setSyncStatus('error');
         });
     }
   };
@@ -403,6 +438,8 @@ export default function App() {
             setSelectedProjectForDetail(p);
             setSelectedDetailTab(tab || 1);
           }}
+          syncStatus={syncStatus}
+          onRefreshSync={handleRefreshCloudSync}
         />
 
         {/* Dynamic View Router */}
