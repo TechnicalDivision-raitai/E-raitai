@@ -7,8 +7,8 @@ export const STATUS_LABELS: Record<string, string> = {
   procurement_tor: 'จัดทำ TOR/ราคากลาง',
   contracted: 'ลงนามสัญญาแล้ว',
   in_progress: 'อยู่ระหว่างดำเนินการ',
-  delivered: 'ส่งมอบงานแล้ว',
-  inspected: 'ตรวจรับแล้ว',
+  delivered: 'ส่งมอบงานแล้ว รอตรวจรับ',
+  inspected: 'ตรวจรับงานแล้ว รอเบิกจ่าย',
   completed: 'แล้วเสร็จ/เบิกจ่ายแล้ว',
   overdue: 'เกินกำหนดสัญญา'
 };

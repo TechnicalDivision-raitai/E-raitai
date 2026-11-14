@@ -143,6 +143,7 @@ export interface Project {
 
   // สถานะและ metadata
   status: ProjectStatus;
+  statusUpdatedAt?: string;
   progressPercent: number; // 0 - 100
   createdAt: string;
   updatedAt: string;

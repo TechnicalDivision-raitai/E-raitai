@@ -31,7 +31,14 @@ import {
   AttachmentFile,
   RAI_TAI_PERSONNEL
 } from '../types/project';
-import { formatCurrency, formatThaiDate, calculateProjectProgress, countCompletedSteps } from '../utils/thaiDate';
+import {
+  formatCurrency,
+  formatThaiDate,
+  formatThaiDateTime,
+  calculateProjectProgress,
+  countCompletedSteps,
+  deriveProjectStatusFromData
+} from '../utils/thaiDate';
 import { uploadFileToDrive } from '../services/storage';
 import { AutoSuggestInput } from './AutoSuggestInput';
 
@@ -53,6 +60,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   existingProjects = []
 }) => {
   const [activeTab, setActiveTab] = useState<number>(1);
+  const [hasManualStatusChange, setHasManualStatusChange] = useState<boolean>(false);
+  const baselineDerivedRef = React.useRef<ProjectStatus>('not_started');
 
   // Helper to normalize Thai names (collapse multiple spaces into a single space and trim)
   const normalizeName = (name?: string | null): string => {
@@ -327,8 +336,43 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
         });
       }
       setActiveTab(1);
+      setHasManualStatusChange(false);
+      baselineDerivedRef.current = initialProject
+        ? deriveProjectStatusFromData(initialProject)
+        : 'not_started';
     }
   }, [isOpen, initialProject]);
+
+  // Auto-advance or sync project status whenever workflow stage fields change (unless user manually picked status in Tab 1)
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const derived = deriveProjectStatusFromData(formData);
+    if (derived !== baselineDerivedRef.current) {
+      baselineDerivedRef.current = derived;
+      if (!hasManualStatusChange) {
+        setFormData(prev => (prev.status === derived ? prev : { ...prev, status: derived }));
+      }
+    }
+  }, [
+    isOpen,
+    hasManualStatusChange,
+    formData.torOrderNo,
+    formData.torOrderDate,
+    formData.torAuthor,
+    formData.torDate,
+    formData.refPrice,
+    formData.inspectOrderNo,
+    formData.inspectOrderDate,
+    formData.supervisorName,
+    formData.contractNo,
+    formData.contractDate,
+    formData.contractAmount,
+    formData.contractorName,
+    formData.workNotices,
+    formData.deliveries,
+    formData.inspections,
+    formData.disbursements
+  ]);
 
   // Keep empty remuneration payees synchronized with Tab 2 & Tab 3 when opening Tab 6
   React.useEffect(() => {
@@ -388,69 +432,89 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
 
   // Category 5 Helpers (Work Notice, Delivery, Inspection, Disbursement)
   const addWorkNotice = () => {
-    setFormData(prev => ({
-      ...prev,
-      workNotices: [
-        ...prev.workNotices,
-        {
-          id: `wn-${Date.now()}`,
-          bookNo: '',
-          bookDate: '',
-          actualWorkDate: '',
-          notes: ''
-        }
-      ]
-    }));
+    setFormData(prev => {
+      const next: Project = {
+        ...prev,
+        workNotices: [
+          ...prev.workNotices,
+          {
+            id: `wn-${Date.now()}`,
+            bookNo: '',
+            bookDate: '',
+            actualWorkDate: '',
+            notes: ''
+          }
+        ]
+      };
+      const derived = deriveProjectStatusFromData(next);
+      baselineDerivedRef.current = derived;
+      return hasManualStatusChange ? next : { ...next, status: derived };
+    });
   };
 
   const addDelivery = () => {
-    setFormData(prev => ({
-      ...prev,
-      deliveries: [
-        ...prev.deliveries,
-        {
-          id: `del-${Date.now()}`,
-          installment: prev.deliveries.length + 1,
-          bookNo: '',
-          bookDate: '',
-          actualDeliveryDate: '',
-          details: ''
-        }
-      ]
-    }));
+    setFormData(prev => {
+      const next: Project = {
+        ...prev,
+        deliveries: [
+          ...prev.deliveries,
+          {
+            id: `del-${Date.now()}`,
+            installment: prev.deliveries.length + 1,
+            bookNo: '',
+            bookDate: '',
+            actualDeliveryDate: '',
+            details: ''
+          }
+        ]
+      };
+      const derived = deriveProjectStatusFromData(next);
+      baselineDerivedRef.current = derived;
+      return hasManualStatusChange ? next : { ...next, status: derived };
+    });
   };
 
   const addInspection = () => {
-    setFormData(prev => ({
-      ...prev,
-      inspections: [
-        ...prev.inspections,
-        {
-          id: `insp-${Date.now()}`,
-          installment: prev.inspections.length + 1,
-          inspectionDate: '',
-          result: 'pass',
-          details: 'ตรวจรับงานถูกต้องตามแบบรูปรายการละเอียด'
-        }
-      ]
-    }));
+    setFormData(prev => {
+      const next: Project = {
+        ...prev,
+        inspections: [
+          ...prev.inspections,
+          {
+            id: `insp-${Date.now()}`,
+            installment: prev.inspections.length + 1,
+            inspectionDate: '',
+            result: 'pass',
+            details: 'ตรวจรับงานถูกต้องตามแบบรูปรายการละเอียด'
+          }
+        ]
+      };
+      const derived = deriveProjectStatusFromData(next);
+      baselineDerivedRef.current = derived;
+      return hasManualStatusChange ? next : { ...next, status: derived };
+    });
   };
 
   const addDisbursement = () => {
-    setFormData(prev => ({
-      ...prev,
-      disbursements: [
-        ...prev.disbursements,
-        {
-          id: `disb-${Date.now()}`,
-          installment: prev.disbursements.length + 1,
-          disbursementDate: '',
-          petitionNo: '',
-          amount: prev.contractAmount || 0,
-          status: 'pending'
-        }
-      ]
-    }));
+    setFormData(prev => {
+      const next: Project = {
+        ...prev,
+        disbursements: [
+          ...prev.disbursements,
+          {
+            id: `disb-${Date.now()}`,
+            installment: prev.disbursements.length + 1,
+            disbursementDate: '',
+            petitionNo: '',
+            amount: prev.contractAmount || 0,
+            status: 'pending'
+          }
+        ]
+      };
+      const derived = deriveProjectStatusFromData(next);
+      baselineDerivedRef.current = derived;
+      return hasManualStatusChange ? next : { ...next, status: derived };
+    });
   };
 
   // Category 6: Remuneration Helpers
@@ -574,9 +638,15 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     }
 
     const finalProgress = calculateProjectProgress(formData);
+    const previousStatus = initialProject?.status;
+    const didStatusChange = initialProject
+      ? formData.status !== previousStatus
+      : formData.status !== 'not_started';
+
     onSave({
       ...formData,
       progressPercent: finalProgress,
+      statusUpdatedAt: didStatusChange ? formatThaiDateTime() : formData.statusUpdatedAt,
       updatedAt: new Date().toISOString()
     });
   };
@@ -696,18 +766,26 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                   </label>
                   <select
                     value={formData.status}
-                    onChange={e => setFormData({ ...formData, status: e.target.value as ProjectStatus })}
+                    onChange={e => {
+                      setHasManualStatusChange(true);
+                      setFormData({ ...formData, status: e.target.value as ProjectStatus });
+                    }}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                   >
                     <option value="not_started">ยังไม่เริ่มดำเนินการ</option>
                     <option value="procurement_tor">จัดทำ TOR/ราคากลาง</option>
                     <option value="contracted">ลงนามสัญญาแล้ว</option>
                     <option value="in_progress">อยู่ระหว่างดำเนินการ</option>
-                    <option value="delivered">ส่งมอบงานแล้ว</option>
-                    <option value="inspected">ตรวจรับแล้ว</option>
+                    <option value="delivered">ส่งมอบงานแล้ว รอตรวจรับ</option>
+                    <option value="inspected">ตรวจรับงานแล้ว รอเบิกจ่าย</option>
                     <option value="completed">แล้วเสร็จ/เบิกจ่ายแล้ว</option>
                     <option value="overdue">เกินกำหนดสัญญา</option>
                   </select>
+                  <div className="text-[10px] text-slate-400 mt-0.5">
+                    {formData.statusUpdatedAt
+                      ? `อัปเดตสถานะล่าสุด: ${formData.statusUpdatedAt}`
+                      : 'อัปเดตอัตโนมัติตามขั้นตอนข้อมูล (หรือเลือกปรับเองได้)'}
+                  </div>
                 </div>
               </div>
 

@@ -33,7 +33,12 @@ import {
   syncProjectsToGoogleSheet
 } from './services/googleSync';
 import { CURRENT_USER, STAFF_USER } from './data/mockData';
-import { getCurrentThaiFiscalYear, calculateProjectProgress, isProjectCompletedOrDisbursed } from './utils/thaiDate';
+import {
+  getCurrentThaiFiscalYear,
+  calculateProjectProgress,
+  isProjectCompletedOrDisbursed,
+  formatThaiDateTime
+} from './utils/thaiDate';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 
 export default function App() {
@@ -151,7 +156,16 @@ export default function App() {
       Swal.fire('ไม่อนุญาต', 'สิทธิ์เจ้าหน้าที่ (Staff) ไม่สามารถเปลี่ยนสถานะหรือแก้ไขข้อมูลได้', 'error');
       return;
     }
-    const newProjects = projects.map(p => (p.id === updated.id ? updated : p));
+    const existing = projects.find(p => p.id === updated.id);
+    const statusChanged = existing ? existing.status !== updated.status : updated.status !== 'not_started';
+    const nextProject: Project = {
+      ...updated,
+      progressPercent: calculateProjectProgress(updated),
+      statusUpdatedAt:
+        updated.statusUpdatedAt ||
+        (statusChanged ? formatThaiDateTime() : existing?.statusUpdatedAt)
+    };
+    const newProjects = projects.map(p => (p.id === nextProject.id ? nextProject : p));
     updateProjects(newProjects);
   };
 
@@ -200,8 +214,18 @@ export default function App() {
 
     try {
       const finalProgress = calculateProjectProgress(projectData);
-      const toSave = { ...projectData, progressPercent: finalProgress };
-      const exists = projects.some(p => p.id === toSave.id);
+      const existing = projects.find(p => p.id === projectData.id);
+      const statusChanged = existing
+        ? existing.status !== projectData.status
+        : projectData.status !== 'not_started';
+      const toSave: Project = {
+        ...projectData,
+        progressPercent: finalProgress,
+        statusUpdatedAt: statusChanged
+          ? projectData.statusUpdatedAt || formatThaiDateTime()
+          : projectData.statusUpdatedAt ?? existing?.statusUpdatedAt
+      };
+      const exists = Boolean(existing);
       let updated: Project[];
       if (exists) {
         updated = projects.map(p => (p.id === toSave.id ? toSave : p));
@@ -615,6 +639,10 @@ export default function App() {
           setSelectedProjectForDetail(null);
           setProjectToEdit(p);
           setIsProjectModalOpen(true);
+        }}
+        onUpdateProject={updated => {
+          handleUpdateSingleProject(updated);
+          setSelectedProjectForDetail(updated);
         }}
         currentUser={currentUser}
       />

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import Swal from 'sweetalert2';
 import {
   X,
   Printer,
@@ -16,19 +17,19 @@ import {
   Coins,
   ShieldCheck,
   ChevronRight,
-  ExternalLink
+  ExternalLink,
+  RefreshCw
 } from 'lucide-react';
-import { Project, UserProfile } from '../types/project';
-import { formatCurrency, formatThaiDate, getDaysRemaining, bahtText } from '../utils/thaiDate';
+import { Project, ProjectStatus, UserProfile, AttachmentFile } from '../types/project';
+import { formatCurrency, formatThaiDate, formatThaiDateTime, getDaysRemaining, bahtText } from '../utils/thaiDate';
 import { STATUS_LABELS } from '../utils/excelExport';
-
-import { AttachmentFile } from '../types/project';
 
 interface ProjectDetailModalProps {
   project: Project | null;
   isOpen: boolean;
   onClose: () => void;
   onEdit: (p: Project) => void;
+  onUpdateProject?: (p: Project) => void;
   currentUser: UserProfile;
   initialTab?: number;
 }
@@ -85,6 +86,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   isOpen,
   onClose,
   onEdit,
+  onUpdateProject,
   currentUser,
   initialTab = 1
 }) => {
@@ -114,6 +116,54 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   const handlePrint = () => {
     window.print();
   };
+
+  const handleChangeStatus = () => {
+    if (currentUser.role !== 'admin' || !onUpdateProject) return;
+
+    Swal.fire({
+      title: 'เปลี่ยนสถานะการดำเนินงานโครงการ',
+      input: 'select',
+      inputOptions: {
+        not_started: STATUS_LABELS.not_started,
+        procurement_tor: STATUS_LABELS.procurement_tor,
+        contracted: STATUS_LABELS.contracted,
+        in_progress: STATUS_LABELS.in_progress,
+        delivered: STATUS_LABELS.delivered,
+        inspected: STATUS_LABELS.inspected,
+        completed: STATUS_LABELS.completed,
+        overdue: STATUS_LABELS.overdue
+      },
+      inputValue: project.status,
+      showCancelButton: true,
+      confirmButtonText: 'บันทึกสถานะ',
+      cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: '#059669'
+    }).then(result => {
+      if (result.isConfirmed && result.value) {
+        const nowStr = formatThaiDateTime();
+        const updated: Project = {
+          ...project,
+          status: result.value as ProjectStatus,
+          statusUpdatedAt: nowStr,
+          updatedAt: new Date().toISOString()
+        };
+        onUpdateProject(updated);
+
+        Swal.fire({
+          icon: 'success',
+          title: 'อัปเดตสถานะสำเร็จ',
+          text: `เปลี่ยนสถานะเป็น "${STATUS_LABELS[result.value]}" เรียบร้อยแล้ว (${nowStr})`,
+          timer: 1500,
+          showConfirmButton: false
+        });
+      }
+    });
+  };
+
+  const latestStatusDate =
+    project.statusUpdatedAt ||
+    project.ackTime ||
+    (project.updatedAt ? formatThaiDateTime(project.updatedAt) : '');
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2 sm:p-5">
@@ -159,6 +209,17 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
               <Printer className="w-4 h-4" />
               <span className="hidden sm:inline">พิมพ์เอกสาร</span>
             </button>
+
+            {currentUser.role === 'admin' && onUpdateProject && (
+              <button
+                onClick={handleChangeStatus}
+                className="p-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-white transition flex items-center gap-1.5 text-xs font-semibold shadow-xs"
+                title="เปลี่ยนสถานะโครงการ"
+              >
+                <RefreshCw className="w-4 h-4" />
+                <span className="hidden sm:inline">เปลี่ยนสถานะ</span>
+              </button>
+            )}
 
             {currentUser.role === 'admin' && (
               <button
@@ -214,7 +275,14 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
               <span>•</span>
               <span>หมวด: <strong>{project.budgetCategory}</strong></span>
               <span>•</span>
-              <span>สถานะ: <strong>{STATUS_LABELS[project.status] || project.status}</strong></span>
+              <span>
+                สถานะ: <strong>{STATUS_LABELS[project.status] || project.status}</strong>
+                {latestStatusDate && (
+                  <span className="text-slate-500 ml-1.5">
+                    (อัปเดตล่าสุด {latestStatusDate})
+                  </span>
+                )}
+              </span>
             </div>
           </div>
 

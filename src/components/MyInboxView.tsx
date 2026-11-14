@@ -10,7 +10,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { Project, UserProfile, ProjectStatus } from '../types/project';
-import { formatThaiDate } from '../utils/thaiDate';
+import { formatThaiDateTime, deriveProjectStatusFromData } from '../utils/thaiDate';
 import { STATUS_LABELS } from '../utils/excelExport';
 
 interface MyInboxViewProps {
@@ -44,23 +44,21 @@ export const MyInboxView: React.FC<MyInboxViewProps> = ({
       return;
     }
 
-    const now = new Date();
-    const thaiMonths = [
-      'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
-      'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
-    ];
-    const day = now.getDate();
-    const month = thaiMonths[now.getMonth()];
-    const year = now.getFullYear() + 543;
-    const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')} น.`;
-    const ackTimeStr = `${day} ${month} ${year} ${time}`;
+    const ackTimeStr = formatThaiDateTime();
+    const derived = deriveProjectStatusFromData(project);
+    const nextStatus: ProjectStatus =
+      project.status === 'not_started'
+        ? derived !== 'not_started'
+          ? derived
+          : 'procurement_tor'
+        : project.status;
 
-    // Requirement 6: เมื่อกดรับทราบงาน สถานะจะเปลี่ยนเป็น จัดทำ TOR/ราคากลาง (procurement_tor)
     const updated: Project = {
       ...project,
       ackStatus: 'รับทราบแล้ว',
       ackTime: ackTimeStr,
-      status: 'procurement_tor',
+      statusUpdatedAt: ackTimeStr,
+      status: nextStatus,
       updatedAt: new Date().toISOString()
     };
 
@@ -80,14 +78,14 @@ export const MyInboxView: React.FC<MyInboxViewProps> = ({
       title: 'เปลี่ยนสถานะการดำเนินงานโครงการ',
       input: 'select',
       inputOptions: {
-        not_started: 'ยังไม่เริ่มดำเนินการ',
-        procurement_tor: 'จัดทำ TOR/ราคากลาง',
-        contracted: 'ลงนามสัญญาแล้ว/รอเข้าทำงาน',
-        in_progress: 'กำลังดำเนินงานก่อสร้าง',
-        delivered: 'ส่งมอบงานแล้ว รอตรวจรับ',
-        inspected: 'ตรวจรับงานแล้ว รอเบิกจ่าย',
-        completed: 'ดำเนินการแล้วเสร็จ (เบิกจ่ายแล้ว)',
-        overdue: 'เกินกำหนดสัญญา'
+        not_started: STATUS_LABELS.not_started,
+        procurement_tor: STATUS_LABELS.procurement_tor,
+        contracted: STATUS_LABELS.contracted,
+        in_progress: STATUS_LABELS.in_progress,
+        delivered: STATUS_LABELS.delivered,
+        inspected: STATUS_LABELS.inspected,
+        completed: STATUS_LABELS.completed,
+        overdue: STATUS_LABELS.overdue
       },
       inputValue: project.status,
       showCancelButton: true,
@@ -96,9 +94,11 @@ export const MyInboxView: React.FC<MyInboxViewProps> = ({
       confirmButtonColor: '#059669'
     }).then(result => {
       if (result.isConfirmed && result.value) {
+        const nowStr = formatThaiDateTime();
         const updated: Project = {
           ...project,
           status: result.value as ProjectStatus,
+          statusUpdatedAt: nowStr,
           updatedAt: new Date().toISOString()
         };
         onUpdateProject(updated);
@@ -106,12 +106,33 @@ export const MyInboxView: React.FC<MyInboxViewProps> = ({
         Swal.fire({
           icon: 'success',
           title: 'อัปเดตสถานะสำเร็จ',
-          text: `เปลี่ยนสถานะเป็น "${STATUS_LABELS[result.value]}" เรียบร้อยแล้ว`,
+          text: `เปลี่ยนสถานะเป็น "${STATUS_LABELS[result.value]}" เรียบร้อยแล้ว (${nowStr})`,
           timer: 1500,
           showConfirmButton: false
         });
       }
     });
+  };
+
+  const getStatusBadgeClasses = (status: ProjectStatus) => {
+    switch (status) {
+      case 'completed':
+        return 'bg-teal-100 text-teal-800 border border-teal-200';
+      case 'in_progress':
+        return 'bg-emerald-100 text-emerald-800 border border-emerald-200';
+      case 'delivered':
+        return 'bg-purple-100 text-purple-800 border border-purple-200';
+      case 'inspected':
+        return 'bg-indigo-100 text-indigo-800 border border-indigo-200';
+      case 'overdue':
+        return 'bg-rose-100 text-rose-800 border border-rose-200';
+      case 'procurement_tor':
+        return 'bg-amber-100 text-amber-800 border border-amber-200';
+      case 'contracted':
+        return 'bg-blue-100 text-blue-800 border border-blue-200';
+      default:
+        return 'bg-slate-100 text-slate-700 border border-slate-200';
+    }
   };
 
   return (
@@ -137,8 +158,7 @@ export const MyInboxView: React.FC<MyInboxViewProps> = ({
                 <th className="p-3">หมวดงบประมาณ</th>
                 <th className="p-3">ชื่อโครงการ / สถานที่</th>
                 <th className="p-3">ผู้รับผิดชอบ</th>
-                <th className="p-3 text-center">สถานะรับทราบ</th>
-                <th className="p-3 text-center">สถานะโครงการ</th>
+                <th className="p-3 text-center">สถานะโครงการ / รับทราบ</th>
                 <th className="p-3 text-center">ไฟล์แนบ</th>
                 <th className="p-3 text-center">การกระทำ</th>
               </tr>
@@ -146,7 +166,7 @@ export const MyInboxView: React.FC<MyInboxViewProps> = ({
             <tbody className="divide-y divide-gray-100">
               {myProjects.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-gray-400">
+                  <td colSpan={7} className="p-8 text-center text-gray-400">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <CheckCircle2 className="w-8 h-8 text-emerald-400" />
                       <p className="text-sm font-medium">ไม่มีงานหรือโครงการค้างรับทราบในขณะนี้</p>
@@ -156,6 +176,11 @@ export const MyInboxView: React.FC<MyInboxViewProps> = ({
               ) : (
                 myProjects.map(p => {
                   const isAcked = p.ackStatus === 'รับทราบแล้ว';
+                  const latestStatusTime =
+                    p.statusUpdatedAt ||
+                    p.ackTime ||
+                    (p.updatedAt ? formatThaiDateTime(p.updatedAt) : 'รับทราบแล้ว');
+
                   return (
                     <tr key={p.id} className="hover:bg-gray-50 transition">
                       <td className="p-3 font-bold text-emerald-700 whitespace-nowrap font-mono">
@@ -183,42 +208,48 @@ export const MyInboxView: React.FC<MyInboxViewProps> = ({
                         {p.responsiblePerson || p.supervisorName || '-'}
                       </td>
 
-                      {/* สถานะรับทราบงาน */}
+                      {/* คอลัมน์รวม: สถานะโครงการ (บน) + ปุ่มกดรับทราบงาน / วันที่อัปเดตสถานะล่าสุด (ล่าง) */}
                       <td className="p-3 text-center whitespace-nowrap">
-                        {isAcked ? (
-                          <span className="inline-flex items-center gap-1 text-emerald-600 text-[11px] font-semibold bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-                            <CheckCircle2 className="w-3.5 h-3.5" />
-                            <span>{p.ackTime || 'รับทราบแล้ว'}</span>
-                          </span>
-                        ) : currentUser.role === 'admin' ? (
-                          <button
-                            onClick={() => handleAcknowledge(p)}
-                            className="bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold px-3 py-1 rounded-lg transition active:scale-95 shadow-xs"
+                        <div className="flex flex-col items-center justify-center gap-1.5">
+                          <span
+                            className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold ${getStatusBadgeClasses(
+                              p.status
+                            )}`}
                           >
-                            กดรับทราบงาน
-                          </button>
-                        ) : (
-                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                            รอรับทราบ
+                            {STATUS_LABELS[p.status] || p.status}
                           </span>
-                        )}
-                      </td>
 
-                      {/* สถานะโครงการ */}
-                      <td className="p-3 text-center whitespace-nowrap">
-                        <span
-                          className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-bold ${
-                            p.status === 'completed'
-                              ? 'bg-teal-100 text-teal-800'
-                              : p.status === 'in_progress'
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : p.status === 'overdue'
-                              ? 'bg-rose-100 text-rose-800'
-                              : 'bg-blue-100 text-blue-800'
-                          }`}
-                        >
-                          {STATUS_LABELS[p.status] || p.status}
-                        </span>
+                          {isAcked ? (
+                            <span
+                              className="inline-flex items-center gap-1 text-emerald-700 text-[10px] font-semibold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200"
+                              title="วันเวลาที่รับทราบ / เปลี่ยนสถานะล่าสุด"
+                            >
+                              <CheckCircle2 className="w-3 h-3 shrink-0" />
+                              <span>{latestStatusTime}</span>
+                            </span>
+                          ) : (
+                            <div className="flex flex-col items-center gap-1">
+                              {currentUser.role === 'admin' ? (
+                                <button
+                                  onClick={() => handleAcknowledge(p)}
+                                  className="bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold px-3 py-1 rounded-lg transition active:scale-95 shadow-xs"
+                                >
+                                  กดรับทราบงาน
+                                </button>
+                              ) : (
+                                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                                  รอรับทราบ
+                                </span>
+                              )}
+                              {p.statusUpdatedAt && (
+                                <span className="inline-flex items-center gap-1 text-[10px] text-slate-500">
+                                  <Clock className="w-2.5 h-2.5 shrink-0" />
+                                  <span>{p.statusUpdatedAt}</span>
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </td>
 
                       {/* ไฟล์แนบ */}

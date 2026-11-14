@@ -1,3 +1,5 @@
+import { Project, ProjectStatus } from '../types/project';
+
 const THAI_MONTHS_SHORT = [
   'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
   'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'
@@ -219,3 +221,78 @@ export function isProjectCompletedOrDisbursed(p: any): boolean {
   }
   return false;
 }
+
+/**
+ * Format Date or ISO string into Thai date + time (e.g. "14 พ.ย. 2569 02:30 น.")
+ */
+export function formatThaiDateTime(dateInput?: Date | string | null): string {
+  const d = dateInput ? new Date(dateInput) : new Date();
+  if (isNaN(d.getTime())) {
+    return typeof dateInput === 'string' ? dateInput : '-';
+  }
+  const day = d.getDate();
+  const month = THAI_MONTHS_SHORT[d.getMonth()];
+  const thaiYear = d.getFullYear() > 2400 ? d.getFullYear() : d.getFullYear() + 543;
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${day} ${month} ${thaiYear} ${hours}:${minutes} น.`;
+}
+
+/**
+ * Derive project status automatically from the furthest recorded workflow stage
+ */
+export function deriveProjectStatusFromData(p: Partial<Project> | null | undefined): ProjectStatus {
+  if (!p) return 'not_started';
+
+  const disbursements = p.disbursements || [];
+  const inspections = p.inspections || [];
+  const deliveries = p.deliveries || [];
+  const workNotices = p.workNotices || [];
+
+  // 1. เบิกจ่ายครบแล้วทั้งหมด
+  if (disbursements.length > 0 && disbursements.every(d => d.status === 'paid')) {
+    return 'completed';
+  }
+
+  // 2. ตรวจรับผ่านแล้ว หรือมีฎีกาเบิกจ่ายแล้ว (รอเบิกจ่าย)
+  if (inspections.some(i => i.result === 'pass') || disbursements.length > 0) {
+    return 'inspected';
+  }
+
+  // 3. ส่งมอบงานแล้ว (รอตรวจรับ)
+  if (deliveries.length > 0) {
+    return 'delivered';
+  }
+
+  // 4. แจ้งเข้าทำงานแล้ว (อยู่ระหว่างดำเนินการ)
+  if (workNotices.length > 0) {
+    return 'in_progress';
+  }
+
+  // 5. ลงนามสัญญาแล้ว
+  if (
+    Boolean(p.contractNo && p.contractNo.trim()) ||
+    Boolean(p.contractDate && p.contractDate.trim()) ||
+    (p.contractAmount !== undefined && Number(p.contractAmount) > 0) ||
+    Boolean(p.contractorName && p.contractorName.trim())
+  ) {
+    return 'contracted';
+  }
+
+  // 6. จัดทำ TOR / ราคากลาง / คำสั่งแต่งตั้งกรรมการ
+  if (
+    Boolean(p.torOrderNo && p.torOrderNo.trim()) ||
+    Boolean(p.torOrderDate && p.torOrderDate.trim()) ||
+    Boolean(p.torDate && p.torDate.trim()) ||
+    Boolean(p.torAuthor && p.torAuthor.trim()) ||
+    (p.refPrice !== undefined && Number(p.refPrice) > 0) ||
+    Boolean(p.inspectOrderNo && p.inspectOrderNo.trim()) ||
+    Boolean(p.inspectOrderDate && p.inspectOrderDate.trim()) ||
+    Boolean(p.supervisorName && p.supervisorName.trim())
+  ) {
+    return 'procurement_tor';
+  }
+
+  return 'not_started';
+}
+
