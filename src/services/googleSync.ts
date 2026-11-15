@@ -81,6 +81,24 @@ export async function syncProjectsToGoogleSheet(
   projects: Project[]
 ): Promise<{ success: boolean; count?: number; error?: string }> {
   try {
+    // Strip large local base64 previewDataUrl when a cloud Drive URL is present so Google Sheet cells never exceed 50,000 chars
+    const cloudSafeProjects = projects.map(p => {
+      if (!p.projectRecord?.files?.length) return p;
+      return {
+        ...p,
+        projectRecord: {
+          ...p.projectRecord,
+          files: p.projectRecord.files.map(f => {
+            if (f.url && f.url.startsWith('http')) {
+              const { previewDataUrl: _omit, ...rest } = f;
+              return rest;
+            }
+            return f;
+          })
+        }
+      };
+    });
+
     const response = await fetch(DEFAULT_GOOGLE_SCRIPT_URL, {
       method: 'POST',
       headers: {
@@ -88,7 +106,7 @@ export async function syncProjectsToGoogleSheet(
       },
       body: JSON.stringify({
         action: 'syncProjects',
-        projects,
+        projects: cloudSafeProjects,
         sheetName: DEFAULT_SHEET_NAME,
         timestamp: new Date().toISOString()
       }),

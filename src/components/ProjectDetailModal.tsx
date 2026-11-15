@@ -28,7 +28,8 @@ import {
 import {
   hasValidCoord,
   getGoogleMapsPointUrl,
-  getGoogleMapsRouteUrl
+  getGoogleMapsRouteUrl,
+  getArchiveImageDisplayUrl
 } from './ProjectRecordsView';
 import { Project, ProjectStatus, UserProfile, AttachmentFile } from '../types/project';
 import {
@@ -1066,7 +1067,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                 {project.projectRecord?.files && project.projectRecord.files.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                     {project.projectRecord.files.map(file => {
-                      const imgSrc = file.previewDataUrl || file.url || '';
+                      const imgSrc = getArchiveImageDisplayUrl(file);
                       const isImage =
                         file.type?.startsWith('image/') ||
                         Boolean(file.previewDataUrl) ||

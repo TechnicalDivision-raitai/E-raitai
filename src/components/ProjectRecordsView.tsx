@@ -75,6 +75,25 @@ export function getGoogleMapsRouteUrl(
 }
 
 /**
+ * Resolves an image display URL that works across all devices, converting Google Drive view links into direct thumbnail URLs
+ */
+export function getArchiveImageDisplayUrl(file?: ProjectArchiveAttachment): string {
+  if (!file) return '';
+  if (file.previewDataUrl) return file.previewDataUrl;
+  const rawUrl = file.url || '';
+  if (!rawUrl) return '';
+  const matchD = rawUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  if (matchD && matchD[1]) {
+    return `https://drive.google.com/thumbnail?id=${matchD[1]}&sz=w1000`;
+  }
+  const matchId = rawUrl.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (matchId && matchId[1]) {
+    return `https://drive.google.com/thumbnail?id=${matchId[1]}&sz=w1000`;
+  }
+  return rawUrl;
+}
+
+/**
  * Generates a small compressed JPEG data URL for image files so thumbnails can be viewed offline/retrospectively
  */
 export async function createImagePreviewDataUrl(file: File): Promise<string | undefined> {
@@ -784,7 +803,7 @@ export const ProjectRecordsView: React.FC<ProjectRecordsViewProps> = ({
                               file.type?.startsWith('image/') ||
                               Boolean(file.previewDataUrl) ||
                               /\.(jpg|jpeg|png|webp|gif)$/i.test(file.name);
-                            const imgSrc = file.previewDataUrl || file.url || '';
+                            const imgSrc = getArchiveImageDisplayUrl(file);
                             const stageMeta = file.photoStage
                               ? PHOTO_STAGE_LABELS[file.photoStage]
                               : PHOTO_STAGE_LABELS.during;
@@ -1218,7 +1237,7 @@ export const ProjectRecordsView: React.FC<ProjectRecordsViewProps> = ({
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                     {(draftRecord.files || []).map((file, idx) => {
-                      const imgSrc = file.previewDataUrl || file.url || '';
+                      const imgSrc = getArchiveImageDisplayUrl(file);
                       const isImage =
                         file.type?.startsWith('image/') ||
                         Boolean(file.previewDataUrl) ||
