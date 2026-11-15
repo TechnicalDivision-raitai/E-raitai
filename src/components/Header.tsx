@@ -112,98 +112,100 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* Right: Actions & Role Badge */}
       <div className="flex items-center gap-1.5 sm:gap-2.5 shrink-0">
-        {/* Notifications Dropdown */}
-        <div className="relative shrink-0">
-          <button
-            onClick={() => setShowNotifications(!showNotifications)}
-            className="relative p-2 rounded-xl text-gray-600 hover:text-emerald-700 hover:bg-emerald-50 border border-gray-200 transition"
-            title="การแจ้งเตือนงานเกินกำหนดและใกล้ครบสัญญา"
-          >
-            <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
-            {alerts.length > 0 && (
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-pulse shadow-xs">
-                {alerts.length}
-              </span>
-            )}
-          </button>
+        {/* Notifications Dropdown (Admin only) */}
+        {isAdmin && (
+          <div className="relative shrink-0">
+            <button
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="relative p-2 rounded-xl text-gray-600 hover:text-emerald-700 hover:bg-emerald-50 border border-gray-200 transition"
+              title="การแจ้งเตือนงานเกินกำหนดและใกล้ครบสัญญา"
+            >
+              <Bell className="w-4 h-4 sm:w-5 sm:h-5" />
+              {alerts.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center animate-pulse shadow-xs">
+                  {alerts.length}
+                </span>
+              )}
+            </button>
 
-          {showNotifications && (
-            <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-gray-200 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-              <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-500" />
-                  <span className="text-sm font-bold text-gray-800">แจ้งเตือนโครงการ</span>
-                </div>
-                <span className="text-xs text-gray-500">{alerts.length} รายการ</span>
-              </div>
-
-              <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
-                {alerts.length === 0 ? (
-                  <div className="p-6 text-center text-gray-400 text-xs">
-                    ไม่มีรายการแจ้งเตือนโครงการในขณะนี้
+            {showNotifications && (
+              <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-2xl border border-gray-200 py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-amber-500" />
+                    <span className="text-sm font-bold text-gray-800">แจ้งเตือนโครงการ</span>
                   </div>
-                ) : (
-                  alerts.map(({ project, remaining, isContractUrgent, workNoticeAlert }) => (
-                    <button
-                      key={project.id}
-                      onClick={() => {
-                        onSelectProject(project, workNoticeAlert.hasAlert ? 5 : 1);
-                        setShowNotifications(false);
-                      }}
-                      className="w-full text-left p-3 hover:bg-gray-50 transition flex items-start gap-3"
-                    >
-                      <div
-                        className={`p-2 rounded-lg shrink-0 mt-0.5 ${
-                          remaining.isOverdue || workNoticeAlert.isOver15Days
-                            ? 'bg-rose-100 text-rose-700'
-                            : 'bg-amber-100 text-amber-700'
-                        }`}
+                  <span className="text-xs text-gray-500">{alerts.length} รายการ</span>
+                </div>
+
+                <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
+                  {alerts.length === 0 ? (
+                    <div className="p-6 text-center text-gray-400 text-xs">
+                      ไม่มีรายการแจ้งเตือนโครงการในขณะนี้
+                    </div>
+                  ) : (
+                    alerts.map(({ project, remaining, isContractUrgent, workNoticeAlert }) => (
+                      <button
+                        key={project.id}
+                        onClick={() => {
+                          onSelectProject(project, workNoticeAlert.hasAlert ? 5 : 1);
+                          setShowNotifications(false);
+                        }}
+                        className="w-full text-left p-3 hover:bg-gray-50 transition flex items-start gap-3"
                       >
-                        {remaining.isOverdue || workNoticeAlert.hasAlert ? (
-                          <AlertTriangle className="w-4 h-4" />
-                        ) : (
-                          <Clock className="w-4 h-4" />
-                        )}
-                      </div>
-                      <div className="overflow-hidden space-y-1">
-                        <div className="text-xs font-semibold text-gray-800 line-clamp-1">
-                          {project.name}
-                        </div>
-                        <div className="text-[11px] text-gray-500">
-                          สัญญา: {project.contractNo || 'ยังไม่มีสัญญา'} • ผู้รับจ้าง: {project.contractorName || '-'}
-                        </div>
-                        <div className="flex flex-wrap gap-1 pt-0.5">
-                          {workNoticeAlert.hasAlert && (
-                            <span
-                              className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                workNoticeAlert.isOver15Days
-                                  ? 'bg-rose-100 text-rose-800 border border-rose-300'
-                                  : 'bg-orange-100 text-orange-800 border border-orange-300'
-                              }`}
-                            >
-                              {workNoticeAlert.badgeLabel}
-                            </span>
-                          )}
-                          {isContractUrgent && (
-                            <span
-                              className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                remaining.isOverdue
-                                  ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                                  : 'bg-amber-50 text-amber-700 border border-amber-200'
-                              }`}
-                            >
-                              {remaining.label}
-                            </span>
+                        <div
+                          className={`p-2 rounded-lg shrink-0 mt-0.5 ${
+                            remaining.isOverdue || workNoticeAlert.isOver15Days
+                              ? 'bg-rose-100 text-rose-700'
+                              : 'bg-amber-100 text-amber-700'
+                          }`}
+                        >
+                          {remaining.isOverdue || workNoticeAlert.hasAlert ? (
+                            <AlertTriangle className="w-4 h-4" />
+                          ) : (
+                            <Clock className="w-4 h-4" />
                           )}
                         </div>
-                      </div>
-                    </button>
-                  ))
-                )}
+                        <div className="overflow-hidden space-y-1">
+                          <div className="text-xs font-semibold text-gray-800 line-clamp-1">
+                            {project.name}
+                          </div>
+                          <div className="text-[11px] text-gray-500">
+                            สัญญา: {project.contractNo || 'ยังไม่มีสัญญา'} • ผู้รับจ้าง: {project.contractorName || '-'}
+                          </div>
+                          <div className="flex flex-wrap gap-1 pt-0.5">
+                            {workNoticeAlert.hasAlert && (
+                              <span
+                                className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                  workNoticeAlert.isOver15Days
+                                    ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                                    : 'bg-orange-100 text-orange-800 border border-orange-300'
+                                }`}
+                              >
+                                {workNoticeAlert.badgeLabel}
+                              </span>
+                            )}
+                            {isContractUrgent && (
+                              <span
+                                className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                  remaining.isOverdue
+                                    ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                    : 'bg-amber-50 text-amber-700 border border-amber-200'
+                                }`}
+                              >
+                                {remaining.label}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+          </div>
+        )}
 
         {/* Add Project Button (Shown for Admin) */}
         {isAdmin && (

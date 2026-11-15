@@ -578,7 +578,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
               {/* แจ้งเข้าทำงาน */}
               <div>
                 <h5 className="text-xs font-bold text-slate-700 mb-2">หนังสือแจ้งเข้าทำงาน:</h5>
-                {getWorkNoticeAlert(project).hasAlert && (
+                {currentUser.role === 'admin' && getWorkNoticeAlert(project).hasAlert && (
                   <div
                     className={`mb-2.5 p-3 rounded-xl border flex items-start gap-2.5 text-xs ${
                       getWorkNoticeAlert(project).isOver15Days
@@ -610,7 +610,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                           <td className="p-2 border border-slate-300">
                             {w.actualWorkDate ? (
                               formatThaiDate(w.actualWorkDate)
-                            ) : getWorkNoticeAlert(project).hasAlert ? (
+                            ) : currentUser.role === 'admin' && getWorkNoticeAlert(project).hasAlert ? (
                               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
                                 <AlertTriangle className="w-3 h-3 shrink-0 text-amber-700" />
                                 <span>{getWorkNoticeAlert(project).badgeLabel}</span>

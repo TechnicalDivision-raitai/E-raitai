@@ -286,8 +286,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      {/* Work Notice 15-Day Contractor Expedition Alert Banner */}
-      {workNoticeAlerts.length > 0 && (
+      {/* Work Notice 15-Day Contractor Expedition Alert Banner (Admin only) */}
+      {currentUser?.role === 'admin' && workNoticeAlerts.length > 0 && (
         <div className="bg-amber-50/90 border-2 border-amber-300 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
             <div className="flex items-center gap-2.5">
@@ -780,7 +780,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       >
                         {STATUS_LABELS[p.status] || p.status}
                       </span>
-                      {getWorkNoticeAlert(p).hasAlert && (
+                      {currentUser?.role === 'admin' && getWorkNoticeAlert(p).hasAlert && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
                           <AlertTriangle className="w-3 h-3 text-amber-700 shrink-0" />
                           <span>เร่งรัดผู้รับจ้างเข้าทำงาน</span>

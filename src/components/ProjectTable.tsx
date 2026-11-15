@@ -509,7 +509,9 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
                         >
                           {STATUS_LABELS[p.status] || p.status}
                         </span>
-                        {isProjectCompletedOrDisbursed(p) && !(p.remunerations && p.remunerations.length > 0) ? (
+                        {currentUser.role === 'admin' &&
+                        isProjectCompletedOrDisbursed(p) &&
+                        !(p.remunerations && p.remunerations.length > 0) ? (
                           <div className="mt-1">
                             <button
                               type="button"
@@ -526,7 +528,7 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
                             ความคืบหน้า {p.progressPercent}%
                           </div>
                         )}
-                        {getWorkNoticeAlert(p).hasAlert && (
+                        {currentUser.role === 'admin' && getWorkNoticeAlert(p).hasAlert && (
                           <button
                             type="button"
                             onClick={() => onSelectProject(p, 5)}

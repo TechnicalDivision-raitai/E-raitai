@@ -191,6 +191,9 @@ export default function App() {
   const handleLoginSuccess = (user: UserProfile) => {
     setCurrentUser(user);
     saveStoredUser(user);
+    if (user.role !== 'admin' && currentTab === 'myInbox') {
+      setCurrentTab('dashboard');
+    }
     setIsLoginModalOpen(false);
   };
 
@@ -520,8 +523,8 @@ export default function App() {
             />
           )}
 
-          {/* 3. My Inbox View (Tab 2 from Saraban) */}
-          {currentTab === 'myInbox' && (
+          {/* 3. My Inbox View (Admin only) */}
+          {currentTab === 'myInbox' && currentUser.role === 'admin' && (
             <MyInboxView
               projects={projects}
               currentUser={currentUser}

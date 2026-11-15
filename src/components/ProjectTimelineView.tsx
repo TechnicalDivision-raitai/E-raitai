@@ -388,19 +388,21 @@ export const ProjectTimelineView: React.FC<ProjectTimelineViewProps> = ({
                   </button>
                 </div>
 
-                {/* Overdue Alert Bar */}
-                {remainingDays.isOverdue && currentProject.status !== 'completed' && (
-                  <div className="p-3 rounded-xl bg-rose-50 border border-rose-300 text-rose-900 flex items-start gap-2.5 text-xs">
-                    <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-                    <div>
-                      <div className="font-bold">แจ้งเตือน: โครงการนี้เลยกำหนดสัญญาแล้ว!</div>
-                      <div className="text-[11px] text-rose-700 mt-0.5">
-                        สิ้นสุดสัญญาเมื่อ {formatThaiDate(currentProject.endDate)} (เลยกำหนดแล้ว {remainingDays.days} วัน)
-                        โปรดเร่งรัดให้ผู้รับจ้างส่งมอบงาน หรือคิดค่าปรับตามระเบียบกระทรวงการคลัง
+                {/* Overdue Alert Bar (Admin only) */}
+                {currentUser?.role === 'admin' &&
+                  remainingDays.isOverdue &&
+                  currentProject.status !== 'completed' && (
+                    <div className="p-3 rounded-xl bg-rose-50 border border-rose-300 text-rose-900 flex items-start gap-2.5 text-xs">
+                      <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                      <div>
+                        <div className="font-bold">แจ้งเตือน: โครงการนี้เลยกำหนดสัญญาแล้ว!</div>
+                        <div className="text-[11px] text-rose-700 mt-0.5">
+                          สิ้นสุดสัญญาเมื่อ {formatThaiDate(currentProject.endDate)} (เลยกำหนดแล้ว {remainingDays.days} วัน)
+                          โปรดเร่งรัดให้ผู้รับจ้างส่งมอบงาน หรือคิดค่าปรับตามระเบียบกระทรวงการคลัง
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
                 {/* Key Metrics Grid */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2 text-xs">

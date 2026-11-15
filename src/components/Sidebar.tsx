@@ -146,30 +146,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span>สรุปงานฎีกา & เบิกจ่าย</span>
           </button>
 
-          {/* 3. กล่องงานของฉัน (My Inbox) */}
-          <button
-            onClick={() => {
-              setCurrentTab('myInbox');
-              setIsMobileOpen(false);
-            }}
-            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl font-medium transition ${
-              currentTab === 'myInbox'
-                ? 'bg-emerald-600 text-white shadow-md border border-emerald-400/80'
-                : 'text-slate-300 hover:bg-slate-800 hover:text-white border border-transparent'
-            }`}
-          >
-            <Inbox className="w-4 h-4 text-emerald-300 shrink-0" />
-            <span className="flex-1 text-left">กล่องงานของฉัน</span>
-            <span
-              className={`text-xs px-2.5 py-0.5 rounded-lg font-bold tabular-nums transition-all ${
+          {/* 3. กล่องงานของฉัน (My Inbox - เฉพาะ Admin) */}
+          {isAdmin && (
+            <button
+              onClick={() => {
+                setCurrentTab('myInbox');
+                setIsMobileOpen(false);
+              }}
+              className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl font-medium transition ${
                 currentTab === 'myInbox'
-                  ? 'bg-sky-500 text-white border-2 border-white shadow-[0_0_14px_rgba(56,189,248,0.95)] ring-2 ring-sky-300/70'
-                  : 'bg-sky-500 text-white border border-sky-200 shadow-[0_0_12px_rgba(56,189,248,0.8)] ring-2 ring-sky-400/50'
+                  ? 'bg-emerald-600 text-white shadow-md border border-emerald-400/80'
+                  : 'text-slate-300 hover:bg-slate-800 hover:text-white border border-transparent'
               }`}
             >
-              {myInboxCount}
-            </span>
-          </button>
+              <Inbox className="w-4 h-4 text-emerald-300 shrink-0" />
+              <span className="flex-1 text-left">กล่องงานของฉัน</span>
+              <span
+                className={`text-xs px-2.5 py-0.5 rounded-lg font-bold tabular-nums transition-all ${
+                  currentTab === 'myInbox'
+                    ? 'bg-sky-500 text-white border-2 border-white shadow-[0_0_14px_rgba(56,189,248,0.95)] ring-2 ring-sky-300/70'
+                    : 'bg-sky-500 text-white border border-sky-200 shadow-[0_0_12px_rgba(56,189,248,0.8)] ring-2 ring-sky-400/50'
+                }`}
+              >
+                {myInboxCount}
+              </span>
+            </button>
+          )}
 
           {/* Section: ทะเบียนแยกตามหมวดงบประมาณ (แสดงเฉพาะหมวดที่มีโครงการบันทึกอยู่) */}
           <div className="pt-3 pb-1 px-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
