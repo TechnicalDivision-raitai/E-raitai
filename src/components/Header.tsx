@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  Menu,
+  PanelLeft,
   PlusCircle,
   Bell,
   Search,
@@ -19,6 +19,8 @@ import { getDaysRemaining, isProjectCompletedOrDisbursed, getWorkNoticeAlert } f
 
 interface HeaderProps {
   onOpenMobileMenu: () => void;
+  isSidebarCollapsed?: boolean;
+  onToggleSidebarCollapse?: () => void;
   pageTitle: string;
   selectedYear: string | number;
   onSelectYear: (year: string | number) => void;
@@ -36,6 +38,8 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({
   onOpenMobileMenu,
+  isSidebarCollapsed = false,
+  onToggleSidebarCollapse,
   pageTitle,
   selectedYear,
   onSelectYear,
@@ -78,14 +82,25 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-30 bg-white border-b border-gray-200 h-16 flex items-center justify-between gap-2 sm:gap-3 px-3 sm:px-5 lg:px-8 shadow-xs no-print">
-      {/* Left: Mobile/Tablet trigger & Page Title */}
-      <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+      {/* Left: Sidebar Toggle & Page Title */}
+      <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
         <button
+          type="button"
           onClick={onOpenMobileMenu}
-          className="lg:hidden shrink-0 text-gray-600 hover:text-gray-900 focus:outline-hidden text-xl p-1.5 rounded-lg hover:bg-gray-100 transition"
-          aria-label="Open menu"
+          className="lg:hidden shrink-0 w-9 h-9 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 hover:text-gray-900 focus:outline-hidden flex items-center justify-center shadow-2xs transition"
+          aria-label="เปิด/ปิดแถบเมนู"
+          title="เปิด/ปิดแถบเมนู"
         >
-          <Menu className="w-5 h-5 sm:w-6 sm:h-6" />
+          <PanelLeft className="w-4 h-4" />
+        </button>
+        <button
+          type="button"
+          onClick={onToggleSidebarCollapse}
+          className="hidden lg:flex shrink-0 w-9 h-9 rounded-xl border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 hover:text-gray-900 focus:outline-hidden items-center justify-center shadow-2xs transition"
+          aria-label={isSidebarCollapsed ? 'ขยายแถบเมนูด้านข้าง' : 'ย่อแถบเมนูด้านข้าง'}
+          title={isSidebarCollapsed ? 'ขยายแถบเมนูด้านข้าง' : 'ย่อแถบเมนูด้านข้าง'}
+        >
+          <PanelLeft className="w-4 h-4" />
         </button>
         <h1 className="text-sm sm:text-base lg:text-lg font-bold text-gray-800 font-heading truncate min-w-0">
           {pageTitle}

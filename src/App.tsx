@@ -47,6 +47,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => getStoredUser());
   const [currentTab, setCurrentTab] = useState<string>('dashboard');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
 
   // Filters State
@@ -456,6 +457,7 @@ export default function App() {
         projects={projects}
         isMobileOpen={isMobileSidebarOpen}
         setIsMobileOpen={setIsMobileSidebarOpen}
+        isDesktopCollapsed={isSidebarCollapsed}
         selectedCategory={filter.category}
         onSelectCategoryFilter={cat => {
           setFilter(prev => ({ ...prev, category: cat }));
@@ -463,10 +465,16 @@ export default function App() {
       />
 
       {/* Main Content Area */}
-      <div className="lg:pl-64 flex-1 flex flex-col min-w-0 transition-all duration-300">
+      <div
+        className={`${
+          isSidebarCollapsed ? 'lg:pl-0' : 'lg:pl-64'
+        } flex-1 flex flex-col min-w-0 transition-all duration-300`}
+      >
         {/* Top Header */}
         <Header
           onOpenMobileMenu={() => setIsMobileSidebarOpen(true)}
+          isSidebarCollapsed={isSidebarCollapsed}
+          onToggleSidebarCollapse={() => setIsSidebarCollapsed(prev => !prev)}
           pageTitle={pageTitles[currentTab] || 'ระบบบริหารจัดการงานโครงการกองช่าง'}
           selectedYear={filter.fiscalYear}
           onSelectYear={yr => setFilter(prev => ({ ...prev, fiscalYear: yr }))}

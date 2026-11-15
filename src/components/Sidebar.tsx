@@ -31,6 +31,7 @@ interface SidebarProps {
   projects: Project[];
   isMobileOpen: boolean;
   setIsMobileOpen: (open: boolean) => void;
+  isDesktopCollapsed?: boolean;
   onSelectCategoryFilter?: (category: string) => void;
   selectedCategory?: string;
 }
@@ -44,6 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   projects,
   isMobileOpen,
   setIsMobileOpen,
+  isDesktopCollapsed = false,
   onSelectCategoryFilter,
   selectedCategory = 'all'
 }) => {
@@ -74,14 +76,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Main Sidebar Desktop / Drawer */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-50 w-64 bg-slate-900 text-white border-r border-slate-800 flex flex-col transition-transform duration-300 ease-in-out shadow-2xl lg:translate-x-0 ${
+        className={`fixed top-0 bottom-0 left-0 z-50 w-64 bg-slate-900 text-white border-r border-slate-800 flex flex-col transition-transform duration-300 ease-in-out shadow-2xl ${
           isMobileOpen ? 'translate-x-0' : '-translate-x-full'
+        } ${
+          isDesktopCollapsed ? 'lg:-translate-x-full' : 'lg:translate-x-0'
         } no-print shrink-0`}
       >
         {/* Header Branding */}
         <div className="p-4 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+            <div className="w-10 h-10 rounded-xl bg-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-500/30 shrink-0">
               <HardHat className="w-6 h-6 text-white" />
             </div>
             <div>
@@ -90,6 +94,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </div>
           </div>
           <button
+            type="button"
             onClick={() => setIsMobileOpen(false)}
             className="lg:hidden text-slate-400 hover:text-white p-1"
           >
