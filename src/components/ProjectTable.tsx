@@ -18,10 +18,17 @@ import {
   Sparkles,
   ExternalLink,
   HardHat,
-  Paperclip
+  Paperclip,
+  Coins
 } from 'lucide-react';
 import { Project, ProjectFilter, UserProfile } from '../types/project';
-import { formatCurrency, formatThaiDate, getDaysRemaining, getWorkNoticeAlert } from '../utils/thaiDate';
+import {
+  formatCurrency,
+  formatThaiDate,
+  getDaysRemaining,
+  getWorkNoticeAlert,
+  isProjectCompletedOrDisbursed
+} from '../utils/thaiDate';
 import { exportProjectsToExcel, STATUS_LABELS } from '../utils/excelExport';
 
 interface ProjectTableProps {
@@ -502,9 +509,23 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
                         >
                           {STATUS_LABELS[p.status] || p.status}
                         </span>
-                        <div className="text-[10px] text-slate-400 mt-1">
-                          ความคืบหน้า {p.progressPercent}%
-                        </div>
+                        {isProjectCompletedOrDisbursed(p) && !(p.remunerations && p.remunerations.length > 0) ? (
+                          <div className="mt-1">
+                            <button
+                              type="button"
+                              onClick={() => onSelectProject(p, 7)}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 transition shadow-2xs"
+                              title="โครงการแล้วเสร็จ/เบิกจ่ายแล้ว แต่ยังไม่ได้บันทึกเบิกค่าตอบแทน คลิกเพื่อเปิดดูหมวดเบิกจ่ายและค่าตอบแทน"
+                            >
+                              <Coins className="w-3 h-3 text-amber-600 shrink-0" />
+                              <span>รอเบิกค่าตอบแทน</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="text-[10px] text-slate-400 mt-1">
+                            ความคืบหน้า {p.progressPercent}%
+                          </div>
+                        )}
                         {getWorkNoticeAlert(p).hasAlert && (
                           <button
                             type="button"

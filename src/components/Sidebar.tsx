@@ -191,16 +191,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           >
             <FolderTree className="w-4 h-4 text-teal-400 shrink-0" />
             <span className="flex-1 text-left">รวมทะเบียนทั้งหมด</span>
-            <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded-full text-slate-300 font-bold">
-              {projects.length}
-            </span>
           </button>
 
           {/* Dynamic Categories: Only show categories that have recorded projects */}
           {Array.from(new Set(projects.map(p => p.budgetCategory).filter(Boolean)))
             .sort((a, b) => a.localeCompare(b, 'th'))
             .map(cat => {
-              const count = projects.filter(p => p.budgetCategory === cat).length;
               const isSelected = currentTab === 'projects' && selectedCategory === cat;
 
               return (
@@ -220,9 +216,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   <Layers className={`w-4 h-4 shrink-0 ${isSelected ? 'text-emerald-400' : 'text-slate-400'}`} />
                   <span className="flex-1 text-left truncate" title={cat}>
                     {cat}
-                  </span>
-                  <span className="text-[10px] bg-slate-800/80 px-1.5 py-0.5 rounded-md text-slate-400 font-bold">
-                    {count}
                   </span>
                 </button>
               );

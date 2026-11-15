@@ -14,6 +14,7 @@ export interface CommitteeMember {
   id: string;
   name: string;
   position: string;
+  positionUpdatedAt?: string;
   role: 'ประธานกรรมการ' | 'กรรมการ' | 'กรรมการและเลขานุการ' | 'ผู้ควบคุมงาน';
   department?: string;
   phone?: string;

@@ -4,6 +4,7 @@ interface AutoSuggestInputProps extends Omit<React.InputHTMLAttributes<HTMLInput
   value: string;
   onChange: (value: string) => void;
   suggestions: string[];
+  getItemHint?: (item: string) => string | undefined;
   placeholder?: string;
   className?: string;
   minCharsToSuggest?: number;
@@ -20,6 +21,7 @@ export const AutoSuggestInput: React.FC<AutoSuggestInputProps> = ({
   value,
   onChange,
   suggestions = [],
+  getItemHint,
   placeholder = '',
   className = '',
   minCharsToSuggest = 1,
@@ -88,20 +90,25 @@ export const AutoSuggestInput: React.FC<AutoSuggestInputProps> = ({
 
       {isOpen && filteredSuggestions.length > 0 && (
         <ul className="absolute left-0 right-0 z-50 mt-1 max-h-56 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-lg divide-y divide-slate-100 text-xs py-1 animate-in fade-in-50 duration-100">
-          {filteredSuggestions.map((item, index) => (
-            <li
-              key={`${item}-${index}`}
-              onMouseDown={e => {
-                // onMouseDown fires before onBlur
-                e.preventDefault();
-                handleSelect(item);
-              }}
-              className="px-3 py-2 cursor-pointer hover:bg-emerald-50 hover:text-emerald-900 transition flex items-center justify-between text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis"
-            >
-              <span className="font-medium truncate">{item}</span>
-              <span className="text-[10px] text-slate-400 shrink-0 ml-2">เลือก</span>
-            </li>
-          ))}
+          {filteredSuggestions.map((item, index) => {
+            const hint = getItemHint ? getItemHint(item) : undefined;
+            return (
+              <li
+                key={`${item}-${index}`}
+                onMouseDown={e => {
+                  // onMouseDown fires before onBlur
+                  e.preventDefault();
+                  handleSelect(item);
+                }}
+                className="px-3 py-2 cursor-pointer hover:bg-emerald-50 hover:text-emerald-900 transition flex items-center justify-between text-slate-700 whitespace-nowrap overflow-hidden text-ellipsis"
+              >
+                <span className="font-medium truncate">{item}</span>
+                <span className="text-[10px] text-slate-400 shrink-0 ml-2 truncate max-w-[160px]">
+                  {hint || 'เลือก'}
+                </span>
+              </li>
+            );
+          })}
         </ul>
       )}
     </div>

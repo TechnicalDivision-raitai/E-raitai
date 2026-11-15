@@ -75,6 +75,9 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<number>(1);
   const [hasManualStatusChange, setHasManualStatusChange] = useState<boolean>(false);
+  const [livePositionOverrides, setLivePositionOverrides] = useState<
+    Record<string, { position: string; timestamp: number }>
+  >({});
   const baselineDerivedRef = React.useRef<ProjectStatus>('not_started');
 
   // Helper to normalize Thai names (collapse multiple spaces into a single space and trim)
@@ -125,6 +128,74 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     return Array.from(names).sort((a, b) => a.localeCompare(b, 'th'));
   }, [existingProjects]);
 
+  // Map each person's normalized name to their latest known position across personnel directory,
+  // all recorded projects (prioritizing explicit positionUpdatedAt timestamps), and live in-modal edits.
+  const personPositionMap = React.useMemo(() => {
+    const map = new Map<string, { position: string; timestamp: number }>();
+
+    const recordCandidate = (rawName?: string | null, rawPos?: string | null, timestamp = 0) => {
+      const cleanName = normalizeName(rawName);
+      const cleanPos = normalizeName(rawPos);
+      if (!cleanName || !cleanPos) return;
+      const existing = map.get(cleanName);
+      if (!existing || timestamp >= existing.timestamp) {
+        map.set(cleanName, { position: cleanPos, timestamp });
+      }
+    };
+
+    // 1. Base directory defaults (lowest timestamp priority so any later position change overrides them)
+    RAI_TAI_PERSONNEL.forEach(p => {
+      recordCandidate(p.name, p.position, 0);
+    });
+
+    // 2. Scan existing projects from oldest to newest createdAt so newer records win on ties
+    const orderedProjects = [...existingProjects].sort((a, b) => {
+      const ta = Date.parse(a.createdAt || '') || 0;
+      const tb = Date.parse(b.createdAt || '') || 0;
+      return ta - tb;
+    });
+
+    orderedProjects.forEach((p, projIdx) => {
+      const baseProjectTs = Date.parse(p.createdAt || '') || projIdx + 1;
+
+      if (p.supervisorName) {
+        const match = p.supervisorName.match(/\(([^)]+)\)/);
+        if (match && match[1]) {
+          const cleanSupName = p.supervisorName.replace(/\s*\(.*?\)\s*/g, '');
+          recordCandidate(cleanSupName, match[1], baseProjectTs);
+        }
+      }
+
+      (p.torCommittees || []).forEach(c => {
+        const memberTs = c.positionUpdatedAt
+          ? Date.parse(c.positionUpdatedAt) || baseProjectTs
+          : baseProjectTs;
+        recordCandidate(c.name, c.position, memberTs);
+      });
+
+      (p.inspectCommittees || []).forEach(c => {
+        const memberTs = c.positionUpdatedAt
+          ? Date.parse(c.positionUpdatedAt) || baseProjectTs
+          : baseProjectTs;
+        recordCandidate(c.name, c.position, memberTs);
+      });
+    });
+
+    // 3. Apply live edits made during the current modal session
+    Object.entries(livePositionOverrides).forEach(([cleanName, entry]) => {
+      recordCandidate(cleanName, entry.position, entry.timestamp);
+    });
+
+    const resolved = new Map<string, string>();
+    map.forEach((val, key) => resolved.set(key, val.position));
+    return resolved;
+  }, [existingProjects, livePositionOverrides]);
+
+  const getBoundPositionHint = (name: string): string | undefined => {
+    const clean = normalizeName(name);
+    return clean ? personPositionMap.get(clean) : undefined;
+  };
+
   // Extract recorded official positions across personnel directory and all existing projects
   const suggestedPositions = React.useMemo(() => {
     const positions = new Set<string>();
@@ -151,8 +222,11 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       (p.inspectCommittees || []).forEach(c => addCleanPos(c.position));
     });
 
+    // 3. Live position overrides
+    Object.values(livePositionOverrides).forEach(v => addCleanPos(v.position));
+
     return Array.from(positions).sort((a, b) => a.localeCompare(b, 'th'));
-  }, [existingProjects]);
+  }, [existingProjects, livePositionOverrides]);
 
   // Standardized Remuneration Titles
   const REMUNERATION_TITLES: Record<CommitteeRemuneration['type'], string> = {
@@ -351,6 +425,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       }
       setActiveTab(1);
       setHasManualStatusChange(false);
+      setLivePositionOverrides({});
       baselineDerivedRef.current = initialProject
         ? deriveProjectStatusFromData(initialProject)
         : 'not_started';
@@ -442,6 +517,67 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       ...prev,
       inspectCommittees: prev.inspectCommittees.filter(c => c.id !== id)
     }));
+  };
+
+  // Shared handler for committee name changes: auto-binds the person's latest position while preserving manual edits
+  const handleCommitteeNameChange = (
+    listKey: 'torCommittees' | 'inspectCommittees',
+    idx: number,
+    newName: string
+  ) => {
+    const updated = [...formData[listKey]];
+    const current = updated[idx];
+    const prevCleanName = normalizeName(current.name);
+    const nextCleanName = normalizeName(newName);
+    const prevBoundPos = prevCleanName ? personPositionMap.get(prevCleanName) || '' : '';
+    const nextBoundPos = nextCleanName ? personPositionMap.get(nextCleanName) || '' : '';
+    const currentCleanPos = normalizeName(current.position);
+
+    let nextPosition = current.position;
+    let nextPositionUpdatedAt = current.positionUpdatedAt;
+
+    if (nextBoundPos) {
+      if (!currentCleanPos || nextCleanName !== prevCleanName || currentCleanPos === prevBoundPos) {
+        nextPosition = nextBoundPos;
+        nextPositionUpdatedAt = undefined;
+      }
+    } else if (nextCleanName !== prevCleanName && prevBoundPos && currentCleanPos === prevBoundPos) {
+      nextPosition = '';
+      nextPositionUpdatedAt = undefined;
+    }
+
+    updated[idx] = {
+      ...current,
+      name: newName,
+      position: nextPosition,
+      positionUpdatedAt: nextPositionUpdatedAt
+    };
+    setFormData({ ...formData, [listKey]: updated });
+  };
+
+  // Shared handler for committee position changes: allows free editing and records the latest position for this person
+  const handleCommitteePositionChange = (
+    listKey: 'torCommittees' | 'inspectCommittees',
+    idx: number,
+    newPosition: string
+  ) => {
+    const nowIso = new Date().toISOString();
+    const updated = [...formData[listKey]];
+    updated[idx] = {
+      ...updated[idx],
+      position: newPosition,
+      positionUpdatedAt: nowIso
+    };
+    setFormData({ ...formData, [listKey]: updated });
+
+    const cleanName = normalizeName(updated[idx].name);
+    const cleanPos = normalizeName(newPosition);
+    if (cleanName && cleanPos) {
+      setLivePositionOverrides(prev => ({
+        ...prev,
+        [cleanName]: { position: cleanPos, timestamp: Date.now() }
+      }));
+    }
   };
 
   // Category 5 Helpers (Work Notice, Delivery, Inspection, Disbursement)
@@ -1266,12 +1402,9 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                       <div className="flex-1 w-full">
                         <AutoSuggestInput
                           value={c.name || ''}
-                          onChange={val => {
-                            const updated = [...formData.torCommittees];
-                            updated[idx].name = val;
-                            setFormData({ ...formData, torCommittees: updated });
-                          }}
+                          onChange={val => handleCommitteeNameChange('torCommittees', idx, val)}
                           suggestions={suggestedPersonNames}
+                          getItemHint={getBoundPositionHint}
                           placeholder="ชื่อ-นามสกุลกรรมการ..."
                           className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
                         />
@@ -1279,11 +1412,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                       <div className="flex-1 w-full">
                         <AutoSuggestInput
                           value={c.position || ''}
-                          onChange={val => {
-                            const updated = [...formData.torCommittees];
-                            updated[idx].position = val;
-                            setFormData({ ...formData, torCommittees: updated });
-                          }}
+                          onChange={val => handleCommitteePositionChange('torCommittees', idx, val)}
                           suggestions={suggestedPositions}
                           placeholder="ตำแหน่งราชการ..."
                           className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
@@ -1461,12 +1590,9 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                       <div className="flex-1 w-full">
                         <AutoSuggestInput
                           value={c.name || ''}
-                          onChange={val => {
-                            const updated = [...formData.inspectCommittees];
-                            updated[idx].name = val;
-                            setFormData({ ...formData, inspectCommittees: updated });
-                          }}
+                          onChange={val => handleCommitteeNameChange('inspectCommittees', idx, val)}
                           suggestions={suggestedPersonNames}
+                          getItemHint={getBoundPositionHint}
                           placeholder="ชื่อ-นามสกุล..."
                           className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
                         />
@@ -1474,11 +1600,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                       <div className="flex-1 w-full">
                         <AutoSuggestInput
                           value={c.position || ''}
-                          onChange={val => {
-                            const updated = [...formData.inspectCommittees];
-                            updated[idx].position = val;
-                            setFormData({ ...formData, inspectCommittees: updated });
-                          }}
+                          onChange={val => handleCommitteePositionChange('inspectCommittees', idx, val)}
                           suggestions={suggestedPositions}
                           placeholder="ตำแหน่ง..."
                           className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
