@@ -10,13 +10,13 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { Project, UserProfile, ProjectStatus } from '../types/project';
-import { formatThaiDateTime, deriveProjectStatusFromData } from '../utils/thaiDate';
+import { formatThaiDateTime, deriveProjectStatusFromData, getWorkNoticeAlert } from '../utils/thaiDate';
 import { STATUS_LABELS } from '../utils/excelExport';
 
 interface MyInboxViewProps {
   projects: Project[];
   currentUser: UserProfile;
-  onSelectProject: (p: Project) => void;
+  onSelectProject: (p: Project, tab?: number) => void;
   onUpdateProject: (p: Project) => void;
 }
 
@@ -117,21 +117,21 @@ export const MyInboxView: React.FC<MyInboxViewProps> = ({
   const getStatusBadgeClasses = (status: ProjectStatus) => {
     switch (status) {
       case 'completed':
-        return 'bg-teal-100 text-teal-800 border border-teal-200';
+        return 'bg-teal-50 text-teal-800 border-2 border-teal-400 shadow-[0_0_10px_rgba(45,212,191,0.45)]';
       case 'in_progress':
-        return 'bg-emerald-100 text-emerald-800 border border-emerald-200';
+        return 'bg-emerald-50 text-emerald-800 border-2 border-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.45)]';
       case 'delivered':
-        return 'bg-purple-100 text-purple-800 border border-purple-200';
+        return 'bg-purple-50 text-purple-800 border-2 border-purple-400 shadow-[0_0_10px_rgba(192,132,252,0.45)]';
       case 'inspected':
-        return 'bg-indigo-100 text-indigo-800 border border-indigo-200';
+        return 'bg-indigo-50 text-indigo-800 border-2 border-indigo-400 shadow-[0_0_10px_rgba(129,140,248,0.45)]';
       case 'overdue':
-        return 'bg-rose-100 text-rose-800 border border-rose-200';
+        return 'bg-rose-50 text-rose-800 border-2 border-rose-400 shadow-[0_0_10px_rgba(251,113,133,0.45)]';
       case 'procurement_tor':
-        return 'bg-amber-100 text-amber-800 border border-amber-200';
+        return 'bg-sky-50 text-sky-900 border-2 border-sky-400 shadow-[0_0_10px_rgba(56,189,248,0.45)]';
       case 'contracted':
-        return 'bg-blue-100 text-blue-800 border border-blue-200';
+        return 'bg-blue-50 text-blue-800 border-2 border-blue-400 shadow-[0_0_10px_rgba(96,165,250,0.45)]';
       default:
-        return 'bg-slate-100 text-slate-700 border border-slate-200';
+        return 'bg-slate-50 text-slate-700 border-2 border-slate-300 shadow-[0_0_8px_rgba(148,163,184,0.35)]';
     }
   };
 
@@ -140,12 +140,17 @@ export const MyInboxView: React.FC<MyInboxViewProps> = ({
       <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-5">
           <div>
-            <h2 className="text-lg font-bold text-gray-800 font-heading flex items-center gap-2">
-              <Inbox className="w-5 h-5 text-emerald-600" />
-              <span>กล่องงานของฉัน (My Inbox)</span>
-            </h2>
-            <p className="text-xs text-gray-500 mt-0.5">
-              รายการโครงการและงานมอบหมายที่ท่านต้องรับทราบและกำกับดูแล ({myProjects.length} โครงการ)
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h2 className="text-lg font-bold text-gray-800 font-heading flex items-center gap-2">
+                <Inbox className="w-5 h-5 text-emerald-600 shrink-0" />
+                <span>กล่องงานของฉัน (My Inbox)</span>
+              </h2>
+              <span className="inline-flex items-center px-3 py-0.5 rounded-full text-xs font-bold bg-sky-100 text-sky-950 border-2 border-sky-400 shadow-[0_0_12px_rgba(56,189,248,0.65)] ring-2 ring-sky-300/40 tabular-nums">
+                {myProjects.length} รายการ
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 mt-1">
+              รายการโครงการและงานมอบหมายที่ท่านต้องรับทราบและกำกับดูแล กดรับทราบงานและปรับสถานะได้ทันที
             </p>
           </div>
         </div>
@@ -176,6 +181,7 @@ export const MyInboxView: React.FC<MyInboxViewProps> = ({
               ) : (
                 myProjects.map(p => {
                   const isAcked = p.ackStatus === 'รับทราบแล้ว';
+                  const workNoticeAlert = getWorkNoticeAlert(p);
                   const latestStatusTime =
                     p.statusUpdatedAt ||
                     p.ackTime ||
@@ -202,6 +208,21 @@ export const MyInboxView: React.FC<MyInboxViewProps> = ({
                           {p.name}
                         </button>
                         <div className="text-[10px] text-gray-400 truncate mt-0.5">{p.location}</div>
+                        {workNoticeAlert.hasAlert && (
+                          <button
+                            type="button"
+                            onClick={() => onSelectProject(p, 5)}
+                            className={`mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border text-left transition ${
+                              workNoticeAlert.isOver15Days
+                                ? 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
+                                : 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
+                            }`}
+                            title={workNoticeAlert.fullMessage}
+                          >
+                            <AlertCircle className="w-3 h-3 shrink-0" />
+                            <span>{workNoticeAlert.badgeLabel}</span>
+                          </button>
+                        )}
                       </td>
 
                       <td className="p-3 text-gray-600 whitespace-nowrap">

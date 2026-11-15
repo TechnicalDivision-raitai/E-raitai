@@ -21,7 +21,7 @@ import {
   Paperclip
 } from 'lucide-react';
 import { Project, ProjectFilter, UserProfile } from '../types/project';
-import { formatCurrency, formatThaiDate, getDaysRemaining } from '../utils/thaiDate';
+import { formatCurrency, formatThaiDate, getDaysRemaining, getWorkNoticeAlert } from '../utils/thaiDate';
 import { exportProjectsToExcel, STATUS_LABELS } from '../utils/excelExport';
 
 interface ProjectTableProps {
@@ -505,6 +505,21 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
                         <div className="text-[10px] text-slate-400 mt-1">
                           ความคืบหน้า {p.progressPercent}%
                         </div>
+                        {getWorkNoticeAlert(p).hasAlert && (
+                          <button
+                            type="button"
+                            onClick={() => onSelectProject(p, 5)}
+                            className={`mt-1 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border transition ${
+                              getWorkNoticeAlert(p).isOver15Days
+                                ? 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100'
+                                : 'bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100'
+                            }`}
+                            title={getWorkNoticeAlert(p).fullMessage}
+                          >
+                            <AlertCircle className="w-3 h-3 shrink-0" />
+                            <span>เร่งรัดผู้รับจ้างเข้าทำงาน</span>
+                          </button>
+                        )}
                       </td>
 
                       {/* 11. ปุ่มจัดการข้อมูล */}

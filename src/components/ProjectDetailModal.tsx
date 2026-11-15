@@ -18,10 +18,27 @@ import {
   ShieldCheck,
   ChevronRight,
   ExternalLink,
-  RefreshCw
+  RefreshCw,
+  MapPin,
+  Navigation,
+  Signpost,
+  Image as ImageIcon,
+  Compass
 } from 'lucide-react';
+import {
+  hasValidCoord,
+  getGoogleMapsPointUrl,
+  getGoogleMapsRouteUrl
+} from './ProjectRecordsView';
 import { Project, ProjectStatus, UserProfile, AttachmentFile } from '../types/project';
-import { formatCurrency, formatThaiDate, formatThaiDateTime, getDaysRemaining, bahtText } from '../utils/thaiDate';
+import {
+  formatCurrency,
+  formatThaiDate,
+  formatThaiDateTime,
+  getDaysRemaining,
+  bahtText,
+  getWorkNoticeAlert
+} from '../utils/thaiDate';
 import { STATUS_LABELS } from '../utils/excelExport';
 
 interface ProjectDetailModalProps {
@@ -110,7 +127,8 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     { id: 5, title: '5. การดำเนินงาน' },
     { id: 6, title: '6. การตรวจรับงาน' },
     { id: 7, title: '7. การจัดทำฎีกาและเบิกจ่าย' },
-    { id: 8, title: `8. เอกสารแนบ (${project.attachments?.length || 0})` }
+    { id: 8, title: `8. เอกสารแนบ (${project.attachments?.length || 0})` },
+    { id: 9, title: '9. บันทึกข้อมูลโครงการ' }
   ];
 
   const handlePrint = () => {
@@ -559,6 +577,20 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
               {/* แจ้งเข้าทำงาน */}
               <div>
                 <h5 className="text-xs font-bold text-slate-700 mb-2">หนังสือแจ้งเข้าทำงาน:</h5>
+                {getWorkNoticeAlert(project).hasAlert && (
+                  <div
+                    className={`mb-2.5 p-3 rounded-xl border flex items-start gap-2.5 text-xs ${
+                      getWorkNoticeAlert(project).isOver15Days
+                        ? 'bg-rose-50 border-rose-300 text-rose-900'
+                        : 'bg-amber-50 border-amber-300 text-amber-950'
+                    }`}
+                  >
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                    <div className="font-semibold">
+                      {getWorkNoticeAlert(project).fullMessage}
+                    </div>
+                  </div>
+                )}
                 {project.workNotices && project.workNotices.length > 0 ? (
                   <table className="w-full text-xs border border-slate-300">
                     <thead className="bg-slate-100 font-semibold text-slate-700">
@@ -574,7 +606,18 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                         <tr key={w.id}>
                           <td className="p-2 border border-slate-300 font-medium">{w.bookNo || '-'}</td>
                           <td className="p-2 border border-slate-300">{formatThaiDate(w.bookDate)}</td>
-                          <td className="p-2 border border-slate-300">{formatThaiDate(w.actualWorkDate)}</td>
+                          <td className="p-2 border border-slate-300">
+                            {w.actualWorkDate ? (
+                              formatThaiDate(w.actualWorkDate)
+                            ) : getWorkNoticeAlert(project).hasAlert ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
+                                <AlertTriangle className="w-3 h-3 shrink-0 text-amber-700" />
+                                <span>{getWorkNoticeAlert(project).badgeLabel}</span>
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 italic">รอระบุวันเข้าทำงานจริง</span>
+                            )}
+                          </td>
                           <td className="p-2 border border-slate-300">{w.notes || '-'}</td>
                         </tr>
                       ))}
@@ -851,6 +894,222 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   - ยังไม่มีเอกสารแนบสำหรับโครงการนี้ใน Google Drive -
                 </div>
               )}
+            </section>
+          )}
+
+          {/* =========================================================================
+              แท็บ 9: บันทึกข้อมูลโครงการ (พิกัดโครงการ, พิกัดป้ายโครงการ, รูปภาพแนบ)
+              ========================================================================= */}
+          {(activeTab === 9 || window.matchMedia?.('print')?.matches) && (
+            <section className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-emerald-50 px-3.5 py-2.5 rounded-xl border-l-4 border-emerald-700">
+                <div>
+                  <h4 className="text-sm font-bold text-emerald-950 font-heading flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-emerald-700" />
+                    <span>9. บันทึกข้อมูลโครงการย้อนหลัง (พิกัดโครงการ • พิกัดป้ายแสดงโครงการ • รูปภาพโครงการ)</span>
+                  </h4>
+                  <p className="text-[11px] text-emerald-800">
+                    ข้อมูลส่วนนี้จัดเก็บไว้เพื่อเปิดดูย้อนหลังและเปิดแผนที่ผ่าน Google Maps โดยไม่เกี่ยวข้องกับสถานะหรือไทม์ไลน์ 12 ขั้นตอน
+                  </p>
+                </div>
+              </div>
+
+              {/* 1 & 2: พิกัดโครงการ และ พิกัดป้ายแสดงโครงการ */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* 1.1 จุดเริ่มต้นโครงการ */}
+                <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                      <Navigation className="w-4 h-4 text-emerald-600" />
+                      <span>1.1 จุดเริ่มต้นโครงการ</span>
+                    </span>
+                    {getGoogleMapsPointUrl(project.projectRecord?.startPoint) && (
+                      <a
+                        href={getGoogleMapsPointUrl(project.projectRecord?.startPoint)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold inline-flex items-center gap-1 shadow-2xs transition no-print"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        <span>เปิดดู Google Maps</span>
+                      </a>
+                    )}
+                  </div>
+                  {hasValidCoord(project.projectRecord?.startPoint) ? (
+                    <div className="bg-white p-3 rounded-xl border border-emerald-200 text-xs space-y-1">
+                      <div className="font-mono font-semibold text-emerald-900">
+                        ละติจูด: {project.projectRecord!.startPoint!.lat}
+                      </div>
+                      <div className="font-mono font-semibold text-emerald-900">
+                        ลองจิจูด: {project.projectRecord!.startPoint!.lng}
+                      </div>
+                      {project.projectRecord?.startPoint?.note && (
+                        <div className="text-[11px] text-slate-600 pt-1 border-t border-slate-100">
+                          จุดสังเกต: {project.projectRecord.startPoint.note}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-slate-400 italic p-3 bg-white rounded-xl border border-slate-200">
+                      ยังไม่ได้บันทึกพิกัดจุดเริ่มต้นโครงการ
+                    </div>
+                  )}
+                </div>
+
+                {/* 1.2 จุดสิ้นสุดโครงการ */}
+                <div className="p-4 rounded-2xl bg-rose-50/50 border border-rose-200 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-rose-950 flex items-center gap-1.5">
+                      <Navigation className="w-4 h-4 text-rose-600" />
+                      <span>1.2 จุดสิ้นสุดโครงการ</span>
+                    </span>
+                    {getGoogleMapsPointUrl(project.projectRecord?.endPoint) && (
+                      <a
+                        href={getGoogleMapsPointUrl(project.projectRecord?.endPoint)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold inline-flex items-center gap-1 shadow-2xs transition no-print"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        <span>เปิดดู Google Maps</span>
+                      </a>
+                    )}
+                  </div>
+                  {hasValidCoord(project.projectRecord?.endPoint) ? (
+                    <div className="bg-white p-3 rounded-xl border border-rose-200 text-xs space-y-1">
+                      <div className="font-mono font-semibold text-rose-900">
+                        ละติจูด: {project.projectRecord!.endPoint!.lat}
+                      </div>
+                      <div className="font-mono font-semibold text-rose-900">
+                        ลองจิจูด: {project.projectRecord!.endPoint!.lng}
+                      </div>
+                      {project.projectRecord?.endPoint?.note && (
+                        <div className="text-[11px] text-slate-600 pt-1 border-t border-slate-100">
+                          จุดสังเกต: {project.projectRecord.endPoint.note}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-slate-400 italic p-3 bg-white rounded-xl border border-slate-200">
+                      ยังไม่ได้บันทึกพิกัดจุดสิ้นสุดโครงการ
+                    </div>
+                  )}
+                </div>
+
+                {/* 2. พิกัดป้ายแสดงโครงการ */}
+                <div className="p-4 rounded-2xl bg-purple-50/50 border border-purple-200 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-purple-950 flex items-center gap-1.5">
+                      <Signpost className="w-4 h-4 text-purple-600" />
+                      <span>2. พิกัดป้ายแสดงโครงการ</span>
+                    </span>
+                    {getGoogleMapsPointUrl(project.projectRecord?.signboardPoint) && (
+                      <a
+                        href={getGoogleMapsPointUrl(project.projectRecord?.signboardPoint)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-2.5 py-1 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-[11px] font-bold inline-flex items-center gap-1 shadow-2xs transition no-print"
+                      >
+                        <ExternalLink className="w-3 h-3" />
+                        <span>เปิดดู Google Maps</span>
+                      </a>
+                    )}
+                  </div>
+                  {hasValidCoord(project.projectRecord?.signboardPoint) ? (
+                    <div className="bg-white p-3 rounded-xl border border-purple-200 text-xs space-y-1">
+                      <div className="font-mono font-semibold text-purple-900">
+                        ละติจูด: {project.projectRecord!.signboardPoint!.lat}
+                      </div>
+                      <div className="font-mono font-semibold text-purple-900">
+                        ลองจิจูด: {project.projectRecord!.signboardPoint!.lng}
+                      </div>
+                      {project.projectRecord?.signboardPoint?.note && (
+                        <div className="text-[11px] text-slate-600 pt-1 border-t border-slate-100">
+                          จุดติดตั้ง: {project.projectRecord.signboardPoint.note}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="text-xs text-slate-400 italic p-3 bg-white rounded-xl border border-slate-200">
+                      ยังไม่ได้บันทึกพิกัดป้ายแสดงโครงการ
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {getGoogleMapsRouteUrl(
+                project.projectRecord?.startPoint,
+                project.projectRecord?.endPoint
+              ) && (
+                <div className="flex justify-end no-print">
+                  <a
+                    href={getGoogleMapsRouteUrl(
+                      project.projectRecord?.startPoint,
+                      project.projectRecord?.endPoint
+                    )}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-xs transition"
+                  >
+                    <Compass className="w-4 h-4" />
+                    <span>ดูเส้นทาง จุดเริ่มต้น → จุดสิ้นสุดโครงการ บน Google Maps</span>
+                  </a>
+                </div>
+              )}
+
+              {/* 3. รูปภาพและไฟล์แนบโครงการ */}
+              <div className="p-4 rounded-2xl bg-sky-50/40 border border-sky-200 space-y-3">
+                <h5 className="text-xs font-bold text-sky-950 flex items-center gap-1.5">
+                  <ImageIcon className="w-4 h-4 text-sky-600" />
+                  <span>3. แนบไฟล์ / รูปภาพโครงการ ({project.projectRecord?.files?.length || 0} รายการ)</span>
+                </h5>
+                {project.projectRecord?.files && project.projectRecord.files.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    {project.projectRecord.files.map(file => {
+                      const imgSrc = file.previewDataUrl || file.url || '';
+                      const isImage =
+                        file.type?.startsWith('image/') ||
+                        Boolean(file.previewDataUrl) ||
+                        /\.(jpg|jpeg|png|webp|gif)$/i.test(file.name);
+                      return (
+                        <div
+                          key={file.id}
+                          className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs flex flex-col justify-between"
+                        >
+                          {isImage && imgSrc ? (
+                            <img src={imgSrc} alt={file.name} className="h-36 w-full object-cover" />
+                          ) : (
+                            <div className="h-36 bg-slate-50 flex flex-col items-center justify-center p-3 text-center">
+                              <FileText className="w-7 h-7 text-slate-400 mb-1" />
+                              <span className="text-xs font-semibold text-slate-700">{file.name}</span>
+                            </div>
+                          )}
+                          <div className="p-2.5 flex items-center justify-between gap-2 text-xs">
+                            <span className="font-medium text-slate-700 truncate">
+                              {file.caption || file.name}
+                            </span>
+                            {file.url && (
+                              <a
+                                href={file.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-[11px] font-bold inline-flex items-center gap-1 shrink-0 no-print"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                <span>เปิดดู</span>
+                              </a>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-400 italic p-4 bg-white rounded-xl border border-slate-200 text-center">
+                    ยังไม่มีรูปภาพหรือไฟล์แนบในแท็บบันทึกข้อมูลโครงการ
+                  </div>
+                )}
+              </div>
             </section>
           )}
 

@@ -296,3 +296,108 @@ export function deriveProjectStatusFromData(p: Partial<Project> | null | undefin
   return 'not_started';
 }
 
+export interface WorkNoticeAlertInfo {
+  hasAlert: boolean;
+  isOver15Days: boolean;
+  daysElapsed: number;
+  daysRemainingIn15: number;
+  bookNo: string;
+  bookDate: string;
+  shortLabel: string;
+  badgeLabel: string;
+  fullMessage: string;
+}
+
+/**
+ * Checks if a project has a recorded work notice (แจ้งเข้าทำงาน)
+ * but has NOT recorded an actual work start date (actualWorkDate) within 15 days,
+ * triggering an alert to expedite the contractor (เร่งรัดผู้รับจ้างเข้าทำงาน).
+ */
+export function getWorkNoticeAlert(p: Partial<Project> | null | undefined): WorkNoticeAlertInfo {
+  const empty: WorkNoticeAlertInfo = {
+    hasAlert: false,
+    isOver15Days: false,
+    daysElapsed: 0,
+    daysRemainingIn15: 15,
+    bookNo: '',
+    bookDate: '',
+    shortLabel: '',
+    badgeLabel: '',
+    fullMessage: ''
+  };
+
+  if (!p || isProjectCompletedOrDisbursed(p) || p.status === 'completed') {
+    return empty;
+  }
+
+  const notices = p.workNotices || [];
+  if (notices.length === 0) {
+    return empty;
+  }
+
+  // If any work notice already has an actualWorkDate recorded, no alert is needed
+  const hasActualWorkDate = notices.some(
+    w => Boolean(w.actualWorkDate && String(w.actualWorkDate).trim())
+  );
+  if (hasActualWorkDate) {
+    return empty;
+  }
+
+  const latestNotice = notices[notices.length - 1] || notices[0];
+  const refDateStr = (latestNotice.bookDate || '').trim();
+  const bookNo = (latestNotice.bookNo || '').trim();
+
+  if (refDateStr) {
+    const noticeDate = new Date(refDateStr);
+    if (!isNaN(noticeDate.getTime())) {
+      noticeDate.setHours(0, 0, 0, 0);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const diffMs = today.getTime() - noticeDate.getTime();
+      const daysElapsed = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+
+      // เริ่มแจ้งเตือนเมื่อผ่านไปแล้วตั้งแต่ 10 วันขึ้นไป (วันที่ 0-9 ยังไม่แจ้งเตือน)
+      if (daysElapsed < 10) {
+        return empty;
+      }
+
+      const daysRemainingIn15 = Math.max(0, 15 - daysElapsed);
+      const isOver15Days = daysElapsed >= 15;
+
+      if (isOver15Days) {
+        return {
+          hasAlert: true,
+          isOver15Days: true,
+          daysElapsed,
+          daysRemainingIn15: 0,
+          bookNo,
+          bookDate: refDateStr,
+          shortLabel: 'เร่งรัดผู้รับจ้างเข้าทำงาน (เกิน 15 วัน)',
+          badgeLabel: `เร่งรัดผู้รับจ้างเข้าทำงาน (แจ้งเข้างานแล้ว ${daysElapsed} วัน • เกินกำหนด 15 วัน)`,
+          fullMessage: `แจ้งเตือนการเร่งรัดผู้รับจ้างเข้าทำงาน: มีบันทึกแจ้งเข้าทำงาน${
+            bookNo ? ` เลขที่ ${bookNo}` : ''
+          } เมื่อ ${formatThaiDate(refDateStr)} (ผ่านมาแล้ว ${daysElapsed} วัน เกินกำหนด 15 วัน) แต่ยังไม่มีการบันทึกวันเข้าทำงานจริง`
+        };
+      }
+
+      return {
+        hasAlert: true,
+        isOver15Days: false,
+        daysElapsed,
+        daysRemainingIn15,
+        bookNo,
+        bookDate: refDateStr,
+        shortLabel: 'เร่งรัดผู้รับจ้างเข้าทำงาน (ภายใน 15 วัน)',
+        badgeLabel: `เร่งรัดผู้รับจ้างเข้าทำงาน (ยังไม่เข้างานจริง • ครบ 15 วันในอีก ${daysRemainingIn15} วัน)`,
+        fullMessage: `แจ้งเตือนการเร่งรัดผู้รับจ้างเข้าทำงาน: มีบันทึกแจ้งเข้าทำงาน${
+          bookNo ? ` เลขที่ ${bookNo}` : ''
+        } เมื่อ ${formatThaiDate(refDateStr)} (ผ่านมาแล้ว ${daysElapsed} วัน เหลือเวลา ${daysRemainingIn15} วันในเกณฑ์ 15 วัน) ยังไม่มีการบันทึกวันเข้าทำงานจริง`
+      };
+    }
+  }
+
+  return empty;
+}
+
+

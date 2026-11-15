@@ -15,7 +15,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { Project, UserProfile } from '../types/project';
-import { getDaysRemaining, isProjectCompletedOrDisbursed } from '../utils/thaiDate';
+import { getDaysRemaining, isProjectCompletedOrDisbursed, getWorkNoticeAlert } from '../utils/thaiDate';
 
 interface HeaderProps {
   onOpenMobileMenu: () => void;
@@ -29,7 +29,7 @@ interface HeaderProps {
   onResetData: () => void;
   projects: Project[];
   currentUser: UserProfile;
-  onSelectProject: (p: Project) => void;
+  onSelectProject: (p: Project, tab?: number) => void;
   syncStatus?: 'synced' | 'syncing' | 'error';
   onRefreshSync?: () => void;
 }
@@ -53,18 +53,24 @@ export const Header: React.FC<HeaderProps> = ({
   const [showNotifications, setShowNotifications] = useState(false);
   const isAdmin = currentUser.role === 'admin';
 
-  // Generate notifications for overdue projects and projects expiring within 30 days (หยุดเตือนเมื่อโครงการเสร็จหรือเบิกจ่ายแล้ว)
+  // Generate notifications for:
+  // 1. Overdue projects and projects expiring within 30 days
+  // 2. Projects with recorded work notice (แจ้งเข้าทำงาน) but no actual work start date within 15 days
   const alerts = projects
     .filter(p => !isProjectCompletedOrDisbursed(p))
     .map(p => {
       const remaining = getDaysRemaining(p.endDate);
-      const isUrgent =
+      const workNoticeAlert = getWorkNoticeAlert(p);
+      const isContractUrgent =
         (remaining.isOverdue || (remaining.days <= 30 && remaining.days >= 0)) &&
         Boolean(p.endDate);
+      const isUrgent = isContractUrgent || workNoticeAlert.hasAlert;
 
       return {
         project: p,
         remaining,
+        isContractUrgent,
+        workNoticeAlert,
         isUrgent
       };
     })
@@ -134,48 +140,61 @@ export const Header: React.FC<HeaderProps> = ({
               <div className="max-h-80 overflow-y-auto divide-y divide-gray-100">
                 {alerts.length === 0 ? (
                   <div className="p-6 text-center text-gray-400 text-xs">
-                    ไม่มีโครงการที่เกินกำหนดหรือใกล้สิ้นสุดสัญญาในขณะนี้
+                    ไม่มีรายการแจ้งเตือนโครงการในขณะนี้
                   </div>
                 ) : (
-                  alerts.map(({ project, remaining }) => (
+                  alerts.map(({ project, remaining, isContractUrgent, workNoticeAlert }) => (
                     <button
                       key={project.id}
                       onClick={() => {
-                        onSelectProject(project);
+                        onSelectProject(project, workNoticeAlert.hasAlert ? 5 : 1);
                         setShowNotifications(false);
                       }}
                       className="w-full text-left p-3 hover:bg-gray-50 transition flex items-start gap-3"
                     >
                       <div
                         className={`p-2 rounded-lg shrink-0 mt-0.5 ${
-                          remaining.isOverdue
+                          remaining.isOverdue || workNoticeAlert.isOver15Days
                             ? 'bg-rose-100 text-rose-700'
                             : 'bg-amber-100 text-amber-700'
                         }`}
                       >
-                        {remaining.isOverdue ? (
+                        {remaining.isOverdue || workNoticeAlert.hasAlert ? (
                           <AlertTriangle className="w-4 h-4" />
                         ) : (
                           <Clock className="w-4 h-4" />
                         )}
                       </div>
-                      <div className="overflow-hidden">
+                      <div className="overflow-hidden space-y-1">
                         <div className="text-xs font-semibold text-gray-800 line-clamp-1">
                           {project.name}
                         </div>
-                        <div className="text-[11px] text-gray-500 mt-0.5">
-                          สัญญา: {project.contractNo || 'ยังไม่มีสัญญา'}
+                        <div className="text-[11px] text-gray-500">
+                          สัญญา: {project.contractNo || 'ยังไม่มีสัญญา'} • ผู้รับจ้าง: {project.contractorName || '-'}
                         </div>
-                        <div className="mt-1">
-                          <span
-                            className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                              remaining.isOverdue
-                                ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                                : 'bg-amber-50 text-amber-700 border border-amber-200'
-                            }`}
-                          >
-                            {remaining.label}
-                          </span>
+                        <div className="flex flex-wrap gap-1 pt-0.5">
+                          {workNoticeAlert.hasAlert && (
+                            <span
+                              className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                workNoticeAlert.isOver15Days
+                                  ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                                  : 'bg-orange-100 text-orange-800 border border-orange-300'
+                              }`}
+                            >
+                              {workNoticeAlert.badgeLabel}
+                            </span>
+                          )}
+                          {isContractUrgent && (
+                            <span
+                              className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                remaining.isOverdue
+                                  ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                  : 'bg-amber-50 text-amber-700 border border-amber-200'
+                              }`}
+                            >
+                              {remaining.label}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </button>

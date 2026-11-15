@@ -18,7 +18,8 @@ import { UserManualModal } from './components/UserManualModal';
 import { LoginModal } from './components/LoginModal';
 import { MyInboxView } from './components/MyInboxView';
 import { VouchersSummaryView } from './components/VouchersSummaryView';
-import { Project, ProjectFilter, UserProfile } from './types/project';
+import { ProjectRecordsView } from './components/ProjectRecordsView';
+import { Project, ProjectArchiveRecord, ProjectFilter, UserProfile } from './types/project';
 import {
   getStoredProjects,
   saveStoredProjects,
@@ -169,11 +170,28 @@ export default function App() {
     updateProjects(newProjects);
   };
 
+  // Save only project archive record (coordinates, signboard coordinates, photos) without affecting status or 12-stage timeline
+  const handleSaveProjectRecord = (projectId: string, record: ProjectArchiveRecord) => {
+    if (currentUser?.role !== 'admin') {
+      Swal.fire('ไม่อนุญาต', 'สิทธิ์เจ้าหน้าที่ (Staff) ไม่สามารถบันทึกหรือแก้ไขข้อมูลได้', 'error');
+      return;
+    }
+    const newProjects = projects.map(p =>
+      p.id === projectId
+        ? {
+            ...p,
+            projectRecord: record
+          }
+        : p
+    );
+    updateProjects(newProjects);
+  };
+
   // Handle Login
   const handleLoginSuccess = (user: UserProfile) => {
     setCurrentUser(user);
     saveStoredUser(user);
-    showToast(`เข้าสู่ระบบสำเร็จ: ${user.displayName} (${user.role === 'admin' ? 'ผู้ดูแลระบบ (Admin)' : 'เจ้าหน้าที่ (Staff)'})`, 'success');
+    setIsLoginModalOpen(false);
   };
 
   // Handle Logout
@@ -372,6 +390,7 @@ export default function App() {
     overdue: 'ติดตามงานเกินกำหนดสัญญา (Overdue Tracker)',
     timeline: 'ไทม์ไลน์ 12 ขั้นตอนดำเนินงานโครงการ',
     reports: 'ออกรายงานและสถิติโครงการ',
+    project_records: 'บันทึกข้อมูลโครงการ (พิกัดโครงการ • พิกัดป้ายโครงการ • รูปภาพ)',
     excel_import: 'นำเข้าข้อมูลทะเบียนโครงการจาก Excel',
     manual: 'คู่มือการใช้งานระบบ & สรุปผลการทดสอบ'
   };
@@ -591,6 +610,18 @@ export default function App() {
             />
           )}
 
+          {/* 7.5 Project Records Archive (Coordinates & Photos - independent of workflow/timeline) */}
+          {currentTab === 'project_records' && (
+            <ProjectRecordsView
+              projects={projects}
+              availableYears={availableYears}
+              selectedYear={filter.fiscalYear}
+              onSelectYear={yr => setFilter(prev => ({ ...prev, fiscalYear: yr }))}
+              currentUser={currentUser}
+              onSaveProjectRecord={handleSaveProjectRecord}
+            />
+          )}
+
           {/* 8. Excel Import */}
           {currentTab === 'excel_import' && (
             <div className="space-y-4">
@@ -650,11 +681,7 @@ export default function App() {
       {/* Login Screen Modal: Mandatory before access if not logged in */}
       <LoginModal
         isOpen={!currentUser || isLoginModalOpen}
-        onClose={() => {
-          if (currentUser) {
-            setIsLoginModalOpen(false);
-          }
-        }}
+        onClose={() => setIsLoginModalOpen(false)}
         onLoginSuccess={handleLoginSuccess}
         canCancel={Boolean(currentUser)}
       />

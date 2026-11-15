@@ -165,6 +165,26 @@ export const INITIAL_PROJECTS: Project[] = [
         uploadDate: '2024-11-05'
       }
     ],
+    projectRecord: {
+      startPoint: {
+        lat: '15.244812',
+        lng: '105.221540',
+        note: 'จุดเริ่มต้น กม.0+000 หน้าศาลาประชาคมบ้านไร่ใต้ หมู่ที่ 1'
+      },
+      endPoint: {
+        lat: '15.251240',
+        lng: '105.228910',
+        note: 'จุดสิ้นสุด กม.0+950 เชื่อมต่อถนนสายหลัก หมู่ที่ 5'
+      },
+      signboardPoint: {
+        lat: '15.244850',
+        lng: '105.221580',
+        note: 'ปากทางเข้าโครงการ หมู่ที่ 1 ข้างศาลาประชาคม'
+      },
+      files: [],
+      remark: 'บันทึกพิกัดแนวสายทางถนน คสล. สำหรับตรวจสอบย้อนหลัง',
+      updatedAt: '14 พ.ย. 2569 10:30 น.'
+    },
     status: 'in_progress',
     progressPercent: 65,
     createdAt: '2024-09-01T08:30:00Z',
@@ -294,6 +314,26 @@ export const INITIAL_PROJECTS: Project[] = [
         uploadDate: '2025-01-23'
       }
     ],
+    projectRecord: {
+      startPoint: {
+        lat: '15.239150',
+        lng: '105.218420',
+        note: 'จุดเริ่มต้นเสาต้นที่ 1 บริเวณสะพานคลองตาอิน หมู่ที่ 4'
+      },
+      endPoint: {
+        lat: '15.246320',
+        lng: '105.224110',
+        note: 'จุดสิ้นสุดเสาต้นที่ 65 สามแยกทางเข้าวัดบ้านไร่ใต้'
+      },
+      signboardPoint: {
+        lat: '15.239180',
+        lng: '105.218450',
+        note: 'บริเวณคอสะพานคลองตาอิน หมู่ที่ 4'
+      },
+      files: [],
+      remark: 'พิกัดแนวเสาไฟส่องสว่างโซลาร์เซลล์ตลอดแนวคลองตาอิน รวม 65 ต้น',
+      updatedAt: '14 พ.ย. 2569 14:15 น.'
+    },
     status: 'completed',
     progressPercent: 100,
     createdAt: '2024-10-01T09:00:00Z',

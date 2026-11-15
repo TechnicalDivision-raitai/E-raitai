@@ -24,9 +24,36 @@ export interface AttachmentFile {
   name: string;
   size: number; // in bytes
   type: string;
-  category: 'tor' | 'order' | 'contract' | 'notice' | 'delivery' | 'inspection' | 'disbursement' | 'remuneration' | 'other';
+  category: 'tor' | 'order' | 'contract' | 'notice' | 'delivery' | 'inspection' | 'disbursement' | 'remuneration' | 'project_record' | 'other';
   uploadDate: string;
   url?: string;
+}
+
+export interface ProjectCoordinatePoint {
+  lat: string;
+  lng: string;
+  note?: string;
+}
+
+export interface ProjectArchiveAttachment {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  photoStage?: 'before' | 'during' | 'after' | 'signboard' | 'document';
+  caption?: string;
+  uploadDate: string;
+  url?: string;
+  previewDataUrl?: string;
+}
+
+export interface ProjectArchiveRecord {
+  startPoint?: ProjectCoordinatePoint;
+  endPoint?: ProjectCoordinatePoint;
+  signboardPoint?: ProjectCoordinatePoint;
+  files?: ProjectArchiveAttachment[];
+  remark?: string;
+  updatedAt?: string;
 }
 
 export interface WorkNotice {
@@ -140,6 +167,9 @@ export interface Project {
   ackTime?: string;
   fileUrl?: string;
   fileName?: string;
+
+  // บันทึกข้อมูลโครงการย้อนหลัง (พิกัดโครงการ, พิกัดป้ายโครงการ, รูปภาพ/ไฟล์แนบ - ไม่เกี่ยวข้องกับสถานะหรือไทม์ไลน์ 12 ขั้นตอน)
+  projectRecord?: ProjectArchiveRecord;
 
   // สถานะและ metadata
   status: ProjectStatus;

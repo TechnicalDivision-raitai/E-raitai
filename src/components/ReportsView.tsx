@@ -360,25 +360,6 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
             </table>
           </div>
         )}
-
-        {/* Official Signatures Footer */}
-        <div className="pt-10 mt-6 border-t border-slate-300 grid grid-cols-2 gap-8 text-center text-xs">
-          <div className="space-y-12">
-            <p>ลงชื่อ.......................................................... ผู้จัดทำรายงาน</p>
-            <div>
-              <p className="font-bold">({currentUser.displayName})</p>
-              <p className="text-slate-500 text-[11px]">ตำแหน่ง {currentUser.position}</p>
-            </div>
-          </div>
-
-          <div className="space-y-12">
-            <p>ลงชื่อ.......................................................... ผู้อำนวยการกองช่าง / ผู้รับรอง</p>
-            <div>
-              <p className="font-bold">(นายสมชาย รัตนวิเชียร)</p>
-              <p className="text-slate-500 text-[11px]">ผู้อำนวยการกองช่าง</p>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   );

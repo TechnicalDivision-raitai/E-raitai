@@ -16,7 +16,12 @@ import {
   CheckCircle2,
   Paperclip,
   Clock,
-  ExternalLink
+  ExternalLink,
+  MapPin,
+  Navigation,
+  Signpost,
+  Image as ImageIcon,
+  Compass
 } from 'lucide-react';
 import {
   Project,
@@ -29,6 +34,7 @@ import {
   DisbursementRecord,
   CommitteeRemuneration,
   AttachmentFile,
+  ProjectArchiveAttachment,
   RAI_TAI_PERSONNEL
 } from '../types/project';
 import {
@@ -37,10 +43,17 @@ import {
   formatThaiDateTime,
   calculateProjectProgress,
   countCompletedSteps,
-  deriveProjectStatusFromData
+  deriveProjectStatusFromData,
+  getWorkNoticeAlert
 } from '../utils/thaiDate';
 import { uploadFileToDrive } from '../services/storage';
 import { AutoSuggestInput } from './AutoSuggestInput';
+import {
+  getGoogleMapsPointUrl,
+  getGoogleMapsRouteUrl,
+  createImagePreviewDataUrl,
+  tryParseCombinedLatLng
+} from './ProjectRecordsView';
 
 interface ProjectModalProps {
   isOpen: boolean;
@@ -657,8 +670,104 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     { num: 3, title: '3. ควบคุม & ตรวจรับ', icon: Users },
     { num: 4, title: '4. สัญญาจ้าง', icon: FileCheck },
     { num: 5, title: '5. ดำเนินงาน & ฎีกา', icon: Clock },
-    { num: 6, title: '6. ค่าตอบแทนกรรมการ', icon: HardHat }
+    { num: 6, title: '6. ค่าตอบแทนกรรมการ', icon: HardHat },
+    { num: 7, title: '7. บันทึกข้อมูลโครงการ', icon: MapPin }
   ];
+
+  const handleArchiveCoordChange = (
+    pointKey: 'startPoint' | 'endPoint' | 'signboardPoint',
+    field: 'lat' | 'lng' | 'note',
+    value: string
+  ) => {
+    const currentRec = formData.projectRecord || {};
+    if (field === 'lat' || field === 'lng') {
+      const parsed = tryParseCombinedLatLng(value);
+      if (parsed) {
+        setFormData({
+          ...formData,
+          projectRecord: {
+            ...currentRec,
+            [pointKey]: {
+              ...(currentRec[pointKey] || { lat: '', lng: '', note: '' }),
+              lat: parsed.lat,
+              lng: parsed.lng
+            },
+            updatedAt: formatThaiDateTime()
+          }
+        });
+        return;
+      }
+    }
+    setFormData({
+      ...formData,
+      projectRecord: {
+        ...currentRec,
+        [pointKey]: {
+          ...(currentRec[pointKey] || { lat: '', lng: '', note: '' }),
+          [field]: value
+        },
+        updatedAt: formatThaiDateTime()
+      }
+    });
+  };
+
+  const handleArchiveFileUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    stage: NonNullable<ProjectArchiveAttachment['photoStage']> = 'during'
+  ) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    Swal.fire({
+      title: 'กำลังอัปโหลดรูปภาพ/ไฟล์โครงการ...',
+      text: 'กรุณารอสักครู่ ระบบกำลังสร้างตัวอย่างรูปภาพและสำรองไฟล์',
+      allowOutsideClick: false,
+      didOpen: () => {
+        Swal.showLoading();
+      }
+    });
+
+    const uploaded: ProjectArchiveAttachment[] = [];
+    for (const file of Array.from(files)) {
+      try {
+        const [previewDataUrl, driveRes] = await Promise.all([
+          createImagePreviewDataUrl(file),
+          uploadFileToDrive(file)
+        ]);
+        uploaded.push({
+          id: `arc-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          name: file.name,
+          size: file.size,
+          type: file.type || 'image/jpeg',
+          photoStage: stage,
+          caption: '',
+          uploadDate: new Date().toISOString().split('T')[0],
+          url: driveRes.fileUrl,
+          previewDataUrl
+        });
+      } catch (err) {
+        console.error('Archive upload error', err);
+      }
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      projectRecord: {
+        ...(prev.projectRecord || {}),
+        files: [...(prev.projectRecord?.files || []), ...uploaded],
+        updatedAt: formatThaiDateTime()
+      }
+    }));
+
+    e.target.value = '';
+    Swal.fire({
+      icon: 'success',
+      title: 'แนบไฟล์สำเร็จ',
+      text: `เพิ่มรูปภาพ/ไฟล์โครงการ ${uploaded.length} รายการเรียบร้อยแล้ว`,
+      timer: 1300,
+      showConfirmButton: false
+    });
+  };
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5">
@@ -1684,6 +1793,21 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                   </button>
                 </div>
 
+                {getWorkNoticeAlert(formData).hasAlert && (
+                  <div
+                    className={`p-3 rounded-xl border flex items-start gap-2.5 text-xs ${
+                      getWorkNoticeAlert(formData).isOver15Days
+                        ? 'bg-rose-50 border-rose-300 text-rose-900'
+                        : 'bg-amber-50 border-amber-300 text-amber-950'
+                    }`}
+                  >
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                    <div className="font-semibold">
+                      {getWorkNoticeAlert(formData).fullMessage}
+                    </div>
+                  </div>
+                )}
+
                 {formData.workNotices.map((wn, idx) => (
                   <div key={wn.id} className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-3 bg-white rounded-xl border border-slate-200 text-xs">
                     <div>
@@ -2252,10 +2376,377 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
             </div>
           )}
 
+          {/* =========================================================================
+              หมวดที่ 7: บันทึกข้อมูลโครงการ (พิกัดโครงการ, พิกัดป้าย, รูปภาพแนบ - ไม่เกี่ยวกับสถานะ/ไทม์ไลน์ 12 ขั้นตอน)
+              ========================================================================= */}
+          {activeTab === 7 && (
+            <div className="space-y-5 animate-in fade-in duration-150">
+              <div className="p-4 rounded-2xl bg-gradient-to-r from-teal-900 to-emerald-800 text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h4 className="text-sm font-bold font-heading flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-emerald-300" />
+                    <span>แท็บบันทึกข้อมูลโครงการ (พิกัดโครงการ • พิกัดป้ายโครงการ • แนบไฟล์รูปภาพ)</span>
+                  </h4>
+                  <p className="text-xs text-emerald-100 mt-0.5">
+                    ใช้สำหรับเก็บข้อมูลโครงการเพื่อเปิดดูย้อนหลังและเปิดแผนที่ผ่าน Google Maps โดยไม่มีผลกระทบต่อสถานะโครงการหรือไทม์ไลน์ 12 ขั้นตอน
+                  </p>
+                </div>
+                <span className="px-3 py-1 rounded-full bg-white/15 text-emerald-200 text-[11px] font-bold border border-white/20 shrink-0 self-start sm:self-center">
+                  แยกอิสระจากขั้นตอนระบบ
+                </span>
+              </div>
+
+              {/* 1. พิกัดโครงการ: จุดเริ่มต้นโครงการ และ จุดสิ้นสุดโครงการ */}
+              <div className="p-4 rounded-2xl bg-emerald-50/40 border border-emerald-200 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200/80 pb-2.5">
+                  <div>
+                    <h5 className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
+                      <Navigation className="w-4 h-4 text-emerald-600" />
+                      <span>1. พิกัดโครงการ (แบ่งเป็น จุดเริ่มต้นโครงการ และ จุดสิ้นสุดโครงการ)</span>
+                    </h5>
+                    <p className="text-[11px] text-slate-500">
+                      กรอกเป็น ละติจูด (Latitude) และ ลองจิจูด (Longitude) หรือวางพิกัดรวม เช่น 15.2448, 105.2215
+                    </p>
+                  </div>
+                  {getGoogleMapsRouteUrl(
+                    formData.projectRecord?.startPoint,
+                    formData.projectRecord?.endPoint
+                  ) && (
+                    <a
+                      href={getGoogleMapsRouteUrl(
+                        formData.projectRecord?.startPoint,
+                        formData.projectRecord?.endPoint
+                      )}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-xs transition self-start"
+                    >
+                      <Compass className="w-3.5 h-3.5" />
+                      <span>เปิดดูเส้นทางเริ่มต้น → สิ้นสุด บน Google Maps</span>
+                    </a>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* จุดเริ่มต้นโครงการ */}
+                  <div className="bg-white p-4 rounded-xl border border-emerald-200 space-y-3 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                        <span>จุดเริ่มต้นโครงการ</span>
+                      </span>
+                      {getGoogleMapsPointUrl(formData.projectRecord?.startPoint) && (
+                        <a
+                          href={getGoogleMapsPointUrl(formData.projectRecord?.startPoint)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold inline-flex items-center gap-1 shadow-2xs transition"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          <span>เปิดดู Google Maps</span>
+                        </a>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                          ละติจูด (Latitude)
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.projectRecord?.startPoint?.lat || ''}
+                          onChange={e => handleArchiveCoordChange('startPoint', 'lat', e.target.value)}
+                          placeholder="เช่น 15.244812"
+                          className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                          ลองจิจูด (Longitude)
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.projectRecord?.startPoint?.lng || ''}
+                          onChange={e => handleArchiveCoordChange('startPoint', 'lng', e.target.value)}
+                          placeholder="เช่น 105.221540"
+                          className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                        จุดสังเกตจุดเริ่มต้น (ถ้ามี)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.projectRecord?.startPoint?.note || ''}
+                        onChange={e => handleArchiveCoordChange('startPoint', 'note', e.target.value)}
+                        placeholder="เช่น หน้าศาลาหมู่บ้าน หมู่ที่ 1 กม.0+000"
+                        className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs"
+                      />
+                    </div>
+                  </div>
+
+                  {/* จุดสิ้นสุดโครงการ */}
+                  <div className="bg-white p-4 rounded-xl border border-rose-200 space-y-3 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
+                        <span>จุดสิ้นสุดโครงการ</span>
+                      </span>
+                      {getGoogleMapsPointUrl(formData.projectRecord?.endPoint) && (
+                        <a
+                          href={getGoogleMapsPointUrl(formData.projectRecord?.endPoint)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold inline-flex items-center gap-1 shadow-2xs transition"
+                        >
+                          <ExternalLink className="w-3 h-3" />
+                          <span>เปิดดู Google Maps</span>
+                        </a>
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                          ละติจูด (Latitude)
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.projectRecord?.endPoint?.lat || ''}
+                          onChange={e => handleArchiveCoordChange('endPoint', 'lat', e.target.value)}
+                          placeholder="เช่น 15.251240"
+                          className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                          ลองจิจูด (Longitude)
+                        </label>
+                        <input
+                          type="text"
+                          value={formData.projectRecord?.endPoint?.lng || ''}
+                          onChange={e => handleArchiveCoordChange('endPoint', 'lng', e.target.value)}
+                          placeholder="เช่น 105.228910"
+                          className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                        จุดสังเกตจุดสิ้นสุด (ถ้ามี)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.projectRecord?.endPoint?.note || ''}
+                        onChange={e => handleArchiveCoordChange('endPoint', 'note', e.target.value)}
+                        placeholder="เช่น เชื่อมต่อถนนสายหลัก หมู่ที่ 5 กม.0+950"
+                        className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 2. พิกัดป้ายแสดงโครงการ */}
+              <div className="p-4 rounded-2xl bg-purple-50/40 border border-purple-200 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-purple-200/80 pb-2.5">
+                  <div>
+                    <h5 className="text-xs font-bold text-purple-950 flex items-center gap-1.5">
+                      <Signpost className="w-4 h-4 text-purple-600" />
+                      <span>2. พิกัดป้ายแสดงโครงการ</span>
+                    </h5>
+                    <p className="text-[11px] text-slate-500">
+                      กรอกละติจูดและลองจิจูดของจุดติดตั้งป้ายแสดงรายละเอียดโครงการ
+                    </p>
+                  </div>
+                  {getGoogleMapsPointUrl(formData.projectRecord?.signboardPoint) && (
+                    <a
+                      href={getGoogleMapsPointUrl(formData.projectRecord?.signboardPoint)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-xs transition self-start"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>เปิดดูพิกัดป้ายบน Google Maps</span>
+                    </a>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-white p-3.5 rounded-xl border border-purple-200 shadow-2xs">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                      ละติจูด (Latitude)
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.projectRecord?.signboardPoint?.lat || ''}
+                      onChange={e => handleArchiveCoordChange('signboardPoint', 'lat', e.target.value)}
+                      placeholder="เช่น 15.244850"
+                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                      ลองจิจูด (Longitude)
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.projectRecord?.signboardPoint?.lng || ''}
+                      onChange={e => handleArchiveCoordChange('signboardPoint', 'lng', e.target.value)}
+                      placeholder="เช่น 105.221580"
+                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                      บริเวณจุดติดตั้งป้ายโครงการ
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.projectRecord?.signboardPoint?.note || ''}
+                      onChange={e => handleArchiveCoordChange('signboardPoint', 'note', e.target.value)}
+                      placeholder="เช่น ปากทางเข้าโครงการ หมู่ที่ 1"
+                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-lg text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* 3. แนบไฟล์ เช่น รูปภาพโครงการ */}
+              <div className="p-4 rounded-2xl bg-sky-50/40 border border-sky-200 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-sky-200/80 pb-2.5">
+                  <div>
+                    <h5 className="text-xs font-bold text-sky-950 flex items-center gap-1.5">
+                      <ImageIcon className="w-4 h-4 text-sky-600" />
+                      <span>3. แนบไฟล์ เช่น รูปภาพโครงการ ({formData.projectRecord?.files?.length || 0} ไฟล์)</span>
+                    </h5>
+                    <p className="text-[11px] text-slate-500">
+                      อัปโหลดรูปภาพโครงการ รูปป้ายโครงการ หรือไฟล์เอกสารสำหรับเปิดดูย้อนหลัง
+                    </p>
+                  </div>
+
+                  <label className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer shadow-xs transition self-start">
+                    <Upload className="w-3.5 h-3.5" />
+                    <span>แนบรูปภาพ / ไฟล์โครงการ</span>
+                    <input
+                      type="file"
+                      multiple
+                      accept="image/*,.pdf,.doc,.docx"
+                      onChange={e => handleArchiveFileUpload(e, 'during')}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+
+                {(!formData.projectRecord?.files || formData.projectRecord.files.length === 0) ? (
+                  <div className="bg-white rounded-xl p-6 text-center border border-dashed border-sky-200 text-xs text-slate-400">
+                    ยังไม่มีรูปภาพหรือไฟล์แนบในแท็บบันทึกข้อมูลโครงการ
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    {formData.projectRecord.files.map((file, idx) => {
+                      const imgSrc = file.previewDataUrl || file.url || '';
+                      const isImage =
+                        file.type?.startsWith('image/') ||
+                        Boolean(file.previewDataUrl) ||
+                        /\.(jpg|jpeg|png|webp|gif)$/i.test(file.name);
+
+                      return (
+                        <div
+                          key={file.id}
+                          className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs flex flex-col justify-between"
+                        >
+                          {isImage && imgSrc ? (
+                            <div className="relative h-32 bg-slate-100">
+                              <img src={imgSrc} alt={file.name} className="w-full h-full object-cover" />
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    projectRecord: {
+                                      ...(prev.projectRecord || {}),
+                                      files: (prev.projectRecord?.files || []).filter(f => f.id !== file.id)
+                                    }
+                                  }))
+                                }
+                                className="absolute top-2 right-2 p-1 rounded-lg bg-rose-600 text-white hover:bg-rose-700"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="relative h-32 bg-slate-50 flex flex-col items-center justify-center p-3 text-center">
+                              <FileText className="w-7 h-7 text-slate-400 mb-1" />
+                              <span className="text-xs font-semibold text-slate-700 line-clamp-2">
+                                {file.name}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setFormData(prev => ({
+                                    ...prev,
+                                    projectRecord: {
+                                      ...(prev.projectRecord || {}),
+                                      files: (prev.projectRecord?.files || []).filter(f => f.id !== file.id)
+                                    }
+                                  }))
+                                }
+                                className="absolute top-2 right-2 p-1 rounded-lg bg-rose-600 text-white hover:bg-rose-700"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+
+                          <div className="p-2.5 space-y-1.5">
+                            <select
+                              value={file.photoStage || 'during'}
+                              onChange={e => {
+                                const filesCopy = [...(formData.projectRecord?.files || [])];
+                                filesCopy[idx] = { ...filesCopy[idx], photoStage: e.target.value as any };
+                                setFormData(prev => ({
+                                  ...prev,
+                                  projectRecord: { ...(prev.projectRecord || {}), files: filesCopy }
+                                }));
+                              }}
+                              className="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded-md text-[11px] font-semibold"
+                            >
+                              <option value="before">ภาพก่อนดำเนินการ</option>
+                              <option value="during">ภาพระหว่างดำเนินการ</option>
+                              <option value="after">ภาพหลังดำเนินการเสร็จ</option>
+                              <option value="signboard">ภาพป้ายแสดงโครงการ</option>
+                              <option value="document">ไฟล์เอกสาร/แบบแปลน</option>
+                            </select>
+                            <input
+                              type="text"
+                              value={file.caption || ''}
+                              onChange={e => {
+                                const filesCopy = [...(formData.projectRecord?.files || [])];
+                                filesCopy[idx] = { ...filesCopy[idx], caption: e.target.value };
+                                setFormData(prev => ({
+                                  ...prev,
+                                  projectRecord: { ...(prev.projectRecord || {}), files: filesCopy }
+                                }));
+                              }}
+                              placeholder="คำอธิบายรูปภาพ/ไฟล์..."
+                              className="w-full px-2 py-1 bg-slate-50 border border-slate-300 rounded-md text-xs"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Modal Footer Controls */}
           <div className="pt-4 border-t border-slate-200 flex items-center justify-between">
             <div className="text-xs text-slate-500">
-              หมวดที่ {activeTab} จาก 6
+              หมวดที่ {activeTab} จาก 7
             </div>
 
             <div className="flex items-center gap-2">
@@ -2267,10 +2758,10 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                 ยกเลิก
               </button>
 
-              {activeTab < 6 && (
+              {activeTab < 7 && (
                 <button
                   type="button"
-                  onClick={() => setActiveTab(prev => Math.min(6, prev + 1))}
+                  onClick={() => setActiveTab(prev => Math.min(7, prev + 1))}
                   className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold transition"
                 >
                   ถัดไป (หมวดที่ {activeTab + 1})

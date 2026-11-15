@@ -14,7 +14,7 @@ import {
   Filter
 } from 'lucide-react';
 import { Project, ProjectStatus, UserProfile } from '../types/project';
-import { formatCurrency, formatThaiDate, getDaysRemaining } from '../utils/thaiDate';
+import { formatCurrency, formatThaiDate, getDaysRemaining, getWorkNoticeAlert } from '../utils/thaiDate';
 import { STATUS_LABELS } from '../utils/excelExport';
 
 interface ProjectTimelineViewProps {
@@ -121,14 +121,28 @@ export const ProjectTimelineView: React.FC<ProjectTimelineViewProps> = ({
     };
 
     // 7. แจ้งเข้าทำงาน
-    const hasWorkNotice = (p.workNotices && p.workNotices.length > 0);
+    const hasWorkNotice = Boolean(p.workNotices && p.workNotices.length > 0);
+    const workNoticeAlert = getWorkNoticeAlert(p);
+    const hasActualWorkStart = Boolean(
+      p.workNotices && p.workNotices.some(w => Boolean(w.actualWorkDate && w.actualWorkDate.trim()))
+    );
     const step7: TimelineStep = {
       id: 'step-7',
       name: 'แจ้งเข้าทำงาน',
-      description: hasWorkNotice
+      description: hasActualWorkStart
         ? `เข้าทำงานจริง ${formatThaiDate(p.workNotices[0].actualWorkDate)}`
+        : workNoticeAlert.hasAlert
+        ? workNoticeAlert.badgeLabel
         : 'หนังสือแจ้งเริ่มงานก่อสร้างจากผู้รับจ้าง',
-      status: hasWorkNotice ? 'completed' : hasContract ? 'in_progress' : 'pending',
+      status: hasActualWorkStart
+        ? 'completed'
+        : workNoticeAlert.hasAlert
+        ? workNoticeAlert.isOver15Days
+          ? 'overdue'
+          : 'in_progress'
+        : hasContract
+        ? 'in_progress'
+        : 'pending',
       date: hasWorkNotice ? p.workNotices[0].bookDate : undefined,
       referenceNo: hasWorkNotice ? p.workNotices[0].bookNo : undefined
     };
