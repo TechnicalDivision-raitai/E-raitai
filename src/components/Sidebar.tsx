@@ -228,6 +228,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
             รายงานและติดตาม
           </div>
 
+          {/* ข้อมูลโครงการย้อนหลัง (พิกัด & รูปภาพ) */}
+          <button
+            onClick={() => {
+              setCurrentTab('project_records');
+              setIsMobileOpen(false);
+            }}
+            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg font-medium transition ${
+              currentTab === 'project_records'
+                ? 'bg-emerald-600 text-white shadow-md'
+                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <MapPin className="w-4 h-4 text-teal-300 shrink-0" />
+            <span className="flex-1 text-left">ข้อมูลโครงการ</span>
+          </button>
+
           {/* งานเกินกำหนด */}
           <button
             onClick={() => {
@@ -279,22 +295,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
           >
             <FileText className="w-4 h-4 text-emerald-400 shrink-0" />
             <span>รายงาน & สถิติโครงการ</span>
-          </button>
-
-          {/* บันทึกข้อมูลโครงการย้อนหลัง (พิกัด & รูปภาพ) */}
-          <button
-            onClick={() => {
-              setCurrentTab('project_records');
-              setIsMobileOpen(false);
-            }}
-            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg font-medium transition ${
-              currentTab === 'project_records'
-                ? 'bg-emerald-600 text-white shadow-md'
-                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-            }`}
-          >
-            <MapPin className="w-4 h-4 text-teal-300 shrink-0" />
-            <span className="flex-1 text-left">บันทึกข้อมูลโครงการ</span>
           </button>
 
           {/* นำเข้าข้อมูล Excel (เฉพาะ Admin ตามข้อ 7) */}

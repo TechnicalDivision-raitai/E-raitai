@@ -387,13 +387,13 @@ export default function App() {
 
   const pageTitles: Record<string, string> = {
     dashboard: 'สรุปผลงานโครงการกองช่าง อบต.ไร่ใต้',
-    vouchersSummary: 'แดชบอร์ดสรุปงานฎีกาและเบิกจ่าย',
+    vouchersSummary: 'สรุปงานฎีกาและเบิกจ่าย',
     myInbox: 'กล่องงานของฉัน (My Inbox)',
     projects: `ทะเบียนโครงการ — ${currentCategoryTitle}`,
     overdue: 'ติดตามงานเกินกำหนดสัญญา (Overdue Tracker)',
     timeline: 'ไทม์ไลน์ 12 ขั้นตอนดำเนินงานโครงการ',
     reports: 'ออกรายงานและสถิติโครงการ',
-    project_records: 'บันทึกข้อมูลโครงการ (พิกัดโครงการ • พิกัดป้ายโครงการ • รูปภาพ)',
+    project_records: 'ข้อมูลโครงการ',
     excel_import: 'นำเข้าข้อมูลทะเบียนโครงการจาก Excel',
     manual: 'คู่มือการใช้งานระบบ & สรุปผลการทดสอบ'
   };

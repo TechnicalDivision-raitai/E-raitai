@@ -253,7 +253,7 @@ export const Header: React.FC<HeaderProps> = ({
               ? 'กำลังซิงค์...'
               : syncStatus === 'error'
               ? 'ซิงค์ไม่สำเร็จ'
-              : 'ซิงค์ Google Sheet แล้ว'}
+              : 'ซิงค์แล้ว'}
           </span>
         </button>
 

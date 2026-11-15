@@ -420,22 +420,13 @@ export const ProjectRecordsView: React.FC<ProjectRecordsViewProps> = ({
       <div className="bg-gradient-to-r from-teal-900 via-emerald-800 to-teal-800 rounded-3xl p-6 text-white shadow-lg relative overflow-hidden">
         <div className="relative z-10 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="space-y-1.5">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 backdrop-blur-xs text-emerald-200 text-xs font-semibold border border-white/20">
-              <FolderArchive className="w-3.5 h-3.5" />
-              <span>แฟ้มบันทึกข้อมูลโครงการย้อนหลัง (แยกอิสระจากสถานะโครงการ & ไทม์ไลน์ 12 ขั้นตอน)</span>
-            </div>
             <h2 className="text-xl sm:text-2xl font-bold font-heading flex items-center gap-2.5">
               <MapPin className="w-6 h-6 text-emerald-300 shrink-0" />
-              <span>บันทึกข้อมูลพิกัดโครงการ พิกัดป้ายโครงการ และรูปภาพย้อนหลัง</span>
+              <span>ข้อมูลโครงการ</span>
             </h2>
             <p className="text-xs sm:text-sm text-emerald-100/90 max-w-3xl">
               ใช้สำหรับจัดเก็บพิกัดจุดเริ่มต้น-จุดสิ้นสุดโครงการ พิกัดป้ายแสดงโครงการ และรูปภาพ/ไฟล์แนบโครงการเพื่อเปิดดูข้อมูลย้อนหลังและเปิดแผนที่ผ่าน Google Maps ได้ทันที
             </p>
-          </div>
-
-          <div className="flex items-center gap-2 self-start lg:self-center bg-slate-900/35 border border-white/15 px-4 py-2.5 rounded-2xl text-xs text-emerald-100">
-            <CheckCircle2 className="w-4 h-4 text-emerald-300 shrink-0" />
-            <span>การบันทึกในหน้านี้ไม่มีผลกระทบต่อสถานะโครงการหรือความคืบหน้า 12 ขั้นตอน</span>
           </div>
         </div>
       </div>

@@ -28,10 +28,10 @@ export const VouchersSummaryView: React.FC<VouchersSummaryViewProps> = ({
   selectedYear = 'all',
   onSelectYear
 }) => {
-  // Filter projects by fiscal year (from top header filter)
+  // Filter projects by fiscal year
   const filteredProjects = useMemo(() => {
     if (!selectedYear || selectedYear === 'all') return projects;
-    return projects.filter(p => p.fiscalYear === Number(selectedYear));
+    return projects.filter(p => Number(p.fiscalYear) === Number(selectedYear));
   }, [projects, selectedYear]);
 
   // Aggregate all disbursements & remunerations into voucher rows
@@ -113,16 +113,28 @@ export const VouchersSummaryView: React.FC<VouchersSummaryViewProps> = ({
               สรุปรายงานข้อมูลฎีกาและการเบิกจ่าย
             </h3>
             <p className="text-xs text-gray-500">
-              ควบคุมตัวกรองปีงบประมาณผ่านแถบด้านบน (Header) แสดงยอดเงิน สัดส่วน และรายการฎีกาตามปีที่เลือก
+              เลือกกรองตามปีงบประมาณ เพื่อแสดงยอดเงิน สัดส่วน และรายการฎีกาตามปีที่เลือก
             </p>
           </div>
         </div>
         <div className="flex items-center gap-2 bg-rose-50/80 border border-rose-200/90 rounded-xl px-4 py-2">
-          <Calendar className="w-4 h-4 text-rose-600" />
-          <span className="text-xs font-semibold text-rose-900">ปีงบประมาณที่กรอง:</span>
-          <span className="text-sm font-bold text-rose-950">
-            {selectedYear === 'all' ? 'ทุกปีงบประมาณ' : `พ.ศ. ${selectedYear}`}
-          </span>
+          <Calendar className="w-4 h-4 text-rose-600 shrink-0" />
+          <label htmlFor="voucher-year-filter" className="text-xs font-semibold text-rose-900 whitespace-nowrap">
+            ปีงบประมาณ:
+          </label>
+          <select
+            id="voucher-year-filter"
+            value={selectedYear}
+            onChange={e => onSelectYear?.(e.target.value === 'all' ? 'all' : Number(e.target.value))}
+            className="bg-transparent text-sm font-bold text-rose-950 focus:outline-hidden cursor-pointer pr-1"
+          >
+            <option value="all">ทุกปีงบประมาณ</option>
+            {availableYears.map(yr => (
+              <option key={yr} value={yr}>
+                พ.ศ. {yr}
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 
