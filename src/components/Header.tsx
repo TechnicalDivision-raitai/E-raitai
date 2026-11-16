@@ -102,9 +102,15 @@ export const Header: React.FC<HeaderProps> = ({
         >
           <PanelLeft className="w-4 h-4" />
         </button>
-        <h1 className="text-sm sm:text-base lg:text-lg font-bold text-gray-800 font-heading truncate min-w-0">
-          {pageTitle}
-        </h1>
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-xs sm:text-[13px] font-medium text-slate-400 whitespace-nowrap shrink-0">
+            ระบบงานโครงการ
+          </span>
+          <span className="text-xs sm:text-[13px] text-slate-300 select-none shrink-0">/</span>
+          <h1 className="text-xs sm:text-[13px] lg:text-sm font-bold text-slate-800 font-heading truncate min-w-0">
+            {pageTitle}
+          </h1>
+        </div>
       </div>
 
       {/* Center / Year Filter */}

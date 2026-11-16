@@ -387,16 +387,16 @@ export default function App() {
   const currentCategoryTitle = filter.category && filter.category !== 'all' ? filter.category : 'ทะเบียนโครงการทั้งหมด';
 
   const pageTitles: Record<string, string> = {
-    dashboard: 'สรุปผลงานโครงการกองช่าง อบต.ไร่ใต้',
+    dashboard: 'สรุปผลงานโครงการ',
     vouchersSummary: 'สรุปงานฎีกาและเบิกจ่าย',
-    myInbox: 'กล่องงานของฉัน (My Inbox)',
-    projects: `ทะเบียนโครงการ — ${currentCategoryTitle}`,
-    overdue: 'ติดตามงานเกินกำหนดสัญญา (Overdue Tracker)',
-    timeline: 'ไทม์ไลน์ 12 ขั้นตอนดำเนินงานโครงการ',
-    reports: 'ออกรายงานและสถิติโครงการ',
+    myInbox: 'กล่องงานของฉัน',
+    projects: currentCategoryTitle,
+    overdue: 'งานเกินกำหนดสัญญา',
+    timeline: 'ไทม์ไลน์ 12 ขั้นตอน',
+    reports: 'รายงาน & สถิติโครงการ',
     project_records: 'ข้อมูลโครงการ',
-    excel_import: 'นำเข้าข้อมูลทะเบียนโครงการจาก Excel',
-    manual: 'คู่มือการใช้งานระบบ & สรุปผลการทดสอบ'
+    excel_import: 'นำเข้าข้อมูล Excel',
+    manual: 'คู่มือ & สรุปผลงาน'
   };
 
   // Mandatory Login Screen: If not logged in, force Login screen before accessing the system
