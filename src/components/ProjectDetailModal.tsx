@@ -38,7 +38,11 @@ import {
   formatThaiDateTime,
   getDaysRemaining,
   bahtText,
-  getWorkNoticeAlert
+  getWorkNoticeAlert,
+  isProjectCompletedOrDisbursed,
+  DEFAULT_DELIVERY_DETAILS,
+  getDeliveryContractStatus,
+  getFirstAttachmentTab
 } from '../utils/thaiDate';
 import { STATUS_LABELS } from '../utils/excelExport';
 
@@ -119,6 +123,11 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
   if (!isOpen || !project) return null;
 
   const remaining = getDaysRemaining(project.endDate);
+  const isInspectedOrCompleted =
+    project.status === 'inspected' ||
+    project.status === 'completed' ||
+    isProjectCompletedOrDisbursed(project) ||
+    Boolean(project.inspections?.some(i => i.result === 'pass'));
 
   const tabs = [
     { id: 1, title: '1. ข้อมูลทั่วไป' },
@@ -128,8 +137,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
     { id: 5, title: '5. การดำเนินงาน' },
     { id: 6, title: '6. การตรวจรับงาน' },
     { id: 7, title: '7. การจัดทำฎีกาและเบิกจ่าย' },
-    { id: 8, title: `8. เอกสารแนบ (${project.attachments?.length || 0})` },
-    { id: 9, title: '9. บันทึกข้อมูลโครงการ' }
+    { id: 8, title: '8. ข้อมูลโครงการ' }
   ];
 
   const handlePrint = () => {
@@ -211,9 +219,9 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
           <div className="flex items-center gap-2">
             {project.attachments && project.attachments.length > 0 && (
               <button
-                onClick={() => setActiveTab(8)}
+                onClick={() => setActiveTab(getFirstAttachmentTab(project))}
                 className="p-2 rounded-xl bg-emerald-600/90 hover:bg-emerald-500 text-white transition flex items-center gap-1.5 text-xs font-semibold shadow-xs"
-                title="คลิกเพื่อดูรายการไฟล์แนบใน Google Drive"
+                title="คลิกเพื่อไปยังแท็บที่มีไฟล์แนบใน Google Drive"
               >
                 <Paperclip className="w-4 h-4 text-emerald-200" />
                 <span className="hidden sm:inline">ไฟล์แนบ Drive ({project.attachments.length})</span>
@@ -372,6 +380,11 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   <div className="p-2.5 text-slate-600 md:col-span-2">{project.notes || '-'}</div>
                 </div>
               </div>
+              <SectionAttachments
+                attachments={project.attachments}
+                categories={['other', 'project_record']}
+                title="เอกสารแนบข้อมูลทั่วไปของโครงการ"
+              />
             </section>
           )}
 
@@ -406,7 +419,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   <div className="p-2.5 text-slate-900 md:col-span-2 font-bold text-sm">
                     {project.refPrice ? `${formatCurrency(project.refPrice)} บาท (${bahtText(project.refPrice)})` : '-'}
                     {project.refPriceDate && (
-                      <span className="text-xs font-normal text-slate-500 ml-2">
+                      <span className="block text-xs font-normal text-slate-500 mt-1">
                         กำหนดเมื่อ {formatThaiDate(project.refPriceDate)}
                       </span>
                     )}
@@ -523,7 +536,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   <div className="bg-slate-50 font-bold text-slate-700 p-2.5 md:col-span-1">ระยะเวลาตามสัญญา</div>
                   <div className="p-2.5 text-slate-900 md:col-span-2">
                     เริ่มสัญญา {formatThaiDate(project.startDate)} ถึง {formatThaiDate(project.endDate)}
-                    {project.endDate && (
+                    {project.endDate && !isInspectedOrCompleted && (
                       <span
                         className={`inline-block ml-2 text-[10px] font-bold px-2 py-0.5 rounded-full ${
                           remaining.isOverdue
@@ -635,26 +648,81 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
               <div>
                 <h5 className="text-xs font-bold text-slate-700 mb-2">การส่งมอบงานแต่ละงวด:</h5>
                 {project.deliveries && project.deliveries.length > 0 ? (
-                  <table className="w-full text-xs border border-slate-300">
-                    <thead className="bg-slate-100 font-semibold text-slate-700">
-                      <tr>
-                        <th className="p-2 border border-slate-300 text-center w-16">งวดที่</th>
-                        <th className="p-2 border border-slate-300 text-left">เลขที่หนังสือ</th>
-                        <th className="p-2 border border-slate-300 text-left">วันที่ส่งมอบจริง</th>
-                        <th className="p-2 border border-slate-300 text-left">รายละเอียดผลงานที่ส่งมอบ</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {project.deliveries.map(d => (
-                        <tr key={d.id}>
-                          <td className="p-2 border border-slate-300 text-center font-bold">{d.installment}</td>
-                          <td className="p-2 border border-slate-300">{d.bookNo || '-'}</td>
-                          <td className="p-2 border border-slate-300">{formatThaiDate(d.actualDeliveryDate)}</td>
-                          <td className="p-2 border border-slate-300">{d.details || '-'}</td>
+                  <div className="space-y-2.5">
+                    {/* แจ้งเตือนเฉพาะกรณีส่งมอบเกินกำหนดสัญญาเท่านั้น */}
+                    {project.deliveries.map(d => {
+                      const delStatus = getDeliveryContractStatus(
+                        d.actualDeliveryDate || d.bookDate,
+                        project.endDate
+                      );
+                      if (!delStatus.hasComparison || delStatus.isWithinContract) return null;
+                      return (
+                        <div
+                          key={`status-${d.id}`}
+                          className="p-3 rounded-xl border flex items-start gap-2.5 text-xs bg-rose-50/90 border-rose-300 text-rose-950"
+                        >
+                          <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
+                          <div>
+                            <span className="font-bold">
+                              งวดที่ {d.installment}: พ้นกำหนดระยะเวลาตามสัญญา (เกินกำหนด {delStatus.overdueDays} วัน จนถึงวันส่งมอบ)
+                            </span>
+                            <div className="text-[11px] mt-0.5 opacity-90">
+                              {delStatus.detailMessage}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    <table className="w-full text-xs border border-slate-300">
+                      <thead className="bg-slate-100 font-semibold text-slate-700">
+                        <tr>
+                          <th className="p-2 border border-slate-300 text-center w-16">งวดที่</th>
+                          <th className="p-2 border border-slate-300 text-left">เลขที่หนังสือ</th>
+                          <th className="p-2 border border-slate-300 text-left">วันที่ส่งมอบจริง</th>
+                          <th className="p-2 border border-slate-300 text-left">รายละเอียดงานที่ส่งมอบ</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {project.deliveries.map(d => {
+                          const delStatus = getDeliveryContractStatus(
+                            d.actualDeliveryDate || d.bookDate,
+                            project.endDate
+                          );
+                          return (
+                            <tr key={d.id}>
+                              <td className="p-2 border border-slate-300 text-center font-bold">
+                                {d.installment}
+                              </td>
+                              <td className="p-2 border border-slate-300">{d.bookNo || '-'}</td>
+                              <td className="p-2 border border-slate-300">
+                                <div>{formatThaiDate(d.actualDeliveryDate || d.bookDate)}</div>
+                                {delStatus.hasComparison && (
+                                  <span
+                                    className={`inline-flex items-center gap-1 mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                      delStatus.isWithinContract
+                                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                        : 'bg-rose-100 text-rose-800 border-rose-300'
+                                    }`}
+                                  >
+                                    {delStatus.isWithinContract ? (
+                                      <CheckCircle2 className="w-3 h-3 shrink-0 text-emerald-700" />
+                                    ) : (
+                                      <AlertTriangle className="w-3 h-3 shrink-0 text-rose-700" />
+                                    )}
+                                    <span>{delStatus.label}</span>
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-2 border border-slate-300">
+                                {d.details || DEFAULT_DELIVERY_DETAILS}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 ) : (
                   <div className="text-xs text-slate-500 italic p-3 bg-slate-50 rounded-lg">
                     - ยังไม่มีรายการส่งมอบงาน -
@@ -840,80 +908,41 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
           )}
 
           {/* =========================================================================
-              แท็บ 8: เอกสารแนบ
+              แท็บ 8: ข้อมูลโครงการ (พิกัดโครงการ, พิกัดป้ายโครงการ, รูปภาพแนบ)
               ========================================================================= */}
           {(activeTab === 8 || window.matchMedia?.('print')?.matches) && (
-            <section className="space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-emerald-50 px-3 py-2 rounded-lg border-l-4 border-emerald-700">
-                <h4 className="text-sm font-bold text-emerald-950 font-heading">
-                  8. รายการเอกสารแนบในระบบ (Google Drive)
-                </h4>
-                <span className="text-[11px] text-emerald-800 font-semibold bg-white/90 px-2.5 py-0.5 rounded-full border border-emerald-300 w-fit shadow-2xs">
-                  ✓ สิทธิ์ Staff และผู้ใช้งานทุกคน สามารถเปิดดูไฟล์แนบได้โดยตรง
-                </span>
-              </div>
-              {project.attachments && project.attachments.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {project.attachments.map(att => (
-                    <div
-                      key={att.id}
-                      className="p-3 bg-slate-50 hover:bg-emerald-50/40 rounded-xl border border-slate-200 hover:border-emerald-300 flex items-center justify-between gap-3 text-xs transition shadow-2xs"
-                    >
-                      <div className="flex items-center gap-2.5 overflow-hidden">
-                        <div className="p-2 bg-emerald-100 text-emerald-700 rounded-lg shrink-0">
-                          <Paperclip className="w-4 h-4" />
-                        </div>
-                        <div className="overflow-hidden">
-                          <div className="font-semibold text-slate-800 truncate" title={att.name}>
-                            {att.name}
-                          </div>
-                          <div className="text-[10px] text-slate-500">
-                            หมวด: {att.category} • {(att.size / 1024).toFixed(1)} KB • อัปโหลด {formatThaiDate(att.uploadDate)}
-                          </div>
-                        </div>
-                      </div>
-
-                      {att.url ? (
-                        <a
-                          href={att.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shrink-0 transition inline-flex items-center gap-1.5 shadow-xs text-xs"
-                          title="เปิดไฟล์ใน Google Drive (แท็บใหม่)"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5" />
-                          <span>เปิดดู Drive</span>
-                        </a>
-                      ) : (
-                        <span className="text-[11px] text-slate-400">ไม่มีลิงก์</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="text-xs text-slate-500 italic p-4 bg-slate-50 rounded-xl text-center border border-slate-200">
-                  - ยังไม่มีเอกสารแนบสำหรับโครงการนี้ใน Google Drive -
-                </div>
-              )}
-            </section>
-          )}
-
-          {/* =========================================================================
-              แท็บ 9: บันทึกข้อมูลโครงการ (พิกัดโครงการ, พิกัดป้ายโครงการ, รูปภาพแนบ)
-              ========================================================================= */}
-          {(activeTab === 9 || window.matchMedia?.('print')?.matches) && (
             <section className="space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-emerald-50 px-3.5 py-2.5 rounded-xl border-l-4 border-emerald-700">
                 <div>
                   <h4 className="text-sm font-bold text-emerald-950 font-heading flex items-center gap-2">
                     <MapPin className="w-4 h-4 text-emerald-700" />
-                    <span>9. บันทึกข้อมูลโครงการย้อนหลัง (พิกัดโครงการ • พิกัดป้ายแสดงโครงการ • รูปภาพโครงการ)</span>
+                    <span>8. ข้อมูลโครงการ (พิกัดโครงการ • พิกัดป้ายแสดงโครงการ • รูปภาพโครงการ)</span>
                   </h4>
                   <p className="text-[11px] text-emerald-800">
-                    ข้อมูลส่วนนี้จัดเก็บไว้เพื่อเปิดดูย้อนหลังและเปิดแผนที่ผ่าน Google Maps โดยไม่เกี่ยวข้องกับสถานะหรือไทม์ไลน์ 12 ขั้นตอน
+                    ข้อมูลส่วนนี้จัดเก็บไว้เพื่อเปิดดูย้อนหลังและเปิดแผนที่ผ่าน Google Maps
                   </p>
                 </div>
               </div>
+
+              {getGoogleMapsRouteUrl(
+                project.projectRecord?.startPoint,
+                project.projectRecord?.endPoint
+              ) && (
+                <div className="flex justify-start no-print">
+                  <a
+                    href={getGoogleMapsRouteUrl(
+                      project.projectRecord?.startPoint,
+                      project.projectRecord?.endPoint
+                    )}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-xs transition"
+                  >
+                    <Compass className="w-4 h-4" />
+                    <span>ดูเส้นทาง จุดเริ่มต้น → จุดสิ้นสุดโครงการ บน Google Maps</span>
+                  </a>
+                </div>
+              )}
 
               {/* 1 & 2: พิกัดโครงการ และ พิกัดป้ายแสดงโครงการ */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -924,17 +953,6 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                       <Navigation className="w-4 h-4 text-emerald-600" />
                       <span>1.1 จุดเริ่มต้นโครงการ</span>
                     </span>
-                    {getGoogleMapsPointUrl(project.projectRecord?.startPoint) && (
-                      <a
-                        href={getGoogleMapsPointUrl(project.projectRecord?.startPoint)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold inline-flex items-center gap-1 shadow-2xs transition no-print"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                        <span>เปิดดู Google Maps</span>
-                      </a>
-                    )}
                   </div>
                   {hasValidCoord(project.projectRecord?.startPoint) ? (
                     <div className="bg-white p-3 rounded-xl border border-emerald-200 text-xs space-y-1">
@@ -964,17 +982,6 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                       <Navigation className="w-4 h-4 text-rose-600" />
                       <span>1.2 จุดสิ้นสุดโครงการ</span>
                     </span>
-                    {getGoogleMapsPointUrl(project.projectRecord?.endPoint) && (
-                      <a
-                        href={getGoogleMapsPointUrl(project.projectRecord?.endPoint)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold inline-flex items-center gap-1 shadow-2xs transition no-print"
-                      >
-                        <ExternalLink className="w-3 h-3" />
-                        <span>เปิดดู Google Maps</span>
-                      </a>
-                    )}
                   </div>
                   {hasValidCoord(project.projectRecord?.endPoint) ? (
                     <div className="bg-white p-3 rounded-xl border border-rose-200 text-xs space-y-1">
@@ -1037,26 +1044,6 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   )}
                 </div>
               </div>
-
-              {getGoogleMapsRouteUrl(
-                project.projectRecord?.startPoint,
-                project.projectRecord?.endPoint
-              ) && (
-                <div className="flex justify-end no-print">
-                  <a
-                    href={getGoogleMapsRouteUrl(
-                      project.projectRecord?.startPoint,
-                      project.projectRecord?.endPoint
-                    )}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold inline-flex items-center gap-1.5 shadow-xs transition"
-                  >
-                    <Compass className="w-4 h-4" />
-                    <span>ดูเส้นทาง จุดเริ่มต้น → จุดสิ้นสุดโครงการ บน Google Maps</span>
-                  </a>
-                </div>
-              )}
 
               {/* 3. รูปภาพและไฟล์แนบโครงการ */}
               <div className="p-4 rounded-2xl bg-sky-50/40 border border-sky-200 space-y-3">

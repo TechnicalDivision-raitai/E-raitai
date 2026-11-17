@@ -44,7 +44,9 @@ import {
   calculateProjectProgress,
   countCompletedSteps,
   deriveProjectStatusFromData,
-  getWorkNoticeAlert
+  getWorkNoticeAlert,
+  DEFAULT_DELIVERY_DETAILS,
+  getDeliveryContractStatus
 } from '../utils/thaiDate';
 import { uploadFileToDrive } from '../services/storage';
 import { AutoSuggestInput } from './AutoSuggestInput';
@@ -365,7 +367,14 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   React.useEffect(() => {
     if (isOpen) {
       if (initialProject) {
-        setFormData(syncRemunerationsWithTabs(JSON.parse(JSON.stringify(initialProject))));
+        const cloned: Project = JSON.parse(JSON.stringify(initialProject));
+        if (Array.isArray(cloned.deliveries)) {
+          cloned.deliveries = cloned.deliveries.map(d => ({
+            ...d,
+            details: d.details && d.details.trim() ? d.details : DEFAULT_DELIVERY_DETAILS
+          }));
+        }
+        setFormData(syncRemunerationsWithTabs(cloned));
       } else {
         const nextYear = 2569;
         setFormData({
@@ -614,7 +623,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
             bookNo: '',
             bookDate: '',
             actualDeliveryDate: '',
-            details: ''
+            details: DEFAULT_DELIVERY_DETAILS
           }
         ]
       };
@@ -1997,77 +2006,99 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                   </button>
                 </div>
 
-                {formData.deliveries.map((del, idx) => (
-                  <div key={del.id} className="space-y-2 p-3 bg-white rounded-xl border border-slate-200 text-xs">
-                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
-                      <div>
-                        <label className="block text-[11px] font-medium text-slate-600 mb-0.5">งวดที่</label>
-                        <input
-                          type="number"
-                          value={del.installment}
-                          onChange={e => {
-                            const updated = [...formData.deliveries];
-                            updated[idx].installment = Number(e.target.value);
-                            setFormData({ ...formData, deliveries: updated });
-                          }}
-                          className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg"
-                        />
+                {formData.deliveries.map((del, idx) => {
+                  const delStatus = getDeliveryContractStatus(
+                    del.actualDeliveryDate || del.bookDate,
+                    formData.endDate
+                  );
+                  return (
+                    <div key={del.id} className="space-y-2 p-3 bg-white rounded-xl border border-slate-200 text-xs">
+                      <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                        <div>
+                          <label className="block text-[11px] font-medium text-slate-600 mb-0.5">งวดที่</label>
+                          <input
+                            type="number"
+                            value={del.installment}
+                            onChange={e => {
+                              const updated = [...formData.deliveries];
+                              updated[idx].installment = Number(e.target.value);
+                              setFormData({ ...formData, deliveries: updated });
+                            }}
+                            className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-medium text-slate-600 mb-0.5">เลขที่หนังสือส่งมอบ</label>
+                          <input
+                            type="text"
+                            value={del.bookNo}
+                            onChange={e => {
+                              const updated = [...formData.deliveries];
+                              updated[idx].bookNo = e.target.value;
+                              setFormData({ ...formData, deliveries: updated });
+                            }}
+                            className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-medium text-slate-600 mb-0.5">วันที่หนังสือ</label>
+                          <input
+                            type="date"
+                            value={del.bookDate}
+                            onChange={e => {
+                              const updated = [...formData.deliveries];
+                              updated[idx].bookDate = e.target.value;
+                              setFormData({ ...formData, deliveries: updated });
+                            }}
+                            className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] font-medium text-slate-600 mb-0.5">วันที่ส่งมอบจริง</label>
+                          <input
+                            type="date"
+                            value={del.actualDeliveryDate}
+                            onChange={e => {
+                              const updated = [...formData.deliveries];
+                              updated[idx].actualDeliveryDate = e.target.value;
+                              setFormData({ ...formData, deliveries: updated });
+                            }}
+                            className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg"
+                          />
+                        </div>
                       </div>
+                      {delStatus.hasComparison && (
+                        delStatus.isWithinContract ? (
+                          <div className="text-[11px] font-semibold text-emerald-700 flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span>ภายในกำหนดเวลาตามสัญญา</span>
+                          </div>
+                        ) : (
+                          <div className="px-3 py-1.5 rounded-lg border text-[11px] font-semibold flex items-center gap-1.5 bg-rose-50 border-rose-200 text-rose-800">
+                            <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                            <span>{delStatus.detailMessage}</span>
+                          </div>
+                        )
+                      )}
                       <div>
-                        <label className="block text-[11px] font-medium text-slate-600 mb-0.5">เลขที่หนังสือส่งมอบ</label>
+                        <label className="block text-[11px] font-medium text-slate-600 mb-0.5">
+                          รายละเอียดงานที่ส่งมอบ
+                        </label>
                         <input
                           type="text"
-                          value={del.bookNo}
+                          value={del.details}
                           onChange={e => {
                             const updated = [...formData.deliveries];
-                            updated[idx].bookNo = e.target.value;
+                            updated[idx].details = e.target.value;
                             setFormData({ ...formData, deliveries: updated });
                           }}
-                          className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-medium text-slate-600 mb-0.5">วันที่หนังสือ</label>
-                        <input
-                          type="date"
-                          value={del.bookDate}
-                          onChange={e => {
-                            const updated = [...formData.deliveries];
-                            updated[idx].bookDate = e.target.value;
-                            setFormData({ ...formData, deliveries: updated });
-                          }}
-                          className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-medium text-slate-600 mb-0.5">วันที่ส่งมอบจริง</label>
-                        <input
-                          type="date"
-                          value={del.actualDeliveryDate}
-                          onChange={e => {
-                            const updated = [...formData.deliveries];
-                            updated[idx].actualDeliveryDate = e.target.value;
-                            setFormData({ ...formData, deliveries: updated });
-                          }}
+                          placeholder={DEFAULT_DELIVERY_DETAILS}
                           className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg"
                         />
                       </div>
                     </div>
-                    <div>
-                      <input
-                        type="text"
-                        value={del.details}
-                        onChange={e => {
-                          const updated = [...formData.deliveries];
-                          updated[idx].details = e.target.value;
-                          setFormData({ ...formData, deliveries: updated });
-                        }}
-                        placeholder="รายละเอียดผลงานที่ส่งมอบ..."
-                        className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg"
-                      />
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Step 3: ตรวจรับงาน */}
@@ -2558,17 +2589,6 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                         <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
                         <span>จุดเริ่มต้นโครงการ</span>
                       </span>
-                      {getGoogleMapsPointUrl(formData.projectRecord?.startPoint) && (
-                        <a
-                          href={getGoogleMapsPointUrl(formData.projectRecord?.startPoint)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold inline-flex items-center gap-1 shadow-2xs transition"
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                          <span>เปิดดู Google Maps</span>
-                        </a>
-                      )}
                     </div>
                     <div className="grid grid-cols-2 gap-2.5">
                       <div>
@@ -2617,17 +2637,6 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                         <span className="w-2.5 h-2.5 rounded-full bg-rose-500" />
                         <span>จุดสิ้นสุดโครงการ</span>
                       </span>
-                      {getGoogleMapsPointUrl(formData.projectRecord?.endPoint) && (
-                        <a
-                          href={getGoogleMapsPointUrl(formData.projectRecord?.endPoint)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold inline-flex items-center gap-1 shadow-2xs transition"
-                        >
-                          <ExternalLink className="w-3 h-3" />
-                          <span>เปิดดู Google Maps</span>
-                        </a>
-                      )}
                     </div>
                     <div className="grid grid-cols-2 gap-2.5">
                       <div>

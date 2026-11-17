@@ -400,4 +400,112 @@ export function getWorkNoticeAlert(p: Partial<Project> | null | undefined): Work
   return empty;
 }
 
+export const DEFAULT_DELIVERY_DETAILS =
+  'ส่งมอบงานทั้งหมดครบถ้วนถูกต้องตามรูปแบบรายการและเงื่อนไขสัญญาทุกประการ';
+
+export interface DeliveryContractStatusInfo {
+  hasComparison: boolean;
+  isWithinContract: boolean;
+  overdueDays: number;
+  earlyOrRemainingDays: number;
+  label: string;
+  detailMessage: string;
+}
+
+/**
+ * Checks whether a delivery date (actualDeliveryDate or bookDate) is within the contract endDate.
+ * Calculates overdue days from endDate to deliveryDate when past due, to assist fine calculation.
+ */
+export function getDeliveryContractStatus(
+  deliveryDateStr?: string | null,
+  contractEndDateStr?: string | null
+): DeliveryContractStatusInfo {
+  const empty: DeliveryContractStatusInfo = {
+    hasComparison: false,
+    isWithinContract: true,
+    overdueDays: 0,
+    earlyOrRemainingDays: 0,
+    label: '',
+    detailMessage: ''
+  };
+
+  if (!deliveryDateStr || !contractEndDateStr) {
+    return empty;
+  }
+
+  try {
+    const parseLocalDay = (raw: string): Date | null => {
+      const trimmed = String(raw).trim();
+      const isoMatch = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+      if (isoMatch) {
+        const yr = Number(isoMatch[1]);
+        const gregYear = yr > 2400 ? yr - 543 : yr;
+        return new Date(gregYear, Number(isoMatch[2]) - 1, Number(isoMatch[3]), 0, 0, 0, 0);
+      }
+      const d = new Date(trimmed);
+      if (isNaN(d.getTime())) return null;
+      d.setHours(0, 0, 0, 0);
+      return d;
+    };
+
+    const delDate = parseLocalDay(deliveryDateStr);
+    const endDate = parseLocalDay(contractEndDateStr);
+    if (!delDate || !endDate) return empty;
+
+    const diffMs = delDate.getTime() - endDate.getTime();
+    const diffDays = Math.round(diffMs / (1000 * 60 * 60 * 24));
+
+    if (diffDays <= 0) {
+      return {
+        hasComparison: true,
+        isWithinContract: true,
+        overdueDays: 0,
+        earlyOrRemainingDays: 0,
+        label: 'ภายในกำหนดเวลาตามสัญญา',
+        detailMessage: 'ภายในกำหนดเวลาตามสัญญา'
+      };
+    }
+
+    return {
+      hasComparison: true,
+      isWithinContract: false,
+      overdueDays: diffDays,
+      earlyOrRemainingDays: 0,
+      label: `พ้นกำหนดระยะเวลาตามสัญญา (เกินกำหนด ${diffDays} วัน นับถึงวันส่งมอบ)`,
+      detailMessage: `พ้นกำหนดระยะเวลาตามสัญญา • เกินกำหนด ${diffDays} วัน จนถึงวันส่งมอบงาน (ครบกำหนดสัญญา ${formatThaiDate(
+        contractEndDateStr
+      )} ส่งมอบจริง ${formatThaiDate(deliveryDateStr)} • ใช้สำหรับคำนวณค่าปรับ)`
+    };
+  } catch {
+    return empty;
+  }
+}
+
+/**
+ * Returns the ProjectDetailModal tab number (1-7) matching the first attachment's workflow category.
+ */
+export function getFirstAttachmentTab(p?: Partial<Project> | null): number {
+  const first = p?.attachments?.[0];
+  if (!first) return 1;
+  switch (first.category) {
+    case 'tor':
+      return 2;
+    case 'order':
+      return 3;
+    case 'contract':
+      return 4;
+    case 'notice':
+    case 'delivery':
+      return 5;
+    case 'inspection':
+      return 6;
+    case 'disbursement':
+    case 'remuneration':
+      return 7;
+    default:
+      return 1;
+  }
+}
+
+
 

@@ -15,7 +15,6 @@ import {
   Search,
   Filter,
   Compass,
-  FolderArchive,
   CheckCircle2,
   Eye,
   Upload,
@@ -224,30 +223,6 @@ export const ProjectRecordsView: React.FC<ProjectRecordsViewProps> = ({
     });
   }, [projects, selectedYear, selectedCategory, recordFilter, searchQuery]);
 
-  // Summary Stats
-  const stats = useMemo(() => {
-    const yearBase = projects.filter(
-      p => selectedYear === 'all' || Number(p.fiscalYear) === Number(selectedYear)
-    );
-    const withProjectCoords = yearBase.filter(
-      p => hasValidCoord(p.projectRecord?.startPoint) || hasValidCoord(p.projectRecord?.endPoint)
-    ).length;
-    const withSignboardCoords = yearBase.filter(p =>
-      hasValidCoord(p.projectRecord?.signboardPoint)
-    ).length;
-    const totalArchiveFiles = yearBase.reduce(
-      (sum, p) => sum + (p.projectRecord?.files?.length || 0),
-      0
-    );
-
-    return {
-      total: yearBase.length,
-      withProjectCoords,
-      withSignboardCoords,
-      totalArchiveFiles
-    };
-  }, [projects, selectedYear]);
-
   const openEditor = (project: Project) => {
     const existing = project.projectRecord;
     setEditingProject(project);
@@ -431,55 +406,6 @@ export const ProjectRecordsView: React.FC<ProjectRecordsViewProps> = ({
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-xs flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
-            <FolderArchive className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="text-xs text-slate-500 font-medium">โครงการทั้งหมดในปีที่เลือก</div>
-            <div className="text-2xl font-bold text-slate-800">{stats.total} <span className="text-xs font-normal text-slate-500">โครงการ</span></div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-4 border border-emerald-200/90 shadow-xs flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
-            <Navigation className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="text-xs text-slate-500 font-medium">บันทึกพิกัดเริ่มต้น-สิ้นสุดแล้ว</div>
-            <div className="text-2xl font-bold text-emerald-700">
-              {stats.withProjectCoords} <span className="text-xs font-normal text-slate-500">/ {stats.total} โครงการ</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-4 border border-purple-200/90 shadow-xs flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
-            <Signpost className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="text-xs text-slate-500 font-medium">บันทึกพิกัดป้ายโครงการแล้ว</div>
-            <div className="text-2xl font-bold text-purple-700">
-              {stats.withSignboardCoords} <span className="text-xs font-normal text-slate-500">/ {stats.total} โครงการ</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl p-4 border border-sky-200/90 shadow-xs flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-2xl bg-sky-100 text-sky-700 flex items-center justify-center shrink-0">
-            <ImageIcon className="w-6 h-6" />
-          </div>
-          <div>
-            <div className="text-xs text-slate-500 font-medium">รูปภาพและไฟล์แนบสะสม</div>
-            <div className="text-2xl font-bold text-sky-700">
-              {stats.totalArchiveFiles} <span className="text-xs font-normal text-slate-500">ไฟล์</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Filter Bar */}
       <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-xs flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
         <div className="relative flex-1">
@@ -549,8 +475,6 @@ export const ProjectRecordsView: React.FC<ProjectRecordsViewProps> = ({
         <div className="space-y-4">
           {filteredProjects.map(project => {
             const rec = project.projectRecord;
-            const startUrl = getGoogleMapsPointUrl(rec?.startPoint);
-            const endUrl = getGoogleMapsPointUrl(rec?.endPoint);
             const routeUrl = getGoogleMapsRouteUrl(rec?.startPoint, rec?.endPoint);
             const signUrl = getGoogleMapsPointUrl(rec?.signboardPoint);
             const archiveFiles = rec?.files || [];
@@ -653,18 +577,6 @@ export const ProjectRecordsView: React.FC<ProjectRecordsViewProps> = ({
                             <div className="text-xs text-slate-400 italic">ยังไม่ได้ระบุพิกัดจุดเริ่มต้น</div>
                           )}
                         </div>
-
-                        {startUrl && (
-                          <a
-                            href={startUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold inline-flex items-center gap-1.5 shrink-0 shadow-xs transition"
-                          >
-                            <MapPin className="w-3.5 h-3.5" />
-                            <span>เปิด Google Maps</span>
-                          </a>
-                        )}
                       </div>
 
                       {/* จุดสิ้นสุดโครงการ */}
@@ -689,18 +601,6 @@ export const ProjectRecordsView: React.FC<ProjectRecordsViewProps> = ({
                             <div className="text-xs text-slate-400 italic">ยังไม่ได้ระบุพิกัดจุดสิ้นสุด</div>
                           )}
                         </div>
-
-                        {endUrl && (
-                          <a
-                            href={endUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold inline-flex items-center gap-1.5 shrink-0 shadow-xs transition"
-                          >
-                            <MapPin className="w-3.5 h-3.5" />
-                            <span>เปิด Google Maps</span>
-                          </a>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -968,17 +868,6 @@ export const ProjectRecordsView: React.FC<ProjectRecordsViewProps> = ({
                         >
                           ดึงพิกัดปัจจุบัน
                         </button>
-                        {getGoogleMapsPointUrl(draftRecord.startPoint) && (
-                          <a
-                            href={getGoogleMapsPointUrl(draftRecord.startPoint)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-800 inline-flex items-center gap-1 transition"
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                            <span>ดูแผนที่</span>
-                          </a>
-                        )}
                       </div>
                     </div>
 
@@ -1038,17 +927,6 @@ export const ProjectRecordsView: React.FC<ProjectRecordsViewProps> = ({
                         >
                           ดึงพิกัดปัจจุบัน
                         </button>
-                        {getGoogleMapsPointUrl(draftRecord.endPoint) && (
-                          <a
-                            href={getGoogleMapsPointUrl(draftRecord.endPoint)}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-rose-100 hover:bg-rose-200 text-rose-800 inline-flex items-center gap-1 transition"
-                          >
-                            <ExternalLink className="w-3 h-3" />
-                            <span>ดูแผนที่</span>
-                          </a>
-                        )}
                       </div>
                     </div>
 

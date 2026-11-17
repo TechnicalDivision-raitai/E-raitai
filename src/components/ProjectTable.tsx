@@ -27,7 +27,8 @@ import {
   formatThaiDate,
   getDaysRemaining,
   getWorkNoticeAlert,
-  isProjectCompletedOrDisbursed
+  isProjectCompletedOrDisbursed,
+  getFirstAttachmentTab
 } from '../utils/thaiDate';
 import { exportProjectsToExcel, STATUS_LABELS } from '../utils/excelExport';
 
@@ -411,9 +412,9 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
                           </span>
                           {p.attachments && p.attachments.length > 0 && (
                             <button
-                              onClick={() => onSelectProject(p, 8)}
+                              onClick={() => onSelectProject(p, getFirstAttachmentTab(p))}
                               className="text-[10px] text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-1.5 py-0.5 rounded-sm border border-emerald-200 inline-flex items-center gap-1 font-semibold transition"
-                              title="คลิกเพื่อดูไฟล์แนบใน Google Drive"
+                              title="คลิกเพื่อไปยังแท็บที่มีไฟล์แนบใน Google Drive"
                             >
                               <Paperclip className="w-2.5 h-2.5" />
                               <span>{p.attachments.length} ไฟล์ Drive</span>
@@ -560,7 +561,7 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
                           {/* Drive Attachments (Staff and Admin can open) */}
                           {p.attachments && p.attachments.length > 0 && (
                             <button
-                              onClick={() => onSelectProject(p, 8)}
+                              onClick={() => onSelectProject(p, getFirstAttachmentTab(p))}
                               className="p-1.5 text-emerald-700 hover:bg-emerald-100 rounded-lg transition relative"
                               title={`เปิดดูไฟล์แนบใน Google Drive (${p.attachments.length} ไฟล์)`}
                             >
