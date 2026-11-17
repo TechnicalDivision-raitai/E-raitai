@@ -186,15 +186,24 @@ export const ProjectTimelineView: React.FC<ProjectTimelineViewProps> = ({
     };
 
     // 11. เบิกจ่ายค่าตอบแทน
-    const hasRemunerationPaid = p.remunerations && p.remunerations.some(r => r.status === 'paid');
-    const hasRemunerationPending = p.remunerations && p.remunerations.length > 0;
+    const hasRemunerations = Boolean(p.remunerations && p.remunerations.length > 0);
+    const hasRemunerationPaid = Boolean(p.remunerations && p.remunerations.some(r => r.status === 'paid'));
+    const allRemunerationsNotEligible =
+      hasRemunerations && p.remunerations.every(r => r.status === 'not_eligible');
     const step11: TimelineStep = {
       id: 'step-11',
       name: 'เบิกจ่ายค่าตอบแทน',
-      description: hasRemunerationPaid
+      description: allRemunerationsNotEligible
+        ? 'ไม่เข้าเกณฑ์เบิกค่าตอบแทน'
+        : hasRemunerationPaid
         ? 'เบิกจ่ายค่าตอบแทนกรรมการเรียบร้อย'
         : 'ค่าตอบแทนจัดทำ TOR/ราคากลาง/ผู้ควบคุม/ตรวจรับ',
-      status: hasRemunerationPaid ? 'completed' : hasRemunerationPending ? 'in_progress' : 'pending'
+      status:
+        hasRemunerationPaid || allRemunerationsNotEligible
+          ? 'completed'
+          : hasRemunerations
+          ? 'in_progress'
+          : 'pending'
     };
 
     // 12. ดำเนินการแล้วเสร็จ — ปิดโครงการตามระเบียบพัสดุ

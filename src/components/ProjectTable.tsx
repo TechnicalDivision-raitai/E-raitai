@@ -422,16 +422,6 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
                           <span className="px-1.5 py-0.2 rounded-xs bg-slate-100 text-slate-600 font-mono text-[10px] font-semibold">
                             {p.projectCode}
                           </span>
-                          {p.attachments && p.attachments.length > 0 && (
-                            <button
-                              onClick={() => onSelectProject(p, getFirstAttachmentTab(p))}
-                              className="text-[10px] text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-1.5 py-0.5 rounded-sm border border-emerald-200 inline-flex items-center gap-1 font-semibold transition"
-                              title="คลิกเพื่อไปยังแท็บที่มีไฟล์แนบใน Google Drive"
-                            >
-                              <Paperclip className="w-2.5 h-2.5" />
-                              <span>{p.attachments.length} ไฟล์ Drive</span>
-                            </button>
-                          )}
                         </div>
                         <button
                           onClick={() => onSelectProject(p, 1)}
@@ -439,9 +429,6 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
                         >
                           {p.name}
                         </button>
-                        <div className="text-[11px] text-slate-400 mt-0.5 truncate">
-                          {p.location}
-                        </div>
                       </td>
 
                       {/* 4. หมวดงบประมาณ */}
@@ -524,13 +511,15 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
                         </span>
                         {currentUser.role === 'admin' &&
                         isProjectCompletedOrDisbursed(p) &&
-                        !(p.remunerations && p.remunerations.length > 0) ? (
+                        (!p.remunerations ||
+                          p.remunerations.length === 0 ||
+                          p.remunerations.some(r => r.status !== 'paid' && r.status !== 'not_eligible')) ? (
                           <div className="mt-1">
                             <button
                               type="button"
                               onClick={() => onSelectProject(p, 7)}
                               className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-300 hover:bg-amber-100 transition shadow-2xs"
-                              title="โครงการแล้วเสร็จ/เบิกจ่ายแล้ว แต่ยังไม่ได้บันทึกเบิกค่าตอบแทน คลิกเพื่อเปิดดูหมวดเบิกจ่ายและค่าตอบแทน"
+                              title="โครงการแล้วเสร็จ/เบิกจ่ายแล้ว แต่ยังไม่ได้เบิกค่าตอบแทนหรือยังมีรายการที่ยังไม่เบิก คลิกเพื่อเปิดดูหมวดเบิกจ่ายและค่าตอบแทน"
                             >
                               <Coins className="w-3 h-3 text-amber-600 shrink-0" />
                               <span>รอเบิกค่าตอบแทน</span>

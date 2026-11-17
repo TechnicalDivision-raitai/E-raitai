@@ -40,8 +40,41 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   currentUser,
   onSelectProject
 }) => {
-  const [reportType, setReportType] = useState<ReportType>('summary_all');
-  const [selectedYear, setSelectedYear] = useState<string | number>(() => getCurrentThaiFiscalYear());
+  const [reportType, setReportType] = useState<ReportType>(() => {
+    try {
+      const saved = sessionStorage.getItem('raitai_engineering_report_type') as ReportType | null;
+      if (saved) return saved;
+    } catch {
+      // ignore
+    }
+    return 'summary_all';
+  });
+  const [selectedYear, setSelectedYear] = useState<string | number>(() => {
+    try {
+      const saved = sessionStorage.getItem('raitai_engineering_report_year');
+      if (saved === 'all') return 'all';
+      if (saved && !isNaN(Number(saved))) return Number(saved);
+    } catch {
+      // ignore
+    }
+    return getCurrentThaiFiscalYear();
+  });
+
+  React.useEffect(() => {
+    try {
+      sessionStorage.setItem('raitai_engineering_report_type', reportType);
+    } catch {
+      // ignore
+    }
+  }, [reportType]);
+
+  React.useEffect(() => {
+    try {
+      sessionStorage.setItem('raitai_engineering_report_year', String(selectedYear));
+    } catch {
+      // ignore
+    }
+  }, [selectedYear]);
 
   // Filter based on selected year
   const yearFilteredProjects = useMemo(() => {
@@ -85,7 +118,9 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     );
   }, [reportProjects]);
 
-  const totalRemunerationAmount = allRemunerations.reduce((sum, r) => sum + (r.amount || 0), 0);
+  const totalRemunerationAmount = allRemunerations
+    .filter(r => r.status !== 'not_eligible')
+    .reduce((sum, r) => sum + (r.amount || 0), 0);
 
   const reportTitles: Record<ReportType, string> = {
     summary_all: 'รายงานสรุปภาพรวมโครงการกองช่างทั้งหมด',
@@ -223,7 +258,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                   <th className="p-2.5 border border-slate-300">รายการค่าตอบแทน</th>
                   <th className="p-2.5 border border-slate-300">ผู้รับเงิน</th>
                   <th className="p-2.5 border border-slate-300 text-right">จำนวนเงิน (บาท)</th>
-                  <th className="p-2.5 border border-slate-300 text-center">วันที่เบิก / เลขที่ฎีกา</th>
+                  <th className="p-2.5 border border-slate-300 text-center">วันที่เบิก / เลขที่ฎีกา / หมายเหตุ</th>
                   <th className="p-2.5 border border-slate-300 text-center">สถานะ</th>
                 </tr>
               </thead>
@@ -245,21 +280,33 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
                       <td className="p-2 border border-slate-300 font-medium">{rem.title}</td>
                       <td className="p-2 border border-slate-300">{rem.payeeName || '-'}</td>
                       <td className="p-2 border border-slate-300 text-right font-bold text-slate-800">
-                        {formatCurrency(rem.amount)}
+                        {rem.status === 'not_eligible' ? '-' : formatCurrency(rem.amount)}
                       </td>
                       <td className="p-2 border border-slate-300 text-center">
-                        {rem.withdrawDate ? formatThaiDate(rem.withdrawDate) : '-'}{' '}
-                        {rem.petitionNo ? `(${rem.petitionNo})` : ''}
+                        {rem.status === 'not_eligible' ? (
+                          <span className="text-slate-600">{rem.remarks ? `หมายเหตุ: ${rem.remarks}` : '-'}</span>
+                        ) : (
+                          <>
+                            {rem.withdrawDate ? formatThaiDate(rem.withdrawDate) : '-'}{' '}
+                            {rem.petitionNo ? `(${rem.petitionNo})` : ''}
+                          </>
+                        )}
                       </td>
                       <td className="p-2 border border-slate-300 text-center">
                         <span
                           className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
                             rem.status === 'paid'
                               ? 'bg-emerald-100 text-emerald-800'
+                              : rem.status === 'not_eligible'
+                              ? 'bg-rose-100 text-rose-800'
                               : 'bg-slate-100 text-slate-700'
                           }`}
                         >
-                          {rem.status === 'paid' ? 'เบิกแล้ว' : 'ยังไม่เบิก'}
+                          {rem.status === 'paid'
+                            ? 'เบิกแล้ว'
+                            : rem.status === 'not_eligible'
+                            ? 'ไม่สามารถเบิกได้'
+                            : 'ยังไม่เบิก'}
                         </span>
                       </td>
                     </tr>

@@ -853,7 +853,7 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                         <th className="p-2 border border-slate-300 text-left">รายการค่าตอบแทน</th>
                         <th className="p-2 border border-slate-300 text-left">ผู้รับเงิน</th>
                         <th className="p-2 border border-slate-300 text-right">จำนวนเงิน (บาท)</th>
-                        <th className="p-2 border border-slate-300 text-left">เลขที่ฎีกา</th>
+                        <th className="p-2 border border-slate-300 text-left">เลขที่ฎีกา / หมายเหตุ</th>
                         <th className="p-2 border border-slate-300 text-center">สถานะ</th>
                       </tr>
                     </thead>
@@ -863,18 +863,30 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                           <td className="p-2 border border-slate-300 font-medium">{r.title}</td>
                           <td className="p-2 border border-slate-300">{r.payeeName || '-'}</td>
                           <td className="p-2 border border-slate-300 text-right font-bold text-slate-800">
-                            {formatCurrency(r.amount)}
+                            {r.status === 'not_eligible' ? '-' : formatCurrency(r.amount)}
                           </td>
-                          <td className="p-2 border border-slate-300">{r.petitionNo || '-'}</td>
+                          <td className="p-2 border border-slate-300">
+                            {r.status === 'not_eligible'
+                              ? r.remarks
+                                ? `หมายเหตุ: ${r.remarks}`
+                                : '-'
+                              : r.petitionNo || '-'}
+                          </td>
                           <td className="p-2 border border-slate-300 text-center">
                             <span
                               className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
                                 r.status === 'paid'
                                   ? 'bg-emerald-100 text-emerald-800'
+                                  : r.status === 'not_eligible'
+                                  ? 'bg-rose-100 text-rose-800'
                                   : 'bg-slate-100 text-slate-700'
                               }`}
                             >
-                              {r.status === 'paid' ? 'เบิกแล้ว' : 'ยังไม่เบิก'}
+                              {r.status === 'paid'
+                                ? 'เบิกแล้ว'
+                                : r.status === 'not_eligible'
+                                ? 'ไม่สามารถเบิกได้'
+                                : 'ยังไม่เบิก'}
                             </span>
                           </td>
                         </tr>
@@ -886,7 +898,12 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                           รวมค่าตอบแทนทั้งหมด:
                         </td>
                         <td className="p-2 border border-slate-300 text-right text-emerald-800">
-                          {formatCurrency(project.remunerations.reduce((s, r) => s + (r.amount || 0), 0))} บ.
+                          {formatCurrency(
+                            project.remunerations
+                              .filter(r => r.status !== 'not_eligible')
+                              .reduce((s, r) => s + (r.amount || 0), 0)
+                          )}{' '}
+                          บ.
                         </td>
                         <td colSpan={2} className="p-2 border border-slate-300" />
                       </tr>

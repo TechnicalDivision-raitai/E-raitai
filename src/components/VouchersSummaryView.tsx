@@ -62,19 +62,21 @@ export const VouchersSummaryView: React.FC<VouchersSummaryViewProps> = ({
         });
       });
 
-      // 2. Committee remunerations
-      (p.remunerations || []).forEach(r => {
-        list.push({
-          id: `rem-${r.id}`,
-          project: p,
-          petitionNo: r.petitionNo || `ฎีกาค่าตอบแทน`,
-          voucherDate: r.withdrawDate,
-          category: r.title || 'ค่าตอบแทนคณะกรรมการ',
-          payee: r.payeeName || '-',
-          amount: r.amount || 0,
-          status: r.status
+      // 2. Committee remunerations (exclude non-eligible items)
+      (p.remunerations || [])
+        .filter(r => r.status !== 'not_eligible')
+        .forEach(r => {
+          list.push({
+            id: `rem-${r.id}`,
+            project: p,
+            petitionNo: r.petitionNo || `ฎีกาค่าตอบแทน`,
+            voucherDate: r.withdrawDate,
+            category: r.title || 'ค่าตอบแทนคณะกรรมการ',
+            payee: r.payeeName || '-',
+            amount: r.amount || 0,
+            status: r.status === 'paid' ? 'paid' : 'pending'
+          });
         });
-      });
     });
 
     return list.sort((a, b) => (b.voucherDate || '').localeCompare(a.voucherDate || ''));

@@ -777,8 +777,10 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     });
   };
 
-  // Total remuneration calculation
-  const totalRemuneration = (formData.remunerations || []).reduce((sum, r) => sum + (r.amount || 0), 0);
+  // Total remuneration calculation (exclude items marked as not eligible)
+  const totalRemuneration = (formData.remunerations || [])
+    .filter(r => r.status !== 'not_eligible')
+    .reduce((sum, r) => sum + (r.amount || 0), 0);
   const paidRemuneration = (formData.remunerations || [])
     .filter(r => r.status === 'paid')
     .reduce((sum, r) => sum + (r.amount || 0), 0);
@@ -2469,14 +2471,22 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                             <select
                               value={rem.status}
                               onChange={e => {
+                                const nextStatus = e.target.value as CommitteeRemuneration['status'];
                                 const updated = [...formData.remunerations];
-                                updated[idx].status = e.target.value as any;
+                                updated[idx] = {
+                                  ...updated[idx],
+                                  status: nextStatus,
+                                  ...(nextStatus === 'not_eligible'
+                                    ? { withdrawDate: '', petitionNo: '' }
+                                    : {})
+                                };
                                 setFormData({ ...formData, remunerations: updated });
                               }}
                               className="flex-1 px-2 py-1 bg-white border border-slate-300 rounded-md font-semibold"
                             >
                               <option value="pending">ยังไม่เบิก</option>
                               <option value="paid">เบิกแล้ว</option>
+                              <option value="not_eligible">ไม่สามารถเบิกได้</option>
                             </select>
                             <button
                               type="button"
@@ -2494,35 +2504,54 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-200/60">
-                        <div>
-                          <span className="text-[10px] text-slate-500">วันที่เบิก: </span>
-                          <input
-                            type="date"
-                            value={rem.withdrawDate || ''}
-                            onChange={e => {
-                              const updated = [...formData.remunerations];
-                              updated[idx].withdrawDate = e.target.value;
-                              setFormData({ ...formData, remunerations: updated });
-                            }}
-                            className="px-2 py-0.5 bg-white border border-slate-300 rounded-md text-[11px]"
-                          />
-                        </div>
-                        <div>
-                          <span className="text-[10px] text-slate-500">เลขที่ฎีกา: </span>
+                      {rem.status === 'not_eligible' ? (
+                        <div className="pt-1 border-t border-slate-200/60">
+                          <label className="block text-[10px] font-medium text-slate-500 mb-1">
+                            หมายเหตุ:
+                          </label>
                           <input
                             type="text"
-                            value={rem.petitionNo || ''}
+                            value={rem.remarks || ''}
                             onChange={e => {
                               const updated = [...formData.remunerations];
-                              updated[idx].petitionNo = e.target.value;
+                              updated[idx] = { ...updated[idx], remarks: e.target.value };
                               setFormData({ ...formData, remunerations: updated });
                             }}
-                            placeholder="เช่น 12/2568"
-                            className="px-2 py-0.5 bg-white border border-slate-300 rounded-md text-[11px]"
+                            placeholder="ระบุเหตุผลที่ไม่สามารถเบิกได้ เช่น ไม่เข้าเกณฑ์เบิกค่าตอบแทน..."
+                            className="w-full px-2.5 py-1 bg-white border border-slate-300 rounded-md text-[11px]"
                           />
                         </div>
-                      </div>
+                      ) : (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-1 border-t border-slate-200/60">
+                          <div>
+                            <span className="text-[10px] text-slate-500">วันที่เบิก: </span>
+                            <input
+                              type="date"
+                              value={rem.withdrawDate || ''}
+                              onChange={e => {
+                                const updated = [...formData.remunerations];
+                                updated[idx] = { ...updated[idx], withdrawDate: e.target.value };
+                                setFormData({ ...formData, remunerations: updated });
+                              }}
+                              className="px-2 py-0.5 bg-white border border-slate-300 rounded-md text-[11px]"
+                            />
+                          </div>
+                          <div>
+                            <span className="text-[10px] text-slate-500">เลขที่ฎีกา: </span>
+                            <input
+                              type="text"
+                              value={rem.petitionNo || ''}
+                              onChange={e => {
+                                const updated = [...formData.remunerations];
+                                updated[idx] = { ...updated[idx], petitionNo: e.target.value };
+                                setFormData({ ...formData, remunerations: updated });
+                              }}
+                              placeholder="เช่น 12/2568"
+                              className="px-2 py-0.5 bg-white border border-slate-300 rounded-md text-[11px]"
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))
                 )}

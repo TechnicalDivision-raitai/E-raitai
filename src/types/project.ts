@@ -106,7 +106,8 @@ export interface CommitteeRemuneration {
   amount: number;
   withdrawDate: string;
   petitionNo: string;
-  status: 'pending' | 'paid';
+  status: 'pending' | 'paid' | 'not_eligible';
+  remarks?: string;
   attachments?: AttachmentFile[];
 }
 

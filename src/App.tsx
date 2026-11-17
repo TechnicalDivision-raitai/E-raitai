@@ -42,28 +42,144 @@ import {
 } from './utils/thaiDate';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 
+const SESSION_TAB_KEY = 'raitai_engineering_active_tab';
+const SESSION_FILTER_KEY = 'raitai_engineering_active_filter';
+const SESSION_SIDEBAR_KEY = 'raitai_engineering_sidebar_collapsed';
+const SESSION_DETAIL_KEY = 'raitai_engineering_detail_modal';
+
+const ALLOWED_TABS = new Set([
+  'dashboard',
+  'vouchersSummary',
+  'myInbox',
+  'projects',
+  'overdue',
+  'timeline',
+  'reports',
+  'project_records',
+  'excel_import',
+  'manual'
+]);
+
 export default function App() {
   const [projects, setProjects] = useState<Project[]>(() => getStoredProjects());
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => getStoredUser());
-  const [currentTab, setCurrentTab] = useState<string>('dashboard');
+  const [currentTab, setCurrentTab] = useState<string>(() => {
+    try {
+      const saved = sessionStorage.getItem(SESSION_TAB_KEY);
+      if (saved && ALLOWED_TABS.has(saved)) {
+        const savedUser = getStoredUser();
+        if (saved === 'myInbox' && savedUser?.role !== 'admin') {
+          return 'dashboard';
+        }
+        return saved;
+      }
+    } catch {
+      // ignore sessionStorage read errors
+    }
+    return 'dashboard';
+  });
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem(SESSION_SIDEBAR_KEY) === 'true';
+    } catch {
+      return false;
+    }
+  });
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
 
   // Filters State
-  const [filter, setFilter] = useState<ProjectFilter>(() => ({
-    fiscalYear: getCurrentThaiFiscalYear(),
-    category: 'all',
-    status: 'all',
-    searchQuery: ''
-  }));
+  const [filter, setFilter] = useState<ProjectFilter>(() => {
+    const defaultFilter: ProjectFilter = {
+      fiscalYear: getCurrentThaiFiscalYear(),
+      category: 'all',
+      status: 'all',
+      searchQuery: ''
+    };
+    try {
+      const raw = sessionStorage.getItem(SESSION_FILTER_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          return { ...defaultFilter, ...parsed };
+        }
+      }
+    } catch {
+      // ignore sessionStorage read errors
+    }
+    return defaultFilter;
+  });
 
   // Modals State
-  const [selectedProjectForDetail, setSelectedProjectForDetail] = useState<Project | null>(null);
-  const [selectedDetailTab, setSelectedDetailTab] = useState<number>(1);
+  const [selectedDetailTab, setSelectedDetailTab] = useState<number>(() => {
+    try {
+      const raw = sessionStorage.getItem(SESSION_DETAIL_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed.tab === 'number') return parsed.tab;
+      }
+    } catch {
+      // ignore
+    }
+    return 1;
+  });
+  const [selectedProjectForDetail, setSelectedProjectForDetail] = useState<Project | null>(() => {
+    try {
+      const raw = sessionStorage.getItem(SESSION_DETAIL_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && parsed.projectId) {
+          return getStoredProjects().find(p => p.id === parsed.projectId) || null;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  });
   const [isProjectModalOpen, setIsProjectModalOpen] = useState<boolean>(false);
   const [projectToEdit, setProjectToEdit] = useState<Project | null>(null);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error'>('syncing');
+
+  // Persist current view state across browser reloads
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(SESSION_TAB_KEY, currentTab);
+    } catch {
+      // ignore
+    }
+  }, [currentTab]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(SESSION_FILTER_KEY, JSON.stringify(filter));
+    } catch {
+      // ignore
+    }
+  }, [filter]);
+
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(SESSION_SIDEBAR_KEY, String(isSidebarCollapsed));
+    } catch {
+      // ignore
+    }
+  }, [isSidebarCollapsed]);
+
+  useEffect(() => {
+    try {
+      if (selectedProjectForDetail) {
+        sessionStorage.setItem(
+          SESSION_DETAIL_KEY,
+          JSON.stringify({ projectId: selectedProjectForDetail.id, tab: selectedDetailTab })
+        );
+      } else {
+        sessionStorage.removeItem(SESSION_DETAIL_KEY);
+      }
+    } catch {
+      // ignore
+    }
+  }, [selectedProjectForDetail, selectedDetailTab]);
 
   // Toast Notification State
   const [toast, setToast] = useState<{
@@ -90,6 +206,9 @@ export default function App() {
           if (Array.isArray(res.projects) && res.projects.length > 0) {
             setProjects(res.projects);
             saveStoredProjects(res.projects);
+            setSelectedProjectForDetail(prev =>
+              prev ? res.projects!.find(p => p.id === prev.id) || prev : null
+            );
             showToast(`ดึงข้อมูลจาก Google Sheet อัตโนมัติสำเร็จ (${res.projects.length} รายการ)`, 'success');
           }
           setSyncStatus('synced');
@@ -201,7 +320,15 @@ export default function App() {
   // Handle Logout
   const handleLogout = () => {
     clearStoredUser();
+    try {
+      sessionStorage.removeItem(SESSION_TAB_KEY);
+      sessionStorage.removeItem(SESSION_DETAIL_KEY);
+    } catch {
+      // ignore
+    }
     setCurrentUser(null);
+    setSelectedProjectForDetail(null);
+    setCurrentTab('dashboard');
     setIsLoginModalOpen(true);
     showToast('ออกจากระบบเรียบร้อยแล้ว', 'info');
   };
