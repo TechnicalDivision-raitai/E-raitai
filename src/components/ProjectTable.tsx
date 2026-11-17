@@ -334,7 +334,7 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
 
                 <th className="py-3.5 px-3 text-center whitespace-nowrap">สถานะ</th>
 
-                <th className="py-3.5 px-3 text-center whitespace-nowrap sticky right-0 bg-slate-50/95 shadow-xs">
+                <th className="py-3.5 px-3 text-center whitespace-nowrap sticky right-0 z-20 bg-slate-50 border-l border-slate-200/80 shadow-[-4px_0_8px_-4px_rgba(15,23,42,0.06)]">
                   จัดการ
                 </th>
               </tr>
@@ -560,10 +560,10 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
 
                       {/* 11. ปุ่มจัดการข้อมูล */}
                       <td
-                        className={`py-3.5 px-3 text-center whitespace-nowrap sticky right-0 ${
+                        className={`py-3.5 px-3 text-center whitespace-nowrap sticky right-0 z-10 border-l ${
                           isSelected
-                            ? 'bg-emerald-50 shadow-[inset_-2px_1px_0_0_rgba(16,185,129,0.85),inset_0_-1px_0_0_rgba(16,185,129,0.75)]'
-                            : 'bg-white group-hover:bg-emerald-50/40 shadow-xs'
+                            ? 'bg-emerald-50 border-emerald-200/80 shadow-[inset_-2px_1px_0_0_rgba(16,185,129,0.85),inset_0_-1px_0_0_rgba(16,185,129,0.75)]'
+                            : 'bg-white group-hover:bg-[#f4fbf8] border-slate-100 group-hover:border-emerald-200/70 shadow-[-4px_0_8px_-4px_rgba(15,23,42,0.05)]'
                         }`}
                       >
                         <div className="flex items-center justify-center gap-1">
