@@ -20,7 +20,8 @@ import {
   Upload,
   FileText,
   Sparkles,
-  Copy
+  Copy,
+  ChevronDown
 } from 'lucide-react';
 import {
   Project,
@@ -159,6 +160,11 @@ export const ProjectRecordsView: React.FC<ProjectRecordsViewProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [recordFilter, setRecordFilter] = useState<'all' | 'recorded' | 'unrecorded'>('all');
+  const [expandedIds, setExpandedIds] = useState<Record<string, boolean>>({});
+
+  const toggleExpand = (projectId: string) => {
+    setExpandedIds(prev => ({ ...prev, [projectId]: !prev[projectId] }));
+  };
 
   // Editor Modal State
   const [editingProject, setEditingProject] = useState<Project | null>(null);
@@ -479,15 +485,30 @@ export const ProjectRecordsView: React.FC<ProjectRecordsViewProps> = ({
             const signUrl = getGoogleMapsPointUrl(rec?.signboardPoint);
             const archiveFiles = rec?.files || [];
             const hasData = hasAnyArchiveData(project);
+            const isExpanded = Boolean(expandedIds[project.id]);
 
             return (
               <div
                 key={project.id}
                 className="bg-white rounded-3xl border border-slate-200/90 shadow-xs hover:shadow-md transition overflow-hidden"
               >
-                {/* Project Card Header */}
-                <div className="px-5 py-4 bg-slate-50/80 border-b border-slate-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="space-y-1">
+                {/* Project Card Header (ปุ่มย่อ/ขยายจากแถบชื่อโครงการ) */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => toggleExpand(project.id)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      toggleExpand(project.id);
+                    }
+                  }}
+                  aria-expanded={isExpanded}
+                  className={`px-5 py-4 bg-slate-50/80 hover:bg-slate-100/70 transition cursor-pointer flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
+                    isExpanded ? 'border-b border-slate-200/80' : ''
+                  }`}
+                >
+                  <div className="space-y-1 flex-1 min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="font-mono text-xs font-bold px-2.5 py-0.5 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-300">
                         {project.projectCode}
@@ -509,8 +530,10 @@ export const ProjectRecordsView: React.FC<ProjectRecordsViewProps> = ({
                         </span>
                       )}
                     </div>
-                    <h3 className="text-base font-bold text-slate-800 font-heading">{project.name}</h3>
-                    <p className="text-xs text-slate-500 flex items-center gap-1.5">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-bold text-slate-800 font-heading">{project.name}</h3>
+                    </div>
+                    <p className="text-xs text-slate-500 flex flex-wrap items-center gap-1.5">
                       <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                       <span>สถานที่: {project.location || '-'}</span>
                       {rec?.updatedAt && (
@@ -519,20 +542,37 @@ export const ProjectRecordsView: React.FC<ProjectRecordsViewProps> = ({
                     </p>
                   </div>
 
-                  {isAdmin && (
-                    <button
-                      type="button"
-                      onClick={() => openEditor(project)}
-                      className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition shrink-0 self-start sm:self-center cursor-pointer"
+                  <div className="flex items-center gap-4 shrink-0 self-start sm:self-center">
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={e => {
+                          e.stopPropagation();
+                          openEditor(project);
+                        }}
+                        className="inline-flex items-center gap-1.5 text-emerald-700 hover:text-emerald-900 hover:underline text-xs font-bold transition cursor-pointer bg-transparent p-0 border-0 shadow-none"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>{hasData ? 'แก้ไขพิกัด / รูปภาพโครงการ' : 'บันทึกพิกัด / รูปภาพโครงการ'}</span>
+                      </button>
+                    )}
+                    <span
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-slate-500"
+                      title={isExpanded ? 'คลิกเพื่อย่อรายละเอียด' : 'คลิกเพื่อดูพิกัดและรูปภาพ'}
                     >
-                      <Edit3 className="w-4 h-4" />
-                      <span>{hasData ? 'แก้ไขพิกัด / รูปภาพโครงการ' : 'บันทึกพิกัด / รูปภาพโครงการ'}</span>
-                    </button>
-                  )}
+                      <span>{isExpanded ? 'ซ่อน' : 'ดูพิกัด'}</span>
+                      <ChevronDown
+                        className={`w-4 h-4 transition-transform duration-200 ${
+                          isExpanded ? 'rotate-180 text-emerald-700' : 'text-slate-400'
+                        }`}
+                      />
+                    </span>
+                  </div>
                 </div>
 
                 {/* Project Card Body: 3 Core Sections */}
-                <div className="p-5 grid grid-cols-1 lg:grid-cols-12 gap-5">
+                {isExpanded && (
+                <div className="p-5 grid grid-cols-1 lg:grid-cols-12 gap-5 animate-in fade-in duration-150">
                   {/* 1. พิกัดโครงการ (จุดเริ่มต้น & จุดสิ้นสุด) */}
                   <div className="lg:col-span-5 bg-emerald-50/40 rounded-2xl p-4 border border-emerald-200/80 flex flex-col justify-between space-y-3">
                     <div className="space-y-3">
@@ -769,6 +809,7 @@ export const ProjectRecordsView: React.FC<ProjectRecordsViewProps> = ({
                     </div>
                   </div>
                 </div>
+                )}
               </div>
             );
           })}
