@@ -135,23 +135,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span>สรุปผลงานโครงการ</span>
           </button>
 
-          {/* 2. สรุปงานฎีกา / การเบิกจ่าย */}
-          <button
-            onClick={() => {
-              setCurrentTab('vouchersSummary');
-              setIsMobileOpen(false);
-            }}
-            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg font-medium transition ${
-              currentTab === 'vouchersSummary'
-                ? 'bg-emerald-600 text-white shadow-md'
-                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-            }`}
-          >
-            <PieChart className="w-4 h-4 text-pink-400 shrink-0" />
-            <span>สรุปงานฎีกา & เบิกจ่าย</span>
-          </button>
-
-          {/* 3. กล่องงานของฉัน (My Inbox - เฉพาะ Admin) */}
+          {/* 2. กล่องงานของฉัน (My Inbox - เฉพาะ Admin) */}
           {isAdmin && (
             <button
               onClick={() => {
@@ -177,6 +161,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </span>
             </button>
           )}
+
+          {/* 4. ติดตามสถานะโครงการ (Timeline 12 ขั้นตอน) */}
+          <button
+            onClick={() => {
+              setCurrentTab('timeline');
+              setIsMobileOpen(false);
+            }}
+            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg font-medium transition ${
+              currentTab === 'timeline'
+                ? 'bg-emerald-600 text-white shadow-md'
+                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <CalendarClock className="w-4 h-4 text-cyan-400 shrink-0" />
+            <span>ติดตามสถานะโครงการ</span>
+          </button>
 
           {/* Section: ทะเบียนแยกตามหมวดงบประมาณ (แสดงเฉพาะหมวดที่มีโครงการบันทึกอยู่) */}
           <div className="pt-3 pb-1 px-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
@@ -249,6 +249,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
             <span className="flex-1 text-left">ข้อมูลโครงการ</span>
           </button>
 
+          {/* รายงานฎีกา & เบิกจ่าย */}
+          <button
+            onClick={() => {
+              setCurrentTab('vouchersSummary');
+              setIsMobileOpen(false);
+            }}
+            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg font-medium transition ${
+              currentTab === 'vouchersSummary'
+                ? 'bg-emerald-600 text-white shadow-md'
+                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <PieChart className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span className="flex-1 text-left">รายงานฎีกา & เบิกจ่าย</span>
+          </button>
+
           {/* งานเกินกำหนด */}
           <button
             onClick={() => {
@@ -268,22 +284,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {overdueCount}
               </span>
             )}
-          </button>
-
-          {/* ไทม์ไลน์ 12 ขั้นตอน */}
-          <button
-            onClick={() => {
-              setCurrentTab('timeline');
-              setIsMobileOpen(false);
-            }}
-            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg font-medium transition ${
-              currentTab === 'timeline'
-                ? 'bg-emerald-600 text-white shadow-md'
-                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
-            }`}
-          >
-            <CalendarClock className="w-4 h-4 text-cyan-400 shrink-0" />
-            <span>ไทม์ไลน์ 12 ขั้นตอน</span>
           </button>
 
           {/* รายงานและส่งออก */}

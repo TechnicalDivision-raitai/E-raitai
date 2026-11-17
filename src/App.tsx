@@ -515,11 +515,11 @@ export default function App() {
 
   const pageTitles: Record<string, string> = {
     dashboard: 'สรุปผลงานโครงการ',
-    vouchersSummary: 'สรุปงานฎีกาและเบิกจ่าย',
+    vouchersSummary: 'รายงานฎีกา & เบิกจ่าย',
     myInbox: 'กล่องงานของฉัน',
     projects: currentCategoryTitle,
     overdue: 'งานเกินกำหนดสัญญา',
-    timeline: 'ไทม์ไลน์ 12 ขั้นตอน',
+    timeline: 'ติดตามสถานะโครงการ',
     reports: 'รายงาน & สถิติโครงการ',
     project_records: 'ข้อมูลโครงการ',
     excel_import: 'นำเข้าข้อมูล Excel',
@@ -723,6 +723,9 @@ export default function App() {
           {currentTab === 'timeline' && (
             <ProjectTimelineView
               projects={projects}
+              availableYears={availableYears}
+              selectedYear={filter.fiscalYear}
+              onSelectYear={yr => setFilter(prev => ({ ...prev, fiscalYear: yr }))}
               currentUser={currentUser}
               onSelectProject={(p: Project, tab?: number) => {
                 setSelectedProjectForDetail(p);
