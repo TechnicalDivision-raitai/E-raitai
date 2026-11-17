@@ -47,6 +47,53 @@ interface ProjectTableProps {
 type SortField = 'sequence' | 'fiscalYear' | 'name' | 'startDate' | 'endDate' | 'approvedBudget' | 'contractAmount';
 type SortOrder = 'asc' | 'desc';
 
+const thaiWordSegmenter =
+  typeof Intl !== 'undefined' && 'Segmenter' in Intl
+    ? new Intl.Segmenter('th', { granularity: 'word' })
+    : null;
+
+const NON_BREAKING_PREFIXES = new Set(['หมู่', 'งวด', 'ระยะ', 'ตอน', 'ช่วง', 'เลข', 'สาย', 'บ้าน']);
+const OPENING_PUNCT = /[\(\[\{“'"\u00A0]$/;
+const CLOSING_PUNCT = /^[\)\]\},.;:!?ๆ”'"\u00A0]/;
+
+function renderThaiWordWrapped(text: string): React.ReactNode {
+  if (!text) return text;
+
+  // Prevent orphan numbers after Thai labels like "หมู่ที่ 13" or "ม. 5"
+  const glued = text.replace(
+    /(หมู่ที่|หมู่|ม\.|งวดที่|ระยะที่|ตอนที่|ช่วงที่|ซอย|เลขที่|ปี|พ\.ศ\.)\s+(\d+)/g,
+    '$1\u00A0$2'
+  );
+
+  if (!thaiWordSegmenter) return glued;
+
+  const segments = Array.from(thaiWordSegmenter.segment(glued), s => s.segment);
+  const nodes: React.ReactNode[] = [];
+
+  for (let i = 0; i < segments.length; i++) {
+    const seg = segments[i];
+    if (i > 0) {
+      const prev = segments[i - 1];
+      const isWhitespace = /^\s+$/.test(seg) || /^\s+$/.test(prev);
+      const keepPrefixWithTi = seg === 'ที่' && NON_BREAKING_PREFIXES.has(prev);
+      const avoidBreak =
+        isWhitespace ||
+        keepPrefixWithTi ||
+        OPENING_PUNCT.test(prev) ||
+        CLOSING_PUNCT.test(seg) ||
+        prev === '-' ||
+        seg === '-';
+
+      if (!avoidBreak) {
+        nodes.push(<wbr key={`w-${i}`} />);
+      }
+    }
+    nodes.push(seg);
+  }
+
+  return nodes;
+}
+
 export const ProjectTable: React.FC<ProjectTableProps> = ({
   projects,
   filter,
@@ -425,9 +472,9 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
                         </div>
                         <button
                           onClick={() => onSelectProject(p, 1)}
-                          className="font-semibold text-slate-800 hover:text-emerald-700 text-left transition line-clamp-2 leading-snug"
+                          className="block w-full font-semibold text-slate-800 hover:text-emerald-700 text-left transition leading-relaxed text-pretty [word-break:keep-all] break-words"
                         >
-                          {p.name}
+                          {renderThaiWordWrapped(p.name)}
                         </button>
                       </td>
 
