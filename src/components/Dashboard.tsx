@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   FolderKanban,
   CheckCircle2,
@@ -40,6 +40,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
   onOpenNewProjectModal,
   currentUser
 }) => {
+  const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
+
   // Apply filtering based on current filter state
   const filteredProjects = useMemo(() => {
     return projects.filter(p => {
@@ -737,8 +739,23 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredProjects.slice(0, 5).map(p => (
-                <tr key={p.id} className="hover:bg-slate-50/80 transition">
+              {filteredProjects.slice(0, 5).map(p => {
+                const isSelected = selectedRowId === p.id;
+                return (
+                <tr
+                  key={p.id}
+                  onClick={e => {
+                    const clickedInteractive = Boolean((e.target as HTMLElement).closest('button, a'));
+                    setSelectedRowId(prev =>
+                      clickedInteractive ? p.id : prev === p.id ? null : p.id
+                    );
+                  }}
+                  className={`transition cursor-pointer ${
+                    isSelected
+                      ? 'bg-emerald-50/75 [&>td]:shadow-[inset_0_1px_0_0_rgba(16,185,129,0.75),inset_0_-1px_0_0_rgba(16,185,129,0.75)] [&>td:first-child]:shadow-[inset_2px_1px_0_0_rgba(16,185,129,0.85),inset_0_-1px_0_0_rgba(16,185,129,0.75)] [&>td:last-child]:shadow-[inset_-2px_1px_0_0_rgba(16,185,129,0.85),inset_0_-1px_0_0_rgba(16,185,129,0.75)]'
+                      : 'hover:bg-slate-50/80'
+                  }`}
+                >
                   <td className="py-3 px-4 whitespace-nowrap">
                     <span className="font-semibold text-slate-900">{p.projectCode}</span>
                     <span className="block text-[10px] text-slate-500">ปี {p.fiscalYear}</span>
@@ -797,7 +814,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     </button>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>

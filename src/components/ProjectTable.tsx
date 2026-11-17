@@ -60,6 +60,7 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
 }) => {
   const [sortField, setSortField] = useState<SortField>('fiscalYear');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
+  const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
 
   // Filter projects
   const filteredProjects = useMemo(() => {
@@ -389,10 +390,21 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
               ) : (
                 sortedProjects.map((p, idx) => {
                   const remaining = getDaysRemaining(p.endDate);
+                  const isSelected = selectedRowId === p.id;
                   return (
                     <tr
                       key={p.id}
-                      className="hover:bg-emerald-50/40 transition-colors group"
+                      onClick={e => {
+                        const clickedInteractive = Boolean((e.target as HTMLElement).closest('button, a'));
+                        setSelectedRowId(prev =>
+                          clickedInteractive ? p.id : prev === p.id ? null : p.id
+                        );
+                      }}
+                      className={`transition-colors group cursor-pointer ${
+                        isSelected
+                          ? 'bg-emerald-50/75 [&>td]:shadow-[inset_0_1px_0_0_rgba(16,185,129,0.75),inset_0_-1px_0_0_rgba(16,185,129,0.75)] [&>td:first-child]:shadow-[inset_2px_1px_0_0_rgba(16,185,129,0.85),inset_0_-1px_0_0_rgba(16,185,129,0.75)]'
+                          : 'hover:bg-emerald-50/40'
+                      }`}
                     >
                       {/* 1. ลำดับ */}
                       <td className="py-3.5 px-3 text-center text-slate-500 font-medium whitespace-nowrap">
@@ -547,7 +559,13 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
                       </td>
 
                       {/* 11. ปุ่มจัดการข้อมูล */}
-                      <td className="py-3.5 px-3 text-center whitespace-nowrap sticky right-0 bg-white group-hover:bg-emerald-50/40 shadow-xs">
+                      <td
+                        className={`py-3.5 px-3 text-center whitespace-nowrap sticky right-0 ${
+                          isSelected
+                            ? 'bg-emerald-50 shadow-[inset_-2px_1px_0_0_rgba(16,185,129,0.85),inset_0_-1px_0_0_rgba(16,185,129,0.75)]'
+                            : 'bg-white group-hover:bg-emerald-50/40 shadow-xs'
+                        }`}
+                      >
                         <div className="flex items-center justify-center gap-1">
                           {/* View */}
                           <button
