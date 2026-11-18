@@ -1,4 +1,4 @@
-import { Project } from '../types/project';
+import { Project, SarabanQueueItem, SarabanQueueStatus } from '../types/project';
 
 export const DEFAULT_GOOGLE_SCRIPT_URL =
   'https://script.google.com/macros/s/AKfycbzzWSWjjgNcPJ69Rvacq6uGZPE36RAO-JCpqwC6favyCPKjEpmNIjqjz7uEgdS6SGf5/exec';
@@ -185,3 +185,279 @@ export async function uploadFileToGoogleDrive(
     reader.onerror = error => reject(error);
   });
 }
+
+/**
+ * Fetch Saraban integration queue items from Google Sheet (`SarabanQueue`)
+ */
+export async function fetchSarabanQueue(
+  queueStatus: SarabanQueueStatus | 'all' = 'all'
+): Promise<{
+  success: boolean;
+  items?: SarabanQueueItem[];
+  pendingCount?: number;
+  needsScriptUpdate?: boolean;
+  error?: string;
+}> {
+  const scriptUrl = DEFAULT_GOOGLE_SCRIPT_URL;
+
+  const parseQueueResponse = (result: any) => {
+    if (result && result.status === 'success' && Array.isArray(result.data)) {
+      const items: SarabanQueueItem[] = result.data;
+      const pendingCount =
+        typeof result.pendingCount === 'number'
+          ? result.pendingCount
+          : items.filter(i => i.queueStatus === 'pending').length;
+      return { success: true, items, pendingCount };
+    }
+    const msg = String(result?.message || result?.error || '');
+    if (msg.toLowerCase().includes('unknown') && msg.toLowerCase().includes('action')) {
+      return {
+        success: false,
+        needsScriptUpdate: true,
+        error: 'Google Apps Script ยังไม่ได้อัปเดตเวอร์ชันสำหรับรับคิวสารบรรณ'
+      };
+    }
+    return null;
+  };
+
+  try {
+    const params = new URLSearchParams({
+      action: 'getSarabanQueue',
+      queueStatus,
+      t: String(Date.now())
+    });
+
+    const res = await fetch(`${scriptUrl}?${params.toString()}`, {
+      method: 'GET',
+      redirect: 'follow'
+    });
+
+    if (res.ok) {
+      const text = await res.text();
+      try {
+        const result = JSON.parse(text);
+        const parsed = parseQueueResponse(result);
+        if (parsed) return parsed;
+      } catch {
+        if (text.toLowerCase().includes('unknown') && text.toLowerCase().includes('action')) {
+          return {
+            success: false,
+            needsScriptUpdate: true,
+            error: 'Google Apps Script ยังไม่ได้อัปเดตเวอร์ชันสำหรับรับคิวสารบรรณ'
+          };
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('GET getSarabanQueue failed, trying POST getSarabanQueue...', err);
+  }
+
+  try {
+    const postRes = await fetch(scriptUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({
+        action: 'getSarabanQueue',
+        queueStatus
+      }),
+      redirect: 'follow'
+    });
+
+    if (postRes.ok) {
+      const text = await postRes.text();
+      try {
+        const result = JSON.parse(text);
+        const parsed = parseQueueResponse(result);
+        if (parsed) return parsed;
+      } catch {
+        if (text.toLowerCase().includes('unknown') && text.toLowerCase().includes('action')) {
+          return {
+            success: false,
+            needsScriptUpdate: true,
+            error: 'Google Apps Script ยังไม่ได้อัปเดตเวอร์ชันสำหรับรับคิวสารบรรณ'
+          };
+        }
+      }
+    }
+  } catch (postErr: any) {
+    return {
+      success: false,
+      error: `ไม่สามารถดึงคิวจากสารบรรณได้: ${postErr?.message || 'ข้อผิดพลาดเครือข่าย'}`
+    };
+  }
+
+  return {
+    success: false,
+    error: 'Google Sheet ส่งข้อมูลคิวสารบรรณกลับมาไม่ถูกต้อง'
+  };
+}
+
+/**
+ * Approve or Reject a Saraban Queue item via Google Apps Script
+ */
+export async function resolveSarabanQueue(params: {
+  queueId: string;
+  decision: 'approve' | 'reject';
+  reviewedBy: string;
+  updatedProject?: Project;
+  rejectReason?: string;
+}): Promise<{
+  success: boolean;
+  queueStatus?: SarabanQueueStatus;
+  reviewedAt?: string;
+  needsScriptUpdate?: boolean;
+  error?: string;
+}> {
+  try {
+    let cloudSafeProject = params.updatedProject;
+    if (cloudSafeProject?.projectRecord?.files?.length) {
+      cloudSafeProject = {
+        ...cloudSafeProject,
+        projectRecord: {
+          ...cloudSafeProject.projectRecord,
+          files: cloudSafeProject.projectRecord.files.map(f => {
+            if (f.url && f.url.startsWith('http')) {
+              const { previewDataUrl: _omit, ...rest } = f;
+              return rest;
+            }
+            return f;
+          })
+        }
+      };
+    }
+
+    const response = await fetch(DEFAULT_GOOGLE_SCRIPT_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8'
+      },
+      body: JSON.stringify({
+        action: 'resolveSarabanQueue',
+        queueId: params.queueId,
+        decision: params.decision,
+        reviewedBy: params.reviewedBy,
+        updatedProject: cloudSafeProject,
+        rejectReason: params.rejectReason || ''
+      }),
+      redirect: 'follow'
+    });
+
+    if (response.ok) {
+      const text = await response.text();
+      try {
+        const json = JSON.parse(text);
+        if (json && json.status === 'success') {
+          return {
+            success: true,
+            queueStatus: json.queueStatus,
+            reviewedAt: json.reviewedAt
+          };
+        }
+        const msg = String(json?.message || json?.error || '');
+        if (msg.toLowerCase().includes('unknown') && msg.toLowerCase().includes('action')) {
+          return {
+            success: false,
+            needsScriptUpdate: true,
+            error: 'Google Apps Script ยังไม่ได้อัปเดตเวอร์ชันสำหรับยืนยันคิวสารบรรณ'
+          };
+        }
+        return { success: false, error: msg || 'Google Sheet ตอบกลับสถานะล้มเหลว' };
+      } catch {
+        return { success: false, error: 'รูปแบบผลลัพธ์จาก Google Apps Script ไม่ถูกต้อง' };
+      }
+    }
+    return { success: false, error: `HTTP ${response.status}: ${response.statusText}` };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: `อัปเดตสถานะคิวสารบรรณล้มเหลว: ${err?.message || 'ข้อผิดพลาดเครือข่าย'}`
+    };
+  }
+}
+
+/**
+ * Delete a Saraban Queue item (and optionally update/rollback the affected project)
+ */
+export async function deleteSarabanQueue(params: {
+  queueId: string;
+  idempotencyKey?: string;
+  docId?: string;
+  docCategory?: string;
+  projectId?: string;
+  updatedProject?: Project;
+}): Promise<{
+  success: boolean;
+  deleted?: boolean;
+  rolledBackProject?: boolean;
+  needsScriptUpdate?: boolean;
+  error?: string;
+}> {
+  try {
+    let cloudSafeProject = params.updatedProject;
+    if (cloudSafeProject?.projectRecord?.files?.length) {
+      cloudSafeProject = {
+        ...cloudSafeProject,
+        projectRecord: {
+          ...cloudSafeProject.projectRecord,
+          files: cloudSafeProject.projectRecord.files.map(f => {
+            if (f.url && f.url.startsWith('http')) {
+              const { previewDataUrl: _omit, ...rest } = f;
+              return rest;
+            }
+            return f;
+          })
+        }
+      };
+    }
+
+    const response = await fetch(DEFAULT_GOOGLE_SCRIPT_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain;charset=utf-8'
+      },
+      body: JSON.stringify({
+        action: 'deleteSarabanQueue',
+        queueId: params.queueId,
+        idempotencyKey: params.idempotencyKey || '',
+        docId: params.docId || '',
+        docCategory: params.docCategory || '',
+        projectId: params.projectId || '',
+        updatedProject: cloudSafeProject
+      }),
+      redirect: 'follow'
+    });
+
+    if (response.ok) {
+      const text = await response.text();
+      try {
+        const json = JSON.parse(text);
+        if (json && json.status === 'success') {
+          return {
+            success: true,
+            deleted: json.deleted !== false,
+            rolledBackProject: Boolean(json.rolledBackProject)
+          };
+        }
+        const msg = String(json?.message || json?.error || '');
+        if (msg.toLowerCase().includes('unknown') && msg.toLowerCase().includes('action')) {
+          return {
+            success: false,
+            needsScriptUpdate: true,
+            error: 'Google Apps Script ยังไม่ได้อัปเดตเวอร์ชันสำหรับลบคิว (deleteSarabanQueue)'
+          };
+        }
+        return { success: false, error: msg || 'Google Sheet ตอบกลับสถานะล้มเหลว' };
+      } catch {
+        return { success: false, error: 'รูปแบบผลลัพธ์จาก Google Apps Script ไม่ถูกต้อง' };
+      }
+    }
+    return { success: false, error: `HTTP ${response.status}: ${response.statusText}` };
+  } catch (err: any) {
+    return {
+      success: false,
+      error: `ลบรายการคิวสารบรรณล้มเหลว: ${err?.message || 'ข้อผิดพลาดเครือข่าย'}`
+    };
+  }
+}
+
+

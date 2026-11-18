@@ -210,3 +210,42 @@ export interface ProjectFilter {
   status: string;             // 'all' or specific status
   searchQuery: string;        // search in name, contractNo, contractor, projectCode
 }
+
+export type SarabanDocCategory =
+  | 'tor_order'
+  | 'tor_approval'
+  | 'ref_price'
+  | 'inspect_order'
+  | 'contract'
+  | 'work_notice'
+  | 'delivery'
+  | 'inspection'
+  | 'disbursement'
+  | 'remuneration'
+  | 'other';
+
+export type SarabanQueueStatus = 'pending' | 'approved' | 'rejected';
+
+export interface SarabanQueueItem {
+  queueId: string;
+  idempotencyKey?: string;
+  createdAt: string;
+  projectId: string;
+  projectCode: string;
+  fiscalYear: number;
+  docCategory: SarabanDocCategory;
+  bookNo: string;
+  bookDate: string; // YYYY-MM-DD (Gregorian)
+  subject: string;
+  payload: Record<string, any>;
+  fileName?: string;
+  fileUrl?: string;
+  fileSize?: number;
+  mimeType?: string;
+  submittedBy: string;
+  queueStatus: SarabanQueueStatus;
+  reviewedBy?: string;
+  reviewedAt?: string;
+  rejectReason?: string;
+}
+

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Swal from 'sweetalert2';
 import {
   Inbox,
@@ -6,26 +6,57 @@ import {
   Clock,
   Paperclip,
   Eye,
-  ExternalLink,
-  AlertCircle
+  AlertCircle,
+  ArrowDownToLine
 } from 'lucide-react';
-import { Project, UserProfile, ProjectStatus } from '../types/project';
+import { Project, UserProfile, ProjectStatus, SarabanQueueItem } from '../types/project';
 import { formatThaiDateTime, deriveProjectStatusFromData, getWorkNoticeAlert } from '../utils/thaiDate';
 import { STATUS_LABELS } from '../utils/excelExport';
+import { SarabanQueuePanel } from './SarabanQueuePanel';
 
 interface MyInboxViewProps {
   projects: Project[];
   currentUser: UserProfile;
   onSelectProject: (p: Project, tab?: number) => void;
   onUpdateProject: (p: Project) => void;
+  sarabanQueueItems: SarabanQueueItem[];
+  sarabanQueueLoading: boolean;
+  sarabanNeedsScriptUpdate: boolean;
+  sarabanQueueError?: string | null;
+  onRefreshSarabanQueue: () => void;
+  onApproveSarabanItem: (
+    item: SarabanQueueItem,
+    mergedProject: Project
+  ) => Promise<{ success: boolean; error?: string }>;
+  onRejectSarabanItem: (
+    item: SarabanQueueItem,
+    reason: string
+  ) => Promise<{ success: boolean; error?: string }>;
+  onDeleteSarabanItem: (
+    item: SarabanQueueItem,
+    rollbackProject?: Project
+  ) => Promise<{ success: boolean; error?: string }>;
 }
 
 export const MyInboxView: React.FC<MyInboxViewProps> = ({
   projects,
   currentUser,
   onSelectProject,
-  onUpdateProject
+  onUpdateProject,
+  sarabanQueueItems,
+  sarabanQueueLoading,
+  sarabanNeedsScriptUpdate,
+  sarabanQueueError,
+  onRefreshSarabanQueue,
+  onApproveSarabanItem,
+  onRejectSarabanItem,
+  onDeleteSarabanItem
 }) => {
+  const pendingSarabanCount = sarabanQueueItems.filter(i => i.queueStatus === 'pending').length;
+  const [activeSubTab, setActiveSubTab] = useState<'inbox' | 'saraban'>(
+    pendingSarabanCount > 0 ? 'saraban' : 'inbox'
+  );
+
   // Requirement 5: ตัวเลขกล่องงานของฉันนับเฉพาะโครงการที่เริ่มดำเนินงานแล้วและยังไม่เสร็จ โดยคำนึงถึงผู้รับผิดชอบหรือผู้ควบคุมงาน
   const myProjects = projects.filter(p => {
     const isStartedAndNotCompleted = p.status !== 'not_started' && p.status !== 'completed';
@@ -137,24 +168,83 @@ export const MyInboxView: React.FC<MyInboxViewProps> = ({
 
   return (
     <div className="space-y-6">
-      <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-5">
+      <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs space-y-5">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
           <div>
-            <div className="flex flex-wrap items-center gap-2.5">
-              <h2 className="text-lg font-bold text-gray-800 font-heading flex items-center gap-2">
-                <Inbox className="w-5 h-5 text-emerald-600 shrink-0" />
-                <span>กล่องงานของฉัน (My Inbox)</span>
-              </h2>
-              <span className="inline-flex items-center px-3 py-0.5 rounded-full text-xs font-bold bg-sky-100 text-sky-950 border-2 border-sky-400 shadow-[0_0_12px_rgba(56,189,248,0.65)] ring-2 ring-sky-300/40 tabular-nums">
-                {myProjects.length} รายการ
-              </span>
-            </div>
+            <h2 className="text-lg font-bold text-gray-800 font-heading flex items-center gap-2">
+              <Inbox className="w-5 h-5 text-emerald-600 shrink-0" />
+              <span>กล่องงานของฉัน (My Inbox)</span>
+            </h2>
             <p className="text-xs text-gray-500 mt-1">
-              รายการโครงการและงานมอบหมายที่ท่านต้องรับทราบและกำกับดูแล กดรับทราบงานและปรับสถานะได้ทันที
+              {activeSubTab === 'inbox'
+                ? 'รายการโครงการและงานมอบหมายที่ท่านต้องรับทราบและกำกับดูแล กดรับทราบงานและปรับสถานะได้ทันที'
+                : 'รายการเอกสารที่ส่งซิงค์มาจากระบบสารบรรณ รอตรวจสอบและกดยืนยันรับเข้าสู่ทะเบียนโครงการ'}
             </p>
+          </div>
+
+          {/* Segmented Tab Switcher */}
+          <div className="flex flex-wrap items-center gap-1 p-1 bg-slate-100 rounded-xl w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('inbox')}
+              className={`flex-1 sm:flex-initial px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 tabular-nums ${
+                activeSubTab === 'inbox'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              โครงการที่ดูแล ({myProjects.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('saraban')}
+              className={`flex-1 sm:flex-initial inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 tabular-nums ${
+                activeSubTab === 'saraban'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              <ArrowDownToLine className="w-3.5 h-3.5 text-emerald-600" />
+              <span>คิวรับจากสารบรรณ ({pendingSarabanCount})</span>
+            </button>
           </div>
         </div>
 
+        {/* Prompt Banner when pending Saraban items exist while viewing inbox tab */}
+        {activeSubTab === 'inbox' && pendingSarabanCount > 0 && (
+          <div className="p-3.5 rounded-xl bg-emerald-50/80 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2 text-xs text-emerald-900">
+              <ArrowDownToLine className="w-4 h-4 text-emerald-700 shrink-0" />
+              <span className="tabular-nums">
+                มีเอกสารส่งมาจากระบบสารบรรณรอตรวจสอบรับเข้าโครงการจำนวน{' '}
+                <strong>{pendingSarabanCount} รายการ</strong>
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveSubTab('saraban')}
+              className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition whitespace-nowrap shrink-0"
+            >
+              ตรวจสอบคิวสารบรรณ
+            </button>
+          </div>
+        )}
+
+        {activeSubTab === 'saraban' ? (
+          <SarabanQueuePanel
+            projects={projects}
+            queueItems={sarabanQueueItems}
+            isLoading={sarabanQueueLoading}
+            needsScriptUpdate={sarabanNeedsScriptUpdate}
+            errorMessage={sarabanQueueError}
+            currentUser={currentUser}
+            onRefreshQueue={onRefreshSarabanQueue}
+            onApproveItem={onApproveSarabanItem}
+            onRejectItem={onRejectSarabanItem}
+            onDeleteItem={onDeleteSarabanItem}
+            onSelectProject={onSelectProject}
+          />
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead className="bg-gray-50 text-gray-500 uppercase font-semibold border-b border-gray-200">
@@ -322,6 +412,7 @@ export const MyInboxView: React.FC<MyInboxViewProps> = ({
             </tbody>
           </table>
         </div>
+        )}
       </div>
     </div>
   );

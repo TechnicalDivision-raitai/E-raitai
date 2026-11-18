@@ -19,7 +19,7 @@ import { LoginModal } from './components/LoginModal';
 import { MyInboxView } from './components/MyInboxView';
 import { VouchersSummaryView } from './components/VouchersSummaryView';
 import { ProjectRecordsView } from './components/ProjectRecordsView';
-import { Project, ProjectArchiveRecord, ProjectFilter, UserProfile } from './types/project';
+import { Project, ProjectArchiveRecord, ProjectFilter, SarabanQueueItem, UserProfile } from './types/project';
 import {
   getStoredProjects,
   saveStoredProjects,
@@ -31,8 +31,12 @@ import {
 } from './services/storage';
 import {
   fetchProjectsFromGoogleSheet,
-  syncProjectsToGoogleSheet
+  syncProjectsToGoogleSheet,
+  fetchSarabanQueue,
+  resolveSarabanQueue,
+  deleteSarabanQueue
 } from './services/googleSync';
+import { rollbackSarabanQueueFromProject } from './utils/sarabanSync';
 import { CURRENT_USER, STAFF_USER } from './data/mockData';
 import {
   getCurrentThaiFiscalYear,
@@ -141,6 +145,12 @@ export default function App() {
   const [projectToEdit, setProjectToEdit] = useState<Project | null>(null);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error'>('syncing');
 
+  // Saraban Queue State (Approach B Integration)
+  const [sarabanQueueItems, setSarabanQueueItems] = useState<SarabanQueueItem[]>([]);
+  const [sarabanQueueLoading, setSarabanQueueLoading] = useState<boolean>(false);
+  const [sarabanNeedsScriptUpdate, setSarabanNeedsScriptUpdate] = useState<boolean>(false);
+  const [sarabanQueueError, setSarabanQueueError] = useState<string | null>(null);
+
   // Persist current view state across browser reloads
   useEffect(() => {
     try {
@@ -194,6 +204,27 @@ export default function App() {
     }, 4000);
   };
 
+  const loadSarabanQueue = async (silent = false) => {
+    if (!silent) setSarabanQueueLoading(true);
+    try {
+      const res = await fetchSarabanQueue('all');
+      if (res.success && Array.isArray(res.items)) {
+        setSarabanQueueItems(res.items);
+        setSarabanNeedsScriptUpdate(false);
+        setSarabanQueueError(null);
+      } else if (res.needsScriptUpdate) {
+        setSarabanNeedsScriptUpdate(true);
+        setSarabanQueueError(res.error || null);
+      } else {
+        setSarabanQueueError(res.error || 'ไม่สามารถโหลดคิวจากสารบรรณได้');
+      }
+    } catch {
+      setSarabanQueueError('เกิดข้อผิดพลาดในการเชื่อมต่อคิวสารบรรณ');
+    } finally {
+      if (!silent) setSarabanQueueLoading(false);
+    }
+  };
+
   // 1. Auto-pull projects from Google Sheet on app initial load
   useEffect(() => {
     let isMounted = true;
@@ -221,6 +252,7 @@ export default function App() {
     };
 
     loadFromCloudSheet();
+    loadSarabanQueue(false);
     return () => {
       isMounted = false;
     };
@@ -230,7 +262,10 @@ export default function App() {
   const handleRefreshCloudSync = async () => {
     setSyncStatus('syncing');
     try {
-      const res = await fetchProjectsFromGoogleSheet();
+      const [res] = await Promise.all([
+        fetchProjectsFromGoogleSheet(),
+        loadSarabanQueue(false)
+      ]);
       if (res.success) {
         if (Array.isArray(res.projects) && res.projects.length > 0) {
           setProjects(res.projects);
@@ -288,6 +323,121 @@ export default function App() {
     };
     const newProjects = projects.map(p => (p.id === nextProject.id ? nextProject : p));
     updateProjects(newProjects);
+  };
+
+  // Approve & apply a Saraban Queue item onto a project
+  const handleApproveSarabanItem = async (
+    item: SarabanQueueItem,
+    mergedProject: Project
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (currentUser?.role !== 'admin') {
+      return { success: false, error: 'สิทธิ์เจ้าหน้าที่ (Staff) ไม่สามารถอนุมัติรับเข้าคิวได้' };
+    }
+
+    const res = await resolveSarabanQueue({
+      queueId: item.queueId,
+      decision: 'approve',
+      reviewedBy: currentUser.displayName,
+      updatedProject: mergedProject
+    });
+
+    if (!res.success) {
+      if (res.needsScriptUpdate) setSarabanNeedsScriptUpdate(true);
+      return { success: false, error: res.error };
+    }
+
+    const newProjects = projects.map(p => (p.id === mergedProject.id ? mergedProject : p));
+    updateProjects(newProjects);
+
+    setSarabanQueueItems(prev =>
+      prev.map(q =>
+        q.queueId === item.queueId
+          ? {
+              ...q,
+              queueStatus: 'approved',
+              reviewedBy: currentUser.displayName,
+              reviewedAt: res.reviewedAt || new Date().toISOString()
+            }
+          : q
+      )
+    );
+    showToast(`รับข้อมูล ${item.queueId} เข้าโครงการ ${mergedProject.projectCode} แล้ว`, 'success');
+    return { success: true };
+  };
+
+  // Reject a Saraban Queue item
+  const handleRejectSarabanItem = async (
+    item: SarabanQueueItem,
+    reason: string
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (currentUser?.role !== 'admin') {
+      return { success: false, error: 'สิทธิ์เจ้าหน้าที่ (Staff) ไม่สามารถปฏิเสธคิวได้' };
+    }
+
+    const res = await resolveSarabanQueue({
+      queueId: item.queueId,
+      decision: 'reject',
+      reviewedBy: currentUser.displayName,
+      rejectReason: reason
+    });
+
+    if (!res.success) {
+      if (res.needsScriptUpdate) setSarabanNeedsScriptUpdate(true);
+      return { success: false, error: res.error };
+    }
+
+    setSarabanQueueItems(prev =>
+      prev.map(q =>
+        q.queueId === item.queueId
+          ? {
+              ...q,
+              queueStatus: 'rejected',
+              reviewedBy: currentUser.displayName,
+              reviewedAt: res.reviewedAt || new Date().toISOString(),
+              rejectReason: reason
+            }
+          : q
+      )
+    );
+    showToast(`ปฏิเสธรายการ ${item.queueId} เรียบร้อยแล้ว`, 'info');
+    return { success: true };
+  };
+
+  // Delete a Saraban Queue item (and rollback approved project data if present)
+  const handleDeleteSarabanItem = async (
+    item: SarabanQueueItem,
+    rollbackProject?: Project
+  ): Promise<{ success: boolean; error?: string }> => {
+    if (currentUser?.role !== 'admin') {
+      return { success: false, error: 'สิทธิ์เจ้าหน้าที่ (Staff) ไม่สามารถลบคิวได้' };
+    }
+
+    const rolledBack =
+      item.queueStatus === 'approved' && rollbackProject
+        ? rollbackSarabanQueueFromProject(rollbackProject, item)
+        : undefined;
+
+    const res = await deleteSarabanQueue({
+      queueId: item.queueId,
+      idempotencyKey: item.idempotencyKey,
+      docCategory: item.docCategory,
+      projectId: rollbackProject?.id || item.projectId,
+      updatedProject: rolledBack
+    });
+
+    if (!res.success) {
+      if (res.needsScriptUpdate) setSarabanNeedsScriptUpdate(true);
+      return { success: false, error: res.error };
+    }
+
+    if (rolledBack) {
+      const nextProjects = projects.map(p => (p.id === rolledBack.id ? rolledBack : p));
+      updateProjects(nextProjects);
+    }
+
+    setSarabanQueueItems(prev => prev.filter(q => q.queueId !== item.queueId));
+    showToast(`ลบรายการคิว ${item.queueId} เรียบร้อยแล้ว`, 'info');
+    return { success: true };
   };
 
   // Save only project archive record (coordinates, signboard coordinates, photos) without affecting status or 12-stage timeline
@@ -589,6 +739,7 @@ export default function App() {
         onSelectCategoryFilter={cat => {
           setFilter(prev => ({ ...prev, category: cat }));
         }}
+        pendingSarabanCount={sarabanQueueItems.filter(i => i.queueStatus === 'pending').length}
       />
 
       {/* Main Content Area */}
@@ -668,6 +819,14 @@ export default function App() {
                 setSelectedDetailTab(tab || 1);
               }}
               onUpdateProject={handleUpdateSingleProject}
+              sarabanQueueItems={sarabanQueueItems}
+              sarabanQueueLoading={sarabanQueueLoading}
+              sarabanNeedsScriptUpdate={sarabanNeedsScriptUpdate}
+              sarabanQueueError={sarabanQueueError}
+              onRefreshSarabanQueue={() => loadSarabanQueue(false)}
+              onApproveSarabanItem={handleApproveSarabanItem}
+              onRejectSarabanItem={handleRejectSarabanItem}
+              onDeleteSarabanItem={handleDeleteSarabanItem}
             />
           )}
 
