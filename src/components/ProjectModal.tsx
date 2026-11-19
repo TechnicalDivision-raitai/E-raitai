@@ -1478,17 +1478,10 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     หมวดงบประมาณ <span className="text-rose-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    list="budget-categories-list"
+                  <AutoSuggestInput
                     value={formData.budgetCategory || ''}
-                    onChange={e => setFormData({ ...formData, budgetCategory: e.target.value })}
-                    placeholder="พิมพ์ชื่อหมวด เช่น กันเงินงบประมาณ..."
-                    required
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                  />
-                  <datalist id="budget-categories-list">
-                    {Array.from(
+                    onChange={val => setFormData({ ...formData, budgetCategory: val })}
+                    suggestions={Array.from(
                       new Set([
                         'เงินสะสม',
                         'งบประมาณรายจ่าย',
@@ -1498,12 +1491,14 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                         'กันเงินงบประมาณ',
                         ...existingCategories
                       ])
-                    ).map(cat => (
-                      <option key={cat} value={cat}>
-                        {cat}
-                      </option>
-                    ))}
-                  </datalist>
+                    )}
+                    minCharsToSuggest={0}
+                    openOnFocus
+                    showToggleButton
+                    placeholder="พิมพ์ชื่อหมวด เช่น กันเงินงบประมาณ..."
+                    required
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-medium focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                  />
                 </div>
 
                 <div>

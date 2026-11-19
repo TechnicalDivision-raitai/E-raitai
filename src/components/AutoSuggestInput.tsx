@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useId } from 'react';
+import { ChevronDown } from 'lucide-react';
 
 interface AutoSuggestInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
   value: string;
@@ -8,11 +9,13 @@ interface AutoSuggestInputProps extends Omit<React.InputHTMLAttributes<HTMLInput
   placeholder?: string;
   className?: string;
   minCharsToSuggest?: number;
+  openOnFocus?: boolean;
+  showToggleButton?: boolean;
 }
 
 /**
  * Standard single-line clean autocomplete input.
- * - Shows suggestions when user types (value.trim().length >= minCharsToSuggest) or presses ArrowDown/ArrowUp.
+ * - Shows suggestions when user types (value.trim().length >= minCharsToSuggest), focuses (if openOnFocus), or presses ArrowDown/ArrowUp.
  * - Supports full keyboard navigation (ArrowDown, ArrowUp, Enter, Escape, Tab) and mouse selection.
  * - Filters suggestions that match the typed text (case-insensitive & whitespace-normalized).
  * - Renders a single-line clean dropdown with no duplicated lines or browser datalist glitches.
@@ -25,6 +28,8 @@ export const AutoSuggestInput: React.FC<AutoSuggestInputProps> = ({
   placeholder = '',
   className = '',
   minCharsToSuggest = 1,
+  openOnFocus = false,
+  showToggleButton = false,
   onKeyDown,
   onFocus,
   ...restProps
@@ -33,6 +38,7 @@ export const AutoSuggestInput: React.FC<AutoSuggestInputProps> = ({
   const [forceShowAll, setForceShowAll] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
   const containerRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const itemRefs = useRef<(HTMLLIElement | null)[]>([]);
   const listboxId = useId();
 
@@ -41,7 +47,8 @@ export const AutoSuggestInput: React.FC<AutoSuggestInputProps> = ({
 
   // Compute dropdown suggestions:
   // - While typing: show up to 20 matching items (excluding exact match)
-  // - When explicitly opened via ArrowDown/ArrowUp: show matching items or fallback to other available suggestions
+  // - When explicitly opened via focus (openOnFocus), toggle button, or ArrowDown/ArrowUp:
+  //   show matching items or all available suggestions
   const filteredSuggestions = React.useMemo(() => {
     if (!forceShowAll && (!cleanInput || cleanInput.length < minCharsToSuggest)) {
       return [];
@@ -61,9 +68,7 @@ export const AutoSuggestInput: React.FC<AutoSuggestInputProps> = ({
     }
 
     if (forceShowAll) {
-      return suggestions
-        .filter(item => item.replace(/\s+/g, ' ').trim().toLowerCase() !== cleanInput)
-        .slice(0, 25);
+      return suggestions.slice(0, 25);
     }
 
     return [];
@@ -145,9 +150,7 @@ export const AutoSuggestInput: React.FC<AutoSuggestInputProps> = ({
         const fallbackCount =
           filteredSuggestions.length > 0
             ? filteredSuggestions.length
-            : suggestions
-                .filter(item => item.replace(/\s+/g, ' ').trim().toLowerCase() !== cleanInput)
-                .slice(0, 25).length;
+            : suggestions.slice(0, 25).length;
         if (fallbackCount > 0) {
           setForceShowAll(true);
           setIsOpen(true);
@@ -185,6 +188,7 @@ export const AutoSuggestInput: React.FC<AutoSuggestInputProps> = ({
   return (
     <div ref={containerRef} className="relative w-full">
       <input
+        ref={inputRef}
         type="text"
         autoComplete="off"
         role="combobox"
@@ -202,16 +206,45 @@ export const AutoSuggestInput: React.FC<AutoSuggestInputProps> = ({
           setActiveIndex(-1);
         }}
         onFocus={e => {
-          if (filteredSuggestions.length > 0) {
+          if (openOnFocus && suggestions.length > 0) {
+            setForceShowAll(true);
+            setIsOpen(true);
+          } else if (filteredSuggestions.length > 0) {
             setIsOpen(true);
           }
           onFocus?.(e);
         }}
         onKeyDown={handleKeyDown}
         placeholder={placeholder}
-        className={className}
+        className={showToggleButton ? `${className} pr-8` : className}
         {...restProps}
       />
+
+      {showToggleButton && suggestions.length > 0 && (
+        <button
+          type="button"
+          tabIndex={-1}
+          onMouseDown={e => {
+            e.preventDefault();
+            if (showDropdown) {
+              setIsOpen(false);
+              setForceShowAll(false);
+              setActiveIndex(-1);
+            } else {
+              setForceShowAll(true);
+              setIsOpen(true);
+              setActiveIndex(-1);
+              inputRef.current?.focus();
+            }
+          }}
+          className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 transition"
+          aria-label="แสดงตัวเลือก"
+        >
+          <ChevronDown
+            className={`w-4 h-4 transition-transform duration-150 ${showDropdown ? 'rotate-180' : ''}`}
+          />
+        </button>
+      )}
 
       {showDropdown && (
         <ul
@@ -222,6 +255,7 @@ export const AutoSuggestInput: React.FC<AutoSuggestInputProps> = ({
           {filteredSuggestions.map((item, index) => {
             const hint = getItemHint ? getItemHint(item) : undefined;
             const isActive = index === activeIndex;
+            const isExactMatch = item.replace(/\s+/g, ' ').trim().toLowerCase() === cleanInput;
             return (
               <li
                 key={`${item}-${index}`}
@@ -240,16 +274,22 @@ export const AutoSuggestInput: React.FC<AutoSuggestInputProps> = ({
                 className={`px-3 py-2 cursor-pointer transition flex items-center justify-between whitespace-nowrap overflow-hidden text-ellipsis ${
                   isActive
                     ? 'bg-emerald-50 text-emerald-900 font-semibold'
+                    : isExactMatch
+                    ? 'bg-slate-50 text-emerald-800 font-medium'
                     : 'text-slate-700 hover:bg-emerald-50/70 hover:text-emerald-900'
                 }`}
               >
                 <span className="font-medium truncate">{item}</span>
                 <span
                   className={`text-[10px] shrink-0 ml-2 truncate max-w-[180px] ${
-                    isActive ? 'text-emerald-700 font-medium' : 'text-slate-400'
+                    isActive
+                      ? 'text-emerald-700 font-medium'
+                      : isExactMatch
+                      ? 'text-emerald-600 font-medium'
+                      : 'text-slate-400'
                   }`}
                 >
-                  {hint || (isActive ? 'กด Enter เพื่อเลือก' : 'เลือก')}
+                  {hint || (isExactMatch ? 'เลือกอยู่' : isActive ? 'กด Enter เพื่อเลือก' : 'เลือก')}
                 </span>
               </li>
             );
