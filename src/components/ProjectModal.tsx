@@ -96,12 +96,114 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   const [driveLinkName, setDriveLinkName] = useState<string>('');
   const [driveLinkUrl, setDriveLinkUrl] = useState<string>('');
   const [driveLinkError, setDriveLinkError] = useState<string | null>(null);
+  const [projectCodePrefix, setProjectCodePrefix] = useState<'ถ.' | 'อ.'>('ถ.');
+  const [hasManualCodeEdit, setHasManualCodeEdit] = useState<boolean>(false);
+  const [hasManualPrefixChoice, setHasManualPrefixChoice] = useState<boolean>(false);
   const baselineDerivedRef = React.useRef<ProjectStatus>('not_started');
 
   // Helper to normalize Thai names (collapse multiple spaces into a single space and trim)
   const normalizeName = (name?: string | null): string => {
     if (!name) return '';
     return name.replace(/\s+/g, ' ').trim();
+  };
+
+  // Detect project code prefix ('ถ.' for road, 'อ.' for building) from an existing code
+  const detectPrefixFromCode = (code?: string | null): 'ถ.' | 'อ.' => {
+    const trimmed = (code || '').trim();
+    if (trimmed.startsWith('อ.')) return 'อ.';
+    return 'ถ.';
+  };
+
+  // Infer road vs building prefix from Thai project name (earliest matching keyword wins)
+  const inferProjectCodePrefix = (projectName?: string | null): 'ถ.' | 'อ.' | null => {
+    const text = (projectName || '').trim();
+    if (!text) return null;
+
+    const roadKeywords = [
+      'ถนน',
+      'คสล.',
+      'คอนกรีตเสริมเหล็ก',
+      'ลาดยาง',
+      'แอสฟัลต์',
+      'ลูกรัง',
+      'หินคลุก',
+      'ทางหลวง',
+      'สายทาง',
+      'ซอย',
+      'ไหล่ทาง',
+      'สะพาน',
+      'บล็อกประสาน',
+      'ผิวจราจร',
+      'ซ่อมแซมทาง',
+      'บุกเบิกทาง',
+      'เกรดปรับเกลี่ย'
+    ];
+    const buildingKeywords = [
+      'อาคาร',
+      'ศาลา',
+      'หอประชุม',
+      'ศูนย์พัฒนาเด็ก',
+      'ห้องน้ำ',
+      'ห้องสุขา',
+      'สุขา',
+      'โรงจอดรถ',
+      'โรงอาหาร',
+      'หลังคา',
+      'โดม',
+      'เมรุ',
+      'บ้านพัก',
+      'สำนักงาน',
+      'โรงเรียน',
+      'สถานีอนามัย',
+      'รพ.สต',
+      'ห้องประชุม',
+      'ป้อมยาม',
+      'รั้วอาคาร',
+      'กำแพงแก้ว'
+    ];
+
+    const findEarliestIndex = (keywords: string[]): number => {
+      let earliest = -1;
+      for (const kw of keywords) {
+        const idx = text.indexOf(kw);
+        if (idx !== -1 && (earliest === -1 || idx < earliest)) {
+          earliest = idx;
+        }
+      }
+      return earliest;
+    };
+
+    const roadIdx = findEarliestIndex(roadKeywords);
+    const buildingIdx = findEarliestIndex(buildingKeywords);
+
+    if (roadIdx === -1 && buildingIdx === -1) return null;
+    if (roadIdx === -1) return 'อ.';
+    if (buildingIdx === -1) return 'ถ.';
+    return roadIdx <= buildingIdx ? 'ถ.' : 'อ.';
+  };
+
+  // Generate sequential running project code e.g. ถ.69-001, ถ.70-001, อ.69-001, อ.70-001
+  const generateNextProjectCode = (
+    prefix: 'ถ.' | 'อ.',
+    fiscalYear: number,
+    excludeProjectId?: string
+  ): string => {
+    const yy = String(fiscalYear).slice(-2);
+    const head = `${prefix}${yy}-`;
+    let maxSeq = 0;
+
+    existingProjects.forEach(p => {
+      if (excludeProjectId && p.id === excludeProjectId) return;
+      const code = (p.projectCode || '').trim();
+      if (!code.startsWith(head)) return;
+      const suffix = code.slice(head.length);
+      if (/^\d+$/.test(suffix)) {
+        const num = parseInt(suffix, 10);
+        if (num > maxSeq) maxSeq = num;
+      }
+    });
+
+    return `${head}${String(maxSeq + 1).padStart(3, '0')}`;
   };
 
   // Extract recorded person names across all existing projects and personnel directory
@@ -404,7 +506,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     const nextYear = 2569;
     return {
       id: `prj-${Date.now()}`,
-      projectCode: `ช.${String(nextYear).slice(-2)}-${Math.floor(Math.random() * 900 + 100)}`,
+      projectCode: generateNextProjectCode('ถ.', nextYear),
       fiscalYear: nextYear,
       name: '',
       budgetCategory: 'งบประมาณรายจ่าย',
@@ -474,7 +576,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
         const nextYear = 2569;
         setFormData({
           id: `prj-${Date.now()}`,
-          projectCode: `ช.${String(nextYear).slice(-2)}-${Math.floor(Math.random() * 900 + 100)}`,
+          projectCode: generateNextProjectCode('ถ.', nextYear),
           fiscalYear: nextYear,
           name: '',
           budgetCategory: 'งบประมาณรายจ่าย',
@@ -529,6 +631,9 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       }
       setActiveTab(1);
       setHasManualStatusChange(false);
+      setProjectCodePrefix(initialProject ? detectPrefixFromCode(initialProject.projectCode) : 'ถ.');
+      setHasManualCodeEdit(Boolean(initialProject));
+      setHasManualPrefixChoice(Boolean(initialProject));
       setLivePositionOverrides({});
       setLiveContractorOverrides({});
       setOpenDriveLinkTarget(null);
@@ -1402,9 +1507,18 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                     value={formData.fiscalYear}
                     onChange={e => {
                       const yr = Number(e.target.value);
-                      const prefix = `ช.${String(yr).slice(-2)}-`;
-                      const oldCode = formData.projectCode;
-                      const newCode = oldCode.startsWith('ช.') ? `${prefix}${oldCode.slice(5) || Math.floor(Math.random() * 900 + 100)}` : oldCode;
+                      const oldCode = (formData.projectCode || '').trim();
+                      let newCode = oldCode;
+
+                      if (!hasManualCodeEdit) {
+                        newCode = generateNextProjectCode(projectCodePrefix, yr, initialProject?.id);
+                      } else {
+                        const match = oldCode.match(/^(ถ\.|อ\.|ช\.)\d{2}-(.*)$/);
+                        if (match) {
+                          newCode = `${match[1]}${String(yr).slice(-2)}-${match[2]}`;
+                        }
+                      }
+
                       setFormData({ ...formData, fiscalYear: yr, projectCode: newCode });
                     }}
                     required
@@ -1419,15 +1533,72 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    รหัสโครงการ
-                  </label>
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <label className="block text-xs font-semibold text-slate-700">
+                      รหัสโครงการ
+                    </label>
+                    <div className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-100 p-0.5 text-[10px] font-semibold">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProjectCodePrefix('ถ.');
+                          setHasManualPrefixChoice(true);
+                          setHasManualCodeEdit(false);
+                          setFormData(prev => ({
+                            ...prev,
+                            projectCode: generateNextProjectCode('ถ.', prev.fiscalYear, initialProject?.id)
+                          }));
+                        }}
+                        className={`px-2 py-0.5 rounded-md transition whitespace-nowrap ${
+                          projectCodePrefix === 'ถ.'
+                            ? 'bg-emerald-600 text-white shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                        title="รันเลขโครงการถนนอัตโนมัติ (ถ.ปีงบ-xxx)"
+                      >
+                        ถนน (ถ.)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProjectCodePrefix('อ.');
+                          setHasManualPrefixChoice(true);
+                          setHasManualCodeEdit(false);
+                          setFormData(prev => ({
+                            ...prev,
+                            projectCode: generateNextProjectCode('อ.', prev.fiscalYear, initialProject?.id)
+                          }));
+                        }}
+                        className={`px-2 py-0.5 rounded-md transition whitespace-nowrap ${
+                          projectCodePrefix === 'อ.'
+                            ? 'bg-emerald-600 text-white shadow-2xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                        title="รันเลขโครงการอาคารอัตโนมัติ (อ.ปีงบ-xxx)"
+                      >
+                        อาคาร (อ.)
+                      </button>
+                    </div>
+                  </div>
                   <input
                     type="text"
                     value={formData.projectCode}
-                    onChange={e => setFormData({ ...formData, projectCode: e.target.value })}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setHasManualCodeEdit(true);
+                      if (val.trim().startsWith('อ.')) {
+                        setProjectCodePrefix('อ.');
+                      } else if (val.trim().startsWith('ถ.')) {
+                        setProjectCodePrefix('ถ.');
+                      }
+                      setFormData({ ...formData, projectCode: val });
+                    }}
+                    placeholder="เช่น ถ.69-001 หรือ อ.69-001"
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                   />
+                  <div className="text-[10px] text-slate-400 mt-0.5">
+                    รันอัตโนมัติ: ถ. = ถนน, อ. = อาคาร (แก้ไขเองได้)
+                  </div>
                 </div>
 
                 <div>
@@ -1466,7 +1637,22 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                 <input
                   type="text"
                   value={formData.name}
-                  onChange={e => setFormData({ ...formData, name: e.target.value })}
+                  onChange={e => {
+                    const nextName = e.target.value;
+                    if (!initialProject && !hasManualCodeEdit && !hasManualPrefixChoice) {
+                      const inferred = inferProjectCodePrefix(nextName);
+                      if (inferred && inferred !== projectCodePrefix) {
+                        setProjectCodePrefix(inferred);
+                        setFormData(prev => ({
+                          ...prev,
+                          name: nextName,
+                          projectCode: generateNextProjectCode(inferred, prev.fiscalYear)
+                        }));
+                        return;
+                      }
+                    }
+                    setFormData(prev => ({ ...prev, name: nextName }));
+                  }}
                   placeholder="เช่น โครงการก่อสร้างถนน คสล. สายบ้านหนองผักชี หมู่ที่ 3"
                   required
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
