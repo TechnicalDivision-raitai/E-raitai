@@ -32,7 +32,7 @@ export const INITIAL_PROJECTS: Project[] = [
     approvedBudget: 2450000,
     description: 'ก่อสร้างถนน คสล. ผิวจราจรกว้าง 5.00 เมตร หนา 0.15 เมตร ระยะทาง 950 เมตร หรือมีพื้นที่คอนกรีตรวมไม่น้อยกว่า 4,750 ตร.ม. พร้อมลงหินคลุกไหล่ทางข้างละ 0.50 เมตร',
     location: 'หมู่ที่ 1 ถึง หมู่ที่ 5 ต.ไร่ใต้ อ.พิบูลมังสาหาร จ.อุบลราชธานี',
-    responsiblePerson: 'นายศรายุทธ  สงวนรัษฐ์',
+    responsiblePerson: 'นายศรายุทธ สงวนรัษฎ์',
     ackStatus: 'รอรับทราบ',
     ackTime: '-',
     notes: 'อนุมัติจ่ายขาดเงินสะสม ตามมติสภาฯ เมื่อวันที่ 15 สิงหาคม 2568',
@@ -221,7 +221,7 @@ export const INITIAL_PROJECTS: Project[] = [
     supervisorName: 'นายพิทักษ์  โพธิ์ขาว',
     inspectCommittees: [
       { id: 'cm-204', name: 'นายจิรพงษ์ พัฒนพันธ์', position: 'ผู้อำนวยการกองช่าง', role: 'ประธานกรรมการ' },
-      { id: 'cm-205', name: 'นายศรายุทธ  สงวนรัษฐ์', position: 'นายช่างโยธาชำนาญงาน', role: 'กรรมการ' },
+      { id: 'cm-205', name: 'นายศรายุทธ สงวนรัษฎ์', position: 'นายช่างโยธาชำนาญงาน', role: 'กรรมการ' },
       { id: 'cm-206', name: 'นายนิคม แซ่ตั้ง', position: 'ผู้ใหญ่บ้านหมู่ที่ 1', role: 'กรรมการ' }
     ],
 
@@ -349,19 +349,19 @@ export const INITIAL_PROJECTS: Project[] = [
     approvedBudget: 1650000,
     description: 'ขุดลอกคลองกำจัดวัชพืช ดินเลนตกตะกอน ก้นคลองกว้าง 4.00 เมตร ลึกเฉลี่ย 2.50 เมตร ความยาว 2,400 เมตร พร้อมปรับแต่งคันคลองทั้งสองฝั่ง',
     location: 'ห้วยไร่ใต้ หมู่ที่ 6 ต.ไร่ใต้ อ.พิบูลมังสาหาร',
-    responsiblePerson: 'นายศรายุทธ  สงวนรัษฐ์',
+    responsiblePerson: 'นายศรายุทธ สงวนรัษฎ์',
     ackStatus: 'รอรับทราบ',
     ackTime: '-',
     notes: 'โครงการแก้ปัญหาภัยแล้งและน้ำท่วมขังในฤดูฝน (เลยกำหนดส่งมอบตามสัญญา)',
 
     torOrderNo: '172/2567',
     torOrderDate: '2024-10-25',
-    torAuthor: 'นายศรายุทธ  สงวนรัษฐ์',
+    torAuthor: 'นายศรายุทธ สงวนรัษฎ์',
     torDate: '2024-11-05',
     refPriceDate: '2024-11-10',
     refPrice: 1640000,
     torCommittees: [
-      { id: 'cm-106', name: 'นายศรายุทธ  สงวนรัษฐ์', position: 'นายช่างโยธาชำนาญงาน', role: 'ประธานกรรมการ' },
+      { id: 'cm-106', name: 'นายศรายุทธ สงวนรัษฎ์', position: 'นายช่างโยธาชำนาญงาน', role: 'ประธานกรรมการ' },
       { id: 'cm-107', name: 'นายยิ่งอนันต์  สัทธรรม', position: 'ผู้ช่วยนายช่างประปา', role: 'กรรมการ' }
     ],
 
@@ -435,7 +435,7 @@ export const INITIAL_PROJECTS: Project[] = [
     refPrice: 618000,
     torCommittees: [
       { id: 'cm-108', name: 'นายยิ่งอนันต์  สัทธรรม', position: 'ผู้ช่วยนายช่างประปา', role: 'ประธานกรรมการ' },
-      { id: 'cm-109', name: 'นายศรายุทธ  สงวนรัษฐ์', position: 'นายช่างโยธาชำนาญงาน', role: 'กรรมการ' }
+      { id: 'cm-109', name: 'นายศรายุทธ สงวนรัษฎ์', position: 'นายช่างโยธาชำนาญงาน', role: 'กรรมการ' }
     ],
 
     inspectOrderNo: '218/2567',
@@ -531,25 +531,25 @@ export const INITIAL_PROJECTS: Project[] = [
     approvedBudget: 1200000,
     description: 'ก่อสร้างรางระบายน้ำ คสล. ขนาดกว้าง 0.60 เมตร ลึกเฉลี่ย 0.80 เมตร ยาว 420 เมตร พร้อมฝาตะแกรงเหล็กและฝา คสล. พาดผ่านจุดเชื่อมต่อทางแยก',
     location: 'ซอยร่วมใจพัฒนา หมู่ที่ 3 ต.ไร่ใต้ อ.พิบูลมังสาหาร',
-    responsiblePerson: 'นายศรายุทธ  สงวนรัษฐ์',
+    responsiblePerson: 'นายศรายุทธ สงวนรัษฎ์',
     ackStatus: 'รับทราบแล้ว',
     ackTime: '05 ม.ค. 68 11:00 น.',
     notes: 'แก้ไขปัญหาน้ำท่วมขังหน้าโรงเรียนบ้านไร่ใต้และชุมชน',
 
     torOrderNo: '201/2567',
     torOrderDate: '2024-12-02',
-    torAuthor: 'นายศรายุทธ  สงวนรัษฐ์',
+    torAuthor: 'นายศรายุทธ สงวนรัษฎ์',
     torDate: '2024-12-12',
     refPriceDate: '2024-12-18',
     refPrice: 1190000,
     torCommittees: [
-      { id: 'cm-110', name: 'นายศรายุทธ  สงวนรัษฐ์', position: 'นายช่างโยธาชำนาญงาน', role: 'ประธานกรรมการ' },
+      { id: 'cm-110', name: 'นายศรายุทธ สงวนรัษฎ์', position: 'นายช่างโยธาชำนาญงาน', role: 'ประธานกรรมการ' },
       { id: 'cm-111', name: 'นายยิ่งอนันต์  สัทธรรม', position: 'ผู้ช่วยนายช่างประปา', role: 'กรรมการ' }
     ],
 
     inspectOrderNo: '230/2567',
     inspectOrderDate: '2025-01-08',
-    supervisorName: 'นายศรายุทธ  สงวนรัษฐ์',
+    supervisorName: 'นายศรายุทธ สงวนรัษฎ์',
     inspectCommittees: [
       { id: 'cm-213', name: 'นายจิรพงษ์ พัฒนพันธ์', position: 'ผู้อำนวยการกองช่าง', role: 'ประธานกรรมการ' },
       { id: 'cm-214', name: 'นายพิทักษ์  โพธิ์ขาว', position: 'นายช่างไฟฟ้าชำนาญงาน', role: 'กรรมการ' },
@@ -657,12 +657,12 @@ export const INITIAL_PROJECTS: Project[] = [
 
     torOrderNo: '105/2566',
     torOrderDate: '2023-11-10',
-    torAuthor: 'นายศรายุทธ  สงวนรัษฐ์',
+    torAuthor: 'นายศรายุทธ สงวนรัษฎ์',
     torDate: '2023-11-25',
     refPriceDate: '2023-12-01',
     refPrice: 4790000,
     torCommittees: [
-      { id: 'cm-114', name: 'นายศรายุทธ  สงวนรัษฐ์', position: 'นายช่างโยธาชำนาญงาน', role: 'ประธานกรรมการ' }
+      { id: 'cm-114', name: 'นายศรายุทธ สงวนรัษฎ์', position: 'นายช่างโยธาชำนาญงาน', role: 'ประธานกรรมการ' }
     ],
 
     inspectOrderNo: '135/2566',

@@ -189,7 +189,7 @@ export type FiscalYear = typeof FISCAL_YEARS[number];
 export const RAI_TAI_PERSONNEL = [
   { name: 'นิศาชล คงดี', position: 'ผู้ช่วยเจ้าพนักงานธุรการ', role: 'admin' },
   { name: 'นายจิรพงษ์ พัฒนพันธ์', position: 'ผู้อำนวยการกองช่าง', role: 'staff' },
-  { name: 'นายศรายุทธ สงวนรัษฐ์', position: 'นายช่างโยธาชำนาญงาน', role: 'staff' },
+  { name: 'นายศรายุทธ สงวนรัษฎ์', position: 'นายช่างโยธาชำนาญงาน', role: 'staff' },
   { name: 'นายพิทักษ์ โพธิ์ขาว', position: 'นายช่างไฟฟ้าชำนาญงาน', role: 'staff' },
   { name: 'นายยิ่งอนันต์ สัทธรรม', position: 'ผู้ช่วยนายช่างประปา', role: 'staff' }
 ];

@@ -99,12 +99,79 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   const [projectCodePrefix, setProjectCodePrefix] = useState<'ถ.' | 'อ.'>('ถ.');
   const [hasManualCodeEdit, setHasManualCodeEdit] = useState<boolean>(false);
   const [hasManualPrefixChoice, setHasManualPrefixChoice] = useState<boolean>(false);
+  const [hasManualLocationEdit, setHasManualLocationEdit] = useState<boolean>(false);
+  const [hiddenSuggestions, setHiddenSuggestions] = useState<string[]>(() => {
+    const defaultHidden = ['นายศรายุทธ สงวนรัษฐ์'];
+    try {
+      const raw = localStorage.getItem('rai_tai_hidden_suggestions_v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          return Array.from(new Set([...defaultHidden, ...parsed.map(String)]));
+        }
+      }
+    } catch {
+      // ignore storage errors
+    }
+    return defaultHidden;
+  });
   const baselineDerivedRef = React.useRef<ProjectStatus>('not_started');
 
   // Helper to normalize Thai names (collapse multiple spaces into a single space and trim)
   const normalizeName = (name?: string | null): string => {
     if (!name) return '';
     return name.replace(/\s+/g, ' ').trim();
+  };
+
+  const hiddenSuggestionSet = React.useMemo(
+    () => new Set(hiddenSuggestions.map(s => normalizeName(s)).filter(Boolean)),
+    [hiddenSuggestions]
+  );
+
+  const handleHideSuggestion = (item: string) => {
+    const clean = normalizeName(item);
+    if (!clean) return;
+    setHiddenSuggestions(prev => {
+      if (prev.some(existing => normalizeName(existing) === clean)) return prev;
+      const next = [...prev, clean];
+      try {
+        localStorage.setItem('rai_tai_hidden_suggestions_v1', JSON.stringify(next));
+      } catch {
+        // ignore storage errors
+      }
+      return next;
+    });
+  };
+
+  const DEFAULT_PROJECT_LOCATION = 'ต.ไร่ใต้ อ.พิบูลมังสาหาร จ.อุบลราชธานี';
+  const DEFAULT_RESPONSIBLE_PERSON = 'กองช่าง อบต.ไร่ใต้';
+
+  // Extract road/soi name (e.g. "สายหนองตาใกล้", "สายพ่อฤทธิ์") from project name
+  const extractRoadNameFromProjectName = (projectName?: string | null): string | null => {
+    const text = (projectName || '').replace(/\s+/g, ' ').trim();
+    if (!text) return null;
+
+    const match = text.match(
+      /(?:สาย(?!ไฟ|เคเบิล|เมน|ส่งน้ำ|อากาศ|สื่อสาร|พาน|ยาง|โทรศัพท์|อินเทอร์เน็ต|แลน)|ซอย)[^\n]*/
+    );
+    if (!match) return null;
+
+    let extracted = match[0];
+    const stopRegex =
+      /\s*(?:กว้าง\s*\d|ยาว\s*\d|หนา\s*\d|ลึก\s*\d|สูง\s*\d|ขนาด\s*\d|ขนาดกว้าง|ระยะทาง|ปริมาณงาน|พื้นที่|จำนวน\s*\d|พร้อม|งบประมาณ|ประจำปี|ปีงบประมาณ|ตามแบบ|อบต\.|องค์การบริหารส่วนตำบล|ต\.\s*ไร่ใต้|ตำบล\s*ไร่ใต้|อ\.\s*พิบูลมังสาหาร|อำเภอ\s*พิบูลมังสาหาร|จ\.\s*อุบลราชธานี|จังหวัด\s*อุบลราชธานี).*$/;
+    extracted = extracted.replace(stopRegex, '').trim();
+    extracted = extracted.replace(/[\s,;/\-–—(]+$/, '').trim();
+
+    const withoutKeyword = extracted.replace(/^(?:สายทาง|สาย|ซอย)/, '').trim();
+    if (withoutKeyword.length < 2) return null;
+
+    return extracted;
+  };
+
+  const buildLocationFromProjectName = (projectName?: string | null): string | null => {
+    const roadName = extractRoadNameFromProjectName(projectName);
+    if (!roadName) return null;
+    return `${roadName} ${DEFAULT_PROJECT_LOCATION}`;
   };
 
   // Detect project code prefix ('ถ.' for road, 'อ.' for building) from an existing code
@@ -212,7 +279,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
 
     const addClean = (raw?: string | null) => {
       const clean = normalizeName(raw);
-      if (clean && clean.length >= 2) {
+      if (clean && clean.length >= 2 && !hiddenSuggestionSet.has(clean)) {
         names.add(clean);
       }
     };
@@ -236,21 +303,21 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     });
 
     return Array.from(names).sort((a, b) => a.localeCompare(b, 'th'));
-  }, [existingProjects]);
+  }, [existingProjects, hiddenSuggestionSet]);
 
   // Extract recorded contractor names across all existing projects and current live edits
   const suggestedContractorNames = React.useMemo(() => {
     const names = new Set<string>();
     existingProjects.forEach(p => {
       const clean = normalizeName(p.contractorName);
-      if (clean && clean.length >= 2) names.add(clean);
+      if (clean && clean.length >= 2 && !hiddenSuggestionSet.has(clean)) names.add(clean);
     });
     Object.keys(liveContractorOverrides).forEach(name => {
       const clean = normalizeName(name);
-      if (clean && clean.length >= 2) names.add(clean);
+      if (clean && clean.length >= 2 && !hiddenSuggestionSet.has(clean)) names.add(clean);
     });
     return Array.from(names).sort((a, b) => a.localeCompare(b, 'th'));
-  }, [existingProjects, liveContractorOverrides]);
+  }, [existingProjects, liveContractorOverrides, hiddenSuggestionSet]);
 
   // Map each contractor's normalized name to their latest known Tax ID and contact/address
   // across all recorded projects (prioritizing explicit per-field edit timestamps) and live edits.
@@ -401,7 +468,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
 
     const addCleanPos = (raw?: string | null) => {
       const clean = normalizeName(raw);
-      if (clean && clean.length >= 2) {
+      if (clean && clean.length >= 2 && !hiddenSuggestionSet.has(clean)) {
         positions.add(clean);
       }
     };
@@ -425,7 +492,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     Object.values(livePositionOverrides).forEach(v => addCleanPos(v.position));
 
     return Array.from(positions).sort((a, b) => a.localeCompare(b, 'th'));
-  }, [existingProjects, livePositionOverrides]);
+  }, [existingProjects, livePositionOverrides, hiddenSuggestionSet]);
 
   // Standardized Remuneration Titles
   const REMUNERATION_TITLES: Record<CommitteeRemuneration['type'], string> = {
@@ -514,8 +581,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       approvalYear: nextYear - 1,
       approvedBudget: 0,
       description: '',
-      location: 'ต.ไร่ใต้ อ.พิบูลมังสาหาร จ.อุบลราชธานี',
-      responsiblePerson: '',
+      location: DEFAULT_PROJECT_LOCATION,
+      responsiblePerson: DEFAULT_RESPONSIBLE_PERSON,
       notes: '',
 
       torOrderNo: '',
@@ -584,8 +651,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
           approvalYear: nextYear - 1,
           approvedBudget: 0,
           description: '',
-          location: 'ต.ไร่ใต้ อ.พิบูลมังสาหาร จ.อุบลราชธานี',
-          responsiblePerson: '',
+          location: DEFAULT_PROJECT_LOCATION,
+          responsiblePerson: DEFAULT_RESPONSIBLE_PERSON,
           notes: '',
 
           torOrderNo: '',
@@ -634,6 +701,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       setProjectCodePrefix(initialProject ? detectPrefixFromCode(initialProject.projectCode) : 'ถ.');
       setHasManualCodeEdit(Boolean(initialProject));
       setHasManualPrefixChoice(Boolean(initialProject));
+      setHasManualLocationEdit(Boolean(initialProject));
       setLivePositionOverrides({});
       setLiveContractorOverrides({});
       setOpenDriveLinkTarget(null);
@@ -1639,21 +1707,30 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                   value={formData.name}
                   onChange={e => {
                     const nextName = e.target.value;
+                    let nextCodePrefix: 'ถ.' | 'อ.' | null = null;
                     if (!initialProject && !hasManualCodeEdit && !hasManualPrefixChoice) {
                       const inferred = inferProjectCodePrefix(nextName);
                       if (inferred && inferred !== projectCodePrefix) {
+                        nextCodePrefix = inferred;
                         setProjectCodePrefix(inferred);
-                        setFormData(prev => ({
-                          ...prev,
-                          name: nextName,
-                          projectCode: generateNextProjectCode(inferred, prev.fiscalYear)
-                        }));
-                        return;
                       }
                     }
-                    setFormData(prev => ({ ...prev, name: nextName }));
+
+                    const autoLocation =
+                      !initialProject && !hasManualLocationEdit
+                        ? buildLocationFromProjectName(nextName) || DEFAULT_PROJECT_LOCATION
+                        : null;
+
+                    setFormData(prev => ({
+                      ...prev,
+                      name: nextName,
+                      ...(nextCodePrefix
+                        ? { projectCode: generateNextProjectCode(nextCodePrefix, prev.fiscalYear) }
+                        : {}),
+                      ...(autoLocation !== null ? { location: autoLocation } : {})
+                    }));
                   }}
-                  placeholder="เช่น โครงการก่อสร้างถนน คสล. สายบ้านหนองผักชี หมู่ที่ 3"
+                  placeholder="เช่น โครงการก่อสร้างถนน คสล. สายหนองตาใกล้ หมู่ที่ 3"
                   required
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                 />
@@ -1762,6 +1839,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                     value={formData.responsiblePerson || ''}
                     onChange={val => setFormData({ ...formData, responsiblePerson: val })}
                     suggestions={suggestedPersonNames}
+                    onRemoveSuggestion={handleHideSuggestion}
                     placeholder="พิมพ์ชื่อเพื่อค้นหา เช่น นายศรายุทธ..."
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                   />
@@ -1769,16 +1847,40 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  สถานที่ดำเนินโครงการ
-                </label>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    สถานที่ดำเนินโครงการ
+                  </label>
+                  {(() => {
+                    const suggestedLoc = buildLocationFromProjectName(formData.name);
+                    if (!suggestedLoc || suggestedLoc === formData.location.trim()) return null;
+                    return (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setHasManualLocationEdit(false);
+                          setFormData(prev => ({ ...prev, location: suggestedLoc }));
+                        }}
+                        className="text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 hover:underline transition"
+                      >
+                        ดึงชื่อถนนจากชื่อโครงการ
+                      </button>
+                    );
+                  })()}
+                </div>
                 <input
                   type="text"
                   value={formData.location}
-                  onChange={e => setFormData({ ...formData, location: e.target.value })}
-                  placeholder="เช่น หมู่ที่ 3 ถึง หมู่ที่ 4 ตำบลดอนหวาย"
+                  onChange={e => {
+                    setHasManualLocationEdit(true);
+                    setFormData({ ...formData, location: e.target.value });
+                  }}
+                  placeholder="เช่น สายหนองตาใกล้ ต.ไร่ใต้ อ.พิบูลมังสาหาร จ.อุบลราชธานี"
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                 />
+                <div className="text-[10px] text-slate-400 mt-0.5">
+                  หากชื่อโครงการระบุสายถนน (เช่น สายหนองตาใกล้, สายพ่อฤทธิ์) ระบบจะดึงมาเติมให้อัตโนมัติพร้อม ต.ไร่ใต้ อ.พิบูลมังสาหาร จ.อุบลราชธานี
+                </div>
               </div>
 
               <div>
@@ -1957,6 +2059,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                     value={formData.torAuthor || ''}
                     onChange={val => setFormData({ ...formData, torAuthor: val })}
                     suggestions={suggestedPersonNames}
+                    onRemoveSuggestion={handleHideSuggestion}
                     placeholder="พิมพ์ชื่อเพื่อค้นหา เช่น นายธวัชชัย..."
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                   />
@@ -2035,6 +2138,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                           onChange={val => handleCommitteeNameChange('torCommittees', idx, val)}
                           suggestions={suggestedPersonNames}
                           getItemHint={getBoundPositionHint}
+                          onRemoveSuggestion={handleHideSuggestion}
                           placeholder="ชื่อ-นามสกุลกรรมการ..."
                           className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
                         />
@@ -2044,6 +2148,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                           value={c.position || ''}
                           onChange={val => handleCommitteePositionChange('torCommittees', idx, val)}
                           suggestions={suggestedPositions}
+                          onRemoveSuggestion={handleHideSuggestion}
                           placeholder="ตำแหน่งราชการ..."
                           className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
                         />
@@ -2205,6 +2310,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                     value={formData.supervisorName || ''}
                     onChange={val => setFormData({ ...formData, supervisorName: val })}
                     suggestions={suggestedPersonNames}
+                    onRemoveSuggestion={handleHideSuggestion}
                     placeholder="พิมพ์ชื่อเพื่อค้นหา เช่น นายอนันต์ ศรีสุข..."
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                   />
@@ -2241,6 +2347,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                           onChange={val => handleCommitteeNameChange('inspectCommittees', idx, val)}
                           suggestions={suggestedPersonNames}
                           getItemHint={getBoundPositionHint}
+                          onRemoveSuggestion={handleHideSuggestion}
                           placeholder="ชื่อ-นามสกุล..."
                           className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
                         />
@@ -2250,6 +2357,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                           value={c.position || ''}
                           onChange={val => handleCommitteePositionChange('inspectCommittees', idx, val)}
                           suggestions={suggestedPositions}
+                          onRemoveSuggestion={handleHideSuggestion}
                           placeholder="ตำแหน่ง..."
                           className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
                         />
@@ -2456,6 +2564,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                     onChange={handleContractorNameChange}
                     suggestions={suggestedContractorNames}
                     getItemHint={getBoundContractorHint}
+                    onRemoveSuggestion={handleHideSuggestion}
                     placeholder="เช่น หจก. บุญบันดาลการช่างและโยธา"
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                   />
@@ -3147,6 +3256,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                               setFormData({ ...formData, remunerations: updated });
                             }}
                             suggestions={suggestedPersonNames}
+                            onRemoveSuggestion={handleHideSuggestion}
                             placeholder="ชื่อผู้แทนรับเงิน..."
                             className="w-full px-2 py-1 bg-white border border-slate-300 rounded-md"
                           />

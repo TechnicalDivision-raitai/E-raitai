@@ -150,7 +150,7 @@ export const ExcelImportModal: React.FC<ExcelImportModalProps> = ({
               meetingSession,
               approvedBudget,
               location: location || 'ต.ไร่ใต้ อ.พิบูลมังสาหาร',
-              responsiblePerson: responsiblePerson || 'นายศรายุทธ  สงวนรัษฐ์',
+              responsiblePerson: responsiblePerson || 'กองช่าง อบต.ไร่ใต้',
               contractNo,
               contractorName,
               contractAmount,

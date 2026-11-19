@@ -1,11 +1,12 @@
 import React, { useState, useRef, useEffect, useId } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, X } from 'lucide-react';
 
 interface AutoSuggestInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
   value: string;
   onChange: (value: string) => void;
   suggestions: string[];
   getItemHint?: (item: string) => string | undefined;
+  onRemoveSuggestion?: (item: string) => void;
   placeholder?: string;
   className?: string;
   minCharsToSuggest?: number;
@@ -25,6 +26,7 @@ export const AutoSuggestInput: React.FC<AutoSuggestInputProps> = ({
   onChange,
   suggestions = [],
   getItemHint,
+  onRemoveSuggestion,
   placeholder = '',
   className = '',
   minCharsToSuggest = 1,
@@ -280,17 +282,35 @@ export const AutoSuggestInput: React.FC<AutoSuggestInputProps> = ({
                 }`}
               >
                 <span className="font-medium truncate">{item}</span>
-                <span
-                  className={`text-[10px] shrink-0 ml-2 truncate max-w-[180px] ${
-                    isActive
-                      ? 'text-emerald-700 font-medium'
-                      : isExactMatch
-                      ? 'text-emerald-600 font-medium'
-                      : 'text-slate-400'
-                  }`}
-                >
-                  {hint || (isExactMatch ? 'เลือกอยู่' : isActive ? 'กด Enter เพื่อเลือก' : 'เลือก')}
-                </span>
+                <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                  <span
+                    className={`text-[10px] truncate max-w-[180px] ${
+                      isActive
+                        ? 'text-emerald-700 font-medium'
+                        : isExactMatch
+                        ? 'text-emerald-600 font-medium'
+                        : 'text-slate-400'
+                    }`}
+                  >
+                    {hint || (isExactMatch ? 'เลือกอยู่' : isActive ? 'กด Enter เพื่อเลือก' : 'เลือก')}
+                  </span>
+                  {onRemoveSuggestion && (
+                    <button
+                      type="button"
+                      tabIndex={-1}
+                      onMouseDown={e => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onRemoveSuggestion(item);
+                      }}
+                      title="ลบชื่อนี้ออกจากรายการแนะนำ"
+                      aria-label={`ลบ ${item} ออกจากรายการแนะนำ`}
+                      className="p-0.5 rounded text-slate-300 hover:text-rose-600 hover:bg-rose-50 transition"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
               </li>
             );
           })}
