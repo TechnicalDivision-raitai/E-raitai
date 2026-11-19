@@ -81,6 +81,15 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   const [livePositionOverrides, setLivePositionOverrides] = useState<
     Record<string, { position: string; timestamp: number }>
   >({});
+  const [liveContractorOverrides, setLiveContractorOverrides] = useState<
+    Record<
+      string,
+      {
+        taxId?: { value: string; timestamp: number };
+        contact?: { value: string; timestamp: number };
+      }
+    >
+  >({});
   const [openDriveLinkTarget, setOpenDriveLinkTarget] = useState<
     AttachmentFile['category'] | 'archive' | null
   >(null);
@@ -127,15 +136,94 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     return Array.from(names).sort((a, b) => a.localeCompare(b, 'th'));
   }, [existingProjects]);
 
-  // Extract recorded contractor names across all existing projects
+  // Extract recorded contractor names across all existing projects and current live edits
   const suggestedContractorNames = React.useMemo(() => {
     const names = new Set<string>();
     existingProjects.forEach(p => {
       const clean = normalizeName(p.contractorName);
       if (clean && clean.length >= 2) names.add(clean);
     });
+    Object.keys(liveContractorOverrides).forEach(name => {
+      const clean = normalizeName(name);
+      if (clean && clean.length >= 2) names.add(clean);
+    });
     return Array.from(names).sort((a, b) => a.localeCompare(b, 'th'));
-  }, [existingProjects]);
+  }, [existingProjects, liveContractorOverrides]);
+
+  // Map each contractor's normalized name to their latest known Tax ID and contact/address
+  // across all recorded projects (prioritizing explicit per-field edit timestamps) and live edits.
+  const contractorProfileMap = React.useMemo(() => {
+    const taxMap = new Map<string, { value: string; timestamp: number }>();
+    const contactMap = new Map<string, { value: string; timestamp: number }>();
+
+    const recordTaxId = (rawName?: string | null, rawTaxId?: string | null, timestamp = 0) => {
+      const cleanName = normalizeName(rawName);
+      const cleanTaxId = (rawTaxId || '').trim();
+      if (!cleanName || !cleanTaxId) return;
+      const existing = taxMap.get(cleanName);
+      if (!existing || timestamp >= existing.timestamp) {
+        taxMap.set(cleanName, { value: cleanTaxId, timestamp });
+      }
+    };
+
+    const recordContact = (rawName?: string | null, rawContact?: string | null, timestamp = 0) => {
+      const cleanName = normalizeName(rawName);
+      const cleanContact = normalizeName(rawContact);
+      if (!cleanName || !cleanContact) return;
+      const existing = contactMap.get(cleanName);
+      if (!existing || timestamp >= existing.timestamp) {
+        contactMap.set(cleanName, { value: cleanContact, timestamp });
+      }
+    };
+
+    const orderedProjects = [...existingProjects].sort((a, b) => {
+      const ta = Date.parse(a.createdAt || '') || 0;
+      const tb = Date.parse(b.createdAt || '') || 0;
+      return ta - tb;
+    });
+
+    orderedProjects.forEach((p, projIdx) => {
+      const baseProjectTs = Date.parse(p.createdAt || '') || projIdx + 1;
+      const taxTs = p.contractorTaxIdUpdatedAt
+        ? Date.parse(p.contractorTaxIdUpdatedAt) || baseProjectTs
+        : baseProjectTs;
+      const contactTs = p.contractorContactUpdatedAt
+        ? Date.parse(p.contractorContactUpdatedAt) || baseProjectTs
+        : baseProjectTs;
+
+      recordTaxId(p.contractorName, p.contractorTaxId, taxTs);
+      recordContact(p.contractorName, p.contractorContact, contactTs);
+    });
+
+    Object.entries(liveContractorOverrides).forEach(([cleanName, entry]) => {
+      if (entry.taxId) {
+        recordTaxId(cleanName, entry.taxId.value, entry.taxId.timestamp);
+      }
+      if (entry.contact) {
+        recordContact(cleanName, entry.contact.value, entry.contact.timestamp);
+      }
+    });
+
+    const resolved = new Map<string, { taxId?: string; contact?: string }>();
+    const allNames = new Set<string>([...taxMap.keys(), ...contactMap.keys()]);
+    allNames.forEach(name => {
+      resolved.set(name, {
+        taxId: taxMap.get(name)?.value,
+        contact: contactMap.get(name)?.value
+      });
+    });
+    return resolved;
+  }, [existingProjects, liveContractorOverrides]);
+
+  const getBoundContractorHint = (name: string): string | undefined => {
+    const clean = normalizeName(name);
+    if (!clean) return undefined;
+    const profile = contractorProfileMap.get(clean);
+    if (!profile) return undefined;
+    if (profile.taxId) return `เลขผู้เสียภาษี: ${profile.taxId}`;
+    if (profile.contact) return profile.contact;
+    return undefined;
+  };
 
   // Map each person's normalized name to their latest known position across personnel directory,
   // all recorded projects (prioritizing explicit positionUpdatedAt timestamps), and live in-modal edits.
@@ -442,6 +530,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       setActiveTab(1);
       setHasManualStatusChange(false);
       setLivePositionOverrides({});
+      setLiveContractorOverrides({});
       setOpenDriveLinkTarget(null);
       setDriveLinkName('');
       setDriveLinkUrl('');
@@ -596,6 +685,110 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       setLivePositionOverrides(prev => ({
         ...prev,
         [cleanName]: { position: cleanPos, timestamp: Date.now() }
+      }));
+    }
+  };
+
+  // Contractor binding handlers: auto-fill latest known Tax ID and contact/address when selecting
+  // or typing a known contractor name, while preserving free manual edits and adopting the latest edit.
+  const handleContractorNameChange = (newName: string) => {
+    const prevCleanName = normalizeName(formData.contractorName);
+    const nextCleanName = normalizeName(newName);
+    const prevBound = prevCleanName ? contractorProfileMap.get(prevCleanName) : undefined;
+    const nextBound = nextCleanName ? contractorProfileMap.get(nextCleanName) : undefined;
+    const currentCleanTaxId = (formData.contractorTaxId || '').trim();
+    const currentCleanContact = normalizeName(formData.contractorContact);
+
+    let nextTaxId = formData.contractorTaxId || '';
+    let nextTaxIdUpdatedAt = formData.contractorTaxIdUpdatedAt;
+
+    if (nextBound?.taxId) {
+      if (
+        !currentCleanTaxId ||
+        nextCleanName !== prevCleanName ||
+        currentCleanTaxId === (prevBound?.taxId || '')
+      ) {
+        nextTaxId = nextBound.taxId;
+        nextTaxIdUpdatedAt = undefined;
+      }
+    } else if (
+      nextCleanName !== prevCleanName &&
+      prevBound?.taxId &&
+      currentCleanTaxId === prevBound.taxId
+    ) {
+      nextTaxId = '';
+      nextTaxIdUpdatedAt = undefined;
+    }
+
+    let nextContact = formData.contractorContact || '';
+    let nextContactUpdatedAt = formData.contractorContactUpdatedAt;
+
+    if (nextBound?.contact) {
+      if (
+        !currentCleanContact ||
+        nextCleanName !== prevCleanName ||
+        currentCleanContact === (prevBound?.contact || '')
+      ) {
+        nextContact = nextBound.contact;
+        nextContactUpdatedAt = undefined;
+      }
+    } else if (
+      nextCleanName !== prevCleanName &&
+      prevBound?.contact &&
+      currentCleanContact === prevBound.contact
+    ) {
+      nextContact = '';
+      nextContactUpdatedAt = undefined;
+    }
+
+    setFormData(prev => ({
+      ...prev,
+      contractorName: newName,
+      contractorTaxId: nextTaxId,
+      contractorTaxIdUpdatedAt: nextTaxIdUpdatedAt,
+      contractorContact: nextContact,
+      contractorContactUpdatedAt: nextContactUpdatedAt
+    }));
+  };
+
+  const handleContractorTaxIdChange = (newTaxId: string) => {
+    const nowIso = new Date().toISOString();
+    setFormData(prev => ({
+      ...prev,
+      contractorTaxId: newTaxId,
+      contractorTaxIdUpdatedAt: nowIso
+    }));
+
+    const cleanName = normalizeName(formData.contractorName);
+    const cleanTaxId = newTaxId.trim();
+    if (cleanName && cleanTaxId) {
+      setLiveContractorOverrides(prev => ({
+        ...prev,
+        [cleanName]: {
+          ...prev[cleanName],
+          taxId: { value: cleanTaxId, timestamp: Date.now() }
+        }
+      }));
+    }
+  };
+
+  const handleContractorContactChange = (newContact: string) => {
+    const nowIso = new Date().toISOString();
+    setFormData(prev => ({
+      ...prev,
+      contractorContact: newContact,
+      contractorContactUpdatedAt: nowIso
+    }));
+
+    const cleanName = normalizeName(formData.contractorName);
+    const cleanContact = normalizeName(newContact);
+    if (cleanName && cleanContact) {
+      setLiveContractorOverrides(prev => ({
+        ...prev,
+        [cleanName]: {
+          ...prev[cleanName],
+          contact: { value: cleanContact, timestamp: Date.now() }
+        }
       }));
     }
   };
@@ -2079,8 +2272,9 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                   </label>
                   <AutoSuggestInput
                     value={formData.contractorName || ''}
-                    onChange={val => setFormData({ ...formData, contractorName: val })}
+                    onChange={handleContractorNameChange}
                     suggestions={suggestedContractorNames}
+                    getItemHint={getBoundContractorHint}
                     placeholder="เช่น หจก. บุญบันดาลการช่างและโยธา"
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                   />
@@ -2094,7 +2288,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                     type="text"
                     maxLength={13}
                     value={formData.contractorTaxId || ''}
-                    onChange={e => setFormData({ ...formData, contractorTaxId: e.target.value })}
+                    onChange={e => handleContractorTaxIdChange(e.target.value)}
                     placeholder="0103541098231"
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                   />
@@ -2108,7 +2302,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                 <input
                   type="text"
                   value={formData.contractorContact || ''}
-                  onChange={e => setFormData({ ...formData, contractorContact: e.target.value })}
+                  onChange={e => handleContractorContactChange(e.target.value)}
                   placeholder="ที่อยู่ เบอร์โทรศัพท์ และอีเมลผู้รับจ้าง..."
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                 />

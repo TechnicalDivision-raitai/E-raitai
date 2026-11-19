@@ -151,6 +151,8 @@ export interface Project {
   contractorName?: string;
   contractorTaxId?: string;
   contractorContact?: string;
+  contractorTaxIdUpdatedAt?: string;
+  contractorContactUpdatedAt?: string;
 
   // หมวด 5: การดำเนินงานและติดตาม
   workNotices: WorkNotice[];
