@@ -21,7 +21,8 @@ import {
   Navigation,
   Signpost,
   Image as ImageIcon,
-  Compass
+  Compass,
+  Link2
 } from 'lucide-react';
 import {
   Project,
@@ -80,6 +81,12 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   const [livePositionOverrides, setLivePositionOverrides] = useState<
     Record<string, { position: string; timestamp: number }>
   >({});
+  const [openDriveLinkTarget, setOpenDriveLinkTarget] = useState<
+    AttachmentFile['category'] | 'archive' | null
+  >(null);
+  const [driveLinkName, setDriveLinkName] = useState<string>('');
+  const [driveLinkUrl, setDriveLinkUrl] = useState<string>('');
+  const [driveLinkError, setDriveLinkError] = useState<string | null>(null);
   const baselineDerivedRef = React.useRef<ProjectStatus>('not_started');
 
   // Helper to normalize Thai names (collapse multiple spaces into a single space and trim)
@@ -435,6 +442,10 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       setActiveTab(1);
       setHasManualStatusChange(false);
       setLivePositionOverrides({});
+      setOpenDriveLinkTarget(null);
+      setDriveLinkName('');
+      setDriveLinkUrl('');
+      setDriveLinkError(null);
       baselineDerivedRef.current = initialProject
         ? deriveProjectStatusFromData(initialProject)
         : 'not_started';
@@ -751,6 +762,211 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     });
   };
 
+  const ATTACHMENT_CATEGORY_LABELS: Record<AttachmentFile['category'], string> = {
+    other: 'เอกสารทั่วไป',
+    tor: 'TOR / ราคากลาง',
+    order: 'คำสั่งควบคุมงาน/ตรวจรับ',
+    contract: 'สัญญาจ้างและแบบแปลน',
+    notice: 'หนังสือแจ้งเข้าทำงาน',
+    delivery: 'หนังสือส่งมอบงาน',
+    inspection: 'รายงานผลตรวจรับงาน',
+    disbursement: 'ฎีกาเบิกจ่ายเงิน',
+    remuneration: 'เบิกค่าตอบแทนกรรมการ',
+    project_record: 'บันทึกข้อมูลโครงการ'
+  };
+
+  const toggleDriveLinkForm = (target: AttachmentFile['category'] | 'archive') => {
+    setOpenDriveLinkTarget(prev => (prev === target ? null : target));
+    setDriveLinkError(null);
+  };
+
+  // Attach an existing Google Drive file by pasting its URL + custom display name (fast path for large files)
+  const handleAddDriveLinkAttachment = (target: AttachmentFile['category'] | 'archive') => {
+    const cleanName = driveLinkName.trim();
+    const rawUrl = driveLinkUrl.trim();
+
+    if (!cleanName) {
+      setDriveLinkError('กรุณาระบุชื่อไฟล์ที่จะแสดงในระบบ');
+      return;
+    }
+    if (!rawUrl) {
+      setDriveLinkError('กรุณาวางลิงก์ URL ของไฟล์จาก Google Drive');
+      return;
+    }
+
+    const normalizedUrl = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
+    try {
+      const parsed = new URL(normalizedUrl);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        setDriveLinkError('รูปแบบ URL ไม่ถูกต้อง กรุณาใช้ลิงก์ที่ขึ้นต้นด้วย https://');
+        return;
+      }
+    } catch {
+      setDriveLinkError('รูปแบบ URL ไม่ถูกต้อง กรุณาตรวจสอบลิงก์ Google Drive อีกครั้ง');
+      return;
+    }
+
+    if (target === 'archive') {
+      const isImageName = /\.(jpg|jpeg|png|webp|gif)$/i.test(cleanName);
+      const newArchiveFile: ProjectArchiveAttachment = {
+        id: `arc-link-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        name: cleanName,
+        size: 0,
+        type: isImageName ? 'image/jpeg' : 'application/vnd.google-apps.file',
+        photoStage: isImageName ? 'during' : 'document',
+        caption: '',
+        uploadDate: new Date().toISOString().split('T')[0],
+        url: normalizedUrl
+      };
+
+      setFormData(prev => ({
+        ...prev,
+        projectRecord: {
+          ...(prev.projectRecord || {}),
+          files: [...(prev.projectRecord?.files || []), newArchiveFile],
+          updatedAt: formatThaiDateTime()
+        }
+      }));
+    } else {
+      const newAtt: AttachmentFile = {
+        id: `att-link-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        name: cleanName,
+        size: 0,
+        type: 'application/vnd.google-apps.file',
+        category: target,
+        url: normalizedUrl,
+        uploadDate: new Date().toISOString().split('T')[0]
+      };
+
+      setFormData(prev => ({
+        ...prev,
+        attachments: [...prev.attachments, newAtt],
+        fileUrl: prev.fileUrl || newAtt.url,
+        fileName: prev.fileName || newAtt.name
+      }));
+    }
+
+    setDriveLinkName('');
+    setDriveLinkUrl('');
+    setDriveLinkError(null);
+    setOpenDriveLinkTarget(null);
+
+    Swal.fire({
+      icon: 'success',
+      title: 'แนบลิงก์ไฟล์สำเร็จ',
+      text: `เพิ่มลิงก์ "${cleanName}" เรียบร้อยแล้ว`,
+      timer: 1300,
+      showConfirmButton: false
+    });
+  };
+
+  const renderDriveLinkInlineForm = (
+    target: AttachmentFile['category'] | 'archive',
+    placeholderName: string
+  ) => {
+    if (openDriveLinkTarget !== target) return null;
+
+    return (
+      <div className="mt-2.5 p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <div className="text-xs font-bold text-slate-800">
+              แนบไฟล์ขนาดใหญ่ด้วยลิงก์ Google Drive (URL)
+            </div>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              อัปโหลดไฟล์ขึ้น Google Drive โดยตรงแล้ววางลิงก์ที่นี่ (แนะนำเปิดสิทธิ์เป็น &ldquo;ทุกคนที่มีลิงก์สามารถดูได้&rdquo;)
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setOpenDriveLinkTarget(null);
+              setDriveLinkError(null);
+            }}
+            className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
+            title="ปิดช่องแนบลิงก์"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+              ชื่อไฟล์ที่จะแสดงในระบบ <span className="text-rose-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={driveLinkName}
+              onChange={e => {
+                setDriveLinkName(e.target.value);
+                if (driveLinkError) setDriveLinkError(null);
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAddDriveLinkAttachment(target);
+                }
+              }}
+              placeholder={placeholderName}
+              className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+              ลิงก์ URL ของไฟล์ใน Google Drive <span className="text-rose-500">*</span>
+            </label>
+            <input
+              type="url"
+              value={driveLinkUrl}
+              onChange={e => {
+                setDriveLinkUrl(e.target.value);
+                if (driveLinkError) setDriveLinkError(null);
+              }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  handleAddDriveLinkAttachment(target);
+                }
+              }}
+              placeholder="https://drive.google.com/file/d/.../view?usp=sharing"
+              className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-mono text-slate-800 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+            />
+          </div>
+        </div>
+
+        {driveLinkError && (
+          <div className="flex items-center gap-1.5 text-[11px] font-medium text-rose-600">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+            <span>{driveLinkError}</span>
+          </div>
+        )}
+
+        <div className="flex items-center justify-end gap-2 pt-1">
+          <button
+            type="button"
+            onClick={() => {
+              setOpenDriveLinkTarget(null);
+              setDriveLinkError(null);
+            }}
+            className="px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-600 text-xs font-medium transition"
+          >
+            ยกเลิก
+          </button>
+          <button
+            type="button"
+            onClick={() => handleAddDriveLinkAttachment(target)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition shadow-2xs"
+          >
+            <Link2 className="w-3.5 h-3.5" />
+            <span>เพิ่มลิงก์แนบ</span>
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   const removeAttachment = (id: string, fileName?: string) => {
     Swal.fire({
       title: 'ยืนยันการลบไฟล์แนบ?',
@@ -952,7 +1168,11 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
               <button
                 key={tab.num}
                 type="button"
-                onClick={() => setActiveTab(tab.num)}
+                onClick={() => {
+                  setActiveTab(tab.num);
+                  setOpenDriveLinkTarget(null);
+                  setDriveLinkError(null);
+                }}
                 className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
                   isActive
                     ? 'bg-white text-emerald-800 shadow-xs border border-slate-200/80'
@@ -1217,22 +1437,39 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
               <div className="pt-4 border-t border-slate-200 space-y-3">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <Paperclip className="w-4 h-4 text-emerald-700" />
+                    <Paperclip className="w-4 h-4 text-emerald-700 shrink-0" />
                     <h5 className="text-xs font-bold text-slate-800">
                       รายการไฟล์แนบและคลังเอกสารในระบบ ({formData.attachments?.length || 0} ไฟล์)
                     </h5>
                   </div>
-                  <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl text-xs font-bold border border-emerald-300 transition shadow-2xs">
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>+ อัปโหลดไฟล์แนบเพิ่ม</span>
-                    <input
-                      type="file"
-                      multiple
-                      onChange={e => handleFileUpload(e, 'other')}
-                      className="hidden"
-                    />
-                  </label>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleDriveLinkForm('other')}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition shadow-2xs whitespace-nowrap shrink-0 ${
+                        openDriveLinkTarget === 'other'
+                          ? 'bg-sky-600 text-white border-sky-600 hover:bg-sky-700'
+                          : 'bg-sky-50 hover:bg-sky-100 text-sky-800 border-sky-300'
+                      }`}
+                    >
+                      <Link2 className="w-3.5 h-3.5" />
+                      <span>+ แนบลิงก์ Drive (URL)</span>
+                    </button>
+                    <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl text-xs font-bold border border-emerald-300 transition shadow-2xs whitespace-nowrap shrink-0">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>+ อัปโหลดไฟล์แนบเพิ่ม</span>
+                      <input
+                        type="file"
+                        multiple
+                        onChange={e => handleFileUpload(e, 'other')}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
                 </div>
+
+                {/* ฟอร์มแนบลิงก์ Google Drive (URL) */}
+                {renderDriveLinkInlineForm('other', 'เช่น เอกสารประกอบโครงการทั่วไป.pdf')}
 
                 {formData.attachments && formData.attachments.length > 0 ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -1242,13 +1479,21 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                         className="flex items-center justify-between gap-2 p-2.5 bg-slate-50 hover:bg-emerald-50/40 rounded-xl border border-slate-200 text-xs transition"
                       >
                         <div className="flex items-center gap-2 overflow-hidden">
-                          <Paperclip className="w-4 h-4 text-emerald-600 shrink-0" />
+                          {att.size === 0 ? (
+                            <Link2 className="w-4 h-4 text-sky-600 shrink-0" />
+                          ) : (
+                            <Paperclip className="w-4 h-4 text-emerald-600 shrink-0" />
+                          )}
                           <div className="overflow-hidden">
                             <div className="font-semibold text-slate-800 truncate" title={att.name}>
                               {att.name}
                             </div>
                             <div className="text-[10px] text-slate-500">
-                              หมวด: <span className="font-semibold text-emerald-800">{att.category}</span> • {(att.size / 1024).toFixed(1)} KB
+                              หมวด:{' '}
+                              <span className="font-semibold text-emerald-800">
+                                {ATTACHMENT_CATEGORY_LABELS[att.category] || att.category}
+                              </span>{' '}
+                              · {att.size > 0 ? `${(att.size / 1024).toFixed(1)} KB` : 'ลิงก์ Drive'}
                             </div>
                           </div>
                         </div>
@@ -1281,7 +1526,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                   </div>
                 ) : (
                   <div className="text-xs text-slate-400 italic p-3 bg-slate-50 rounded-xl border border-dashed border-slate-200 text-center">
-                    ยังไม่มีไฟล์แนบในโครงการนี้ (สามารถอัปโหลดไฟล์แนบเพิ่มเติมได้ที่นี่หรือตามหมวดงาน)
+                    ยังไม่มีไฟล์แนบในโครงการนี้ (สามารถอัปโหลดไฟล์หรือแนบลิงก์ Google Drive ได้ที่นี่หรือตามหมวดงาน)
                   </div>
                 )}
               </div>
@@ -1459,8 +1704,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   ไฟล์แนบคำสั่งแต่งตั้ง TOR และเอกสารราคากลาง (PDF, Excel, Word)
                 </label>
-                <div className="flex items-center gap-3">
-                  <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-medium border border-slate-300">
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-medium border border-slate-300 whitespace-nowrap shrink-0">
                     <Upload className="w-3.5 h-3.5" />
                     <span>เลือกไฟล์แนบ...</span>
                     <input
@@ -1470,10 +1715,24 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                       className="hidden"
                     />
                   </label>
+                  <button
+                    type="button"
+                    onClick={() => toggleDriveLinkForm('tor')}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition whitespace-nowrap shrink-0 ${
+                      openDriveLinkTarget === 'tor'
+                        ? 'bg-sky-600 text-white border-sky-600 hover:bg-sky-700'
+                        : 'bg-sky-50 hover:bg-sky-100 text-sky-800 border-sky-300'
+                    }`}
+                  >
+                    <Link2 className="w-3.5 h-3.5" />
+                    <span>+ แนบลิงก์ Drive (URL)</span>
+                  </button>
                   <span className="text-xs text-slate-400">
                     {formData.attachments.filter(a => a.category === 'tor').length} ไฟล์แนบในหมวดนี้
                   </span>
                 </div>
+
+                {renderDriveLinkInlineForm('tor', 'เช่น แบบรูปรายการและราคากลาง (ปร.4 ปร.5).pdf')}
 
                 <div className="mt-2 space-y-1">
                   {formData.attachments
@@ -1483,11 +1742,15 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                         key={att.id}
                         className="flex items-center justify-between p-2 bg-emerald-50/60 rounded-lg border border-emerald-200 text-xs text-emerald-900"
                       >
-                        <div className="flex items-center gap-2">
-                          <Paperclip className="w-3.5 h-3.5 text-emerald-600" />
-                          <span className="font-medium">{att.name}</span>
-                          <span className="text-[10px] text-emerald-700">
-                            ({(att.size / 1024).toFixed(1)} KB)
+                        <div className="flex items-center gap-2 min-w-0">
+                          {att.size === 0 ? (
+                            <Link2 className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                          ) : (
+                            <Paperclip className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          )}
+                          <span className="font-medium truncate">{att.name}</span>
+                          <span className="text-[10px] text-emerald-700 shrink-0">
+                            ({att.size > 0 ? `${(att.size / 1024).toFixed(1)} KB` : 'ลิงก์ Drive'})
                           </span>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
@@ -1647,8 +1910,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   ไฟล์แนบคำสั่งแต่งตั้งผู้ควบคุมงานและกรรมการตรวจรับ
                 </label>
-                <div className="flex items-center gap-3">
-                  <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-medium border border-slate-300">
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-medium border border-slate-300 whitespace-nowrap shrink-0">
                     <Upload className="w-3.5 h-3.5" />
                     <span>เลือกไฟล์แนบคำสั่ง...</span>
                     <input
@@ -1658,10 +1921,24 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                       className="hidden"
                     />
                   </label>
+                  <button
+                    type="button"
+                    onClick={() => toggleDriveLinkForm('order')}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition whitespace-nowrap shrink-0 ${
+                      openDriveLinkTarget === 'order'
+                        ? 'bg-sky-600 text-white border-sky-600 hover:bg-sky-700'
+                        : 'bg-sky-50 hover:bg-sky-100 text-sky-800 border-sky-300'
+                    }`}
+                  >
+                    <Link2 className="w-3.5 h-3.5" />
+                    <span>+ แนบลิงก์ Drive (URL)</span>
+                  </button>
                   <span className="text-xs text-slate-400">
                     {formData.attachments.filter(a => a.category === 'order').length} ไฟล์แนบในหมวดนี้
                   </span>
                 </div>
+
+                {renderDriveLinkInlineForm('order', 'เช่น คำสั่งแต่งตั้งผู้ควบคุมงานและกรรมการตรวจรับ.pdf')}
 
                 <div className="mt-2 space-y-1">
                   {formData.attachments
@@ -1671,9 +1948,16 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                         key={att.id}
                         className="flex items-center justify-between p-2 bg-emerald-50/60 rounded-lg border border-emerald-200 text-xs text-emerald-900"
                       >
-                        <div className="flex items-center gap-2">
-                          <Paperclip className="w-3.5 h-3.5 text-emerald-600" />
-                          <span className="font-medium">{att.name}</span>
+                        <div className="flex items-center gap-2 min-w-0">
+                          {att.size === 0 ? (
+                            <Link2 className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                          ) : (
+                            <Paperclip className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          )}
+                          <span className="font-medium truncate">{att.name}</span>
+                          {att.size === 0 && (
+                            <span className="text-[10px] text-emerald-700 shrink-0">(ลิงก์ Drive)</span>
+                          )}
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
                           {att.url && (
@@ -1835,8 +2119,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   ไฟล์แนบสัญญาจ้างและแบบแปลนก่อสร้าง
                 </label>
-                <div className="flex items-center gap-3">
-                  <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-medium border border-slate-300">
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-medium border border-slate-300 whitespace-nowrap shrink-0">
                     <Upload className="w-3.5 h-3.5" />
                     <span>เลือกไฟล์แนบสัญญา...</span>
                     <input
@@ -1846,10 +2130,24 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                       className="hidden"
                     />
                   </label>
+                  <button
+                    type="button"
+                    onClick={() => toggleDriveLinkForm('contract')}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition whitespace-nowrap shrink-0 ${
+                      openDriveLinkTarget === 'contract'
+                        ? 'bg-sky-600 text-white border-sky-600 hover:bg-sky-700'
+                        : 'bg-sky-50 hover:bg-sky-100 text-sky-800 border-sky-300'
+                    }`}
+                  >
+                    <Link2 className="w-3.5 h-3.5" />
+                    <span>+ แนบลิงก์ Drive (URL)</span>
+                  </button>
                   <span className="text-xs text-slate-400">
                     {formData.attachments.filter(a => a.category === 'contract').length} ไฟล์แนบในหมวดนี้
                   </span>
                 </div>
+
+                {renderDriveLinkInlineForm('contract', 'เช่น สัญญาจ้างและแบบแปลนก่อสร้าง (ฉบับเต็ม).pdf')}
 
                 <div className="mt-2 space-y-1">
                   {formData.attachments
@@ -1859,9 +2157,16 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                         key={att.id}
                         className="flex items-center justify-between p-2 bg-emerald-50/60 rounded-lg border border-emerald-200 text-xs text-emerald-900"
                       >
-                        <div className="flex items-center gap-2">
-                          <Paperclip className="w-3.5 h-3.5 text-emerald-600" />
-                          <span className="font-medium">{att.name}</span>
+                        <div className="flex items-center gap-2 min-w-0">
+                          {att.size === 0 ? (
+                            <Link2 className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                          ) : (
+                            <Paperclip className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          )}
+                          <span className="font-medium truncate">{att.name}</span>
+                          {att.size === 0 && (
+                            <span className="text-[10px] text-emerald-700 shrink-0">(ลิงก์ Drive)</span>
+                          )}
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
                           {att.url && (
@@ -2272,8 +2577,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                 <label className="block text-xs font-semibold text-slate-700 mb-1">
                   ไฟล์แนบหนังสือแจ้งเข้าทำงาน ส่งมอบ ตรวจรับ และฎีกาเบิกจ่าย
                 </label>
-                <div className="flex items-center gap-3">
-                  <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-medium border border-slate-300">
+                <div className="flex flex-wrap items-center gap-2">
+                  <label className="cursor-pointer inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-medium border border-slate-300 whitespace-nowrap shrink-0">
                     <Upload className="w-3.5 h-3.5" />
                     <span>เลือกไฟล์แนบ...</span>
                     <input
@@ -2283,10 +2588,24 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                       className="hidden"
                     />
                   </label>
+                  <button
+                    type="button"
+                    onClick={() => toggleDriveLinkForm('delivery')}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border transition whitespace-nowrap shrink-0 ${
+                      openDriveLinkTarget === 'delivery'
+                        ? 'bg-sky-600 text-white border-sky-600 hover:bg-sky-700'
+                        : 'bg-sky-50 hover:bg-sky-100 text-sky-800 border-sky-300'
+                    }`}
+                  >
+                    <Link2 className="w-3.5 h-3.5" />
+                    <span>+ แนบลิงก์ Drive (URL)</span>
+                  </button>
                   <span className="text-xs text-slate-400">
                     {formData.attachments.filter(a => ['notice', 'delivery', 'inspection', 'disbursement'].includes(a.category)).length} ไฟล์แนบในหมวดนี้
                   </span>
                 </div>
+
+                {renderDriveLinkInlineForm('delivery', 'เช่น หนังสือส่งมอบงานและเอกสารตรวจรับ/ฎีกา.pdf')}
 
                 <div className="mt-2 space-y-1">
                   {formData.attachments
@@ -2296,11 +2615,16 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                         key={att.id}
                         className="flex items-center justify-between p-2 bg-emerald-50/60 rounded-lg border border-emerald-200 text-xs text-emerald-900"
                       >
-                        <div className="flex items-center gap-2">
-                          <Paperclip className="w-3.5 h-3.5 text-emerald-600" />
-                          <span className="font-medium">{att.name}</span>
-                          <span className="text-[10px] text-emerald-700">
-                            ({att.category} • {(att.size / 1024).toFixed(1)} KB)
+                        <div className="flex items-center gap-2 min-w-0">
+                          {att.size === 0 ? (
+                            <Link2 className="w-3.5 h-3.5 text-sky-600 shrink-0" />
+                          ) : (
+                            <Paperclip className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          )}
+                          <span className="font-medium truncate">{att.name}</span>
+                          <span className="text-[10px] text-emerald-700 shrink-0">
+                            ({ATTACHMENT_CATEGORY_LABELS[att.category] || att.category} •{' '}
+                            {att.size > 0 ? `${(att.size / 1024).toFixed(1)} KB` : 'ลิงก์ Drive'})
                           </span>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
@@ -2787,18 +3111,34 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                     </p>
                   </div>
 
-                  <label className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer shadow-xs transition self-start">
-                    <Upload className="w-3.5 h-3.5" />
-                    <span>แนบรูปภาพ / ไฟล์โครงการ</span>
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/*,.pdf,.doc,.docx"
-                      onChange={e => handleArchiveFileUpload(e, 'during')}
-                      className="hidden"
-                    />
-                  </label>
+                  <div className="flex flex-wrap items-center gap-2 self-start">
+                    <button
+                      type="button"
+                      onClick={() => toggleDriveLinkForm('archive')}
+                      className={`px-3 py-2 rounded-xl text-xs font-bold inline-flex items-center gap-1.5 border transition shadow-2xs whitespace-nowrap shrink-0 ${
+                        openDriveLinkTarget === 'archive'
+                          ? 'bg-sky-700 text-white border-sky-700 hover:bg-sky-800'
+                          : 'bg-white hover:bg-sky-50 text-sky-800 border-sky-300'
+                      }`}
+                    >
+                      <Link2 className="w-3.5 h-3.5" />
+                      <span>+ แนบลิงก์ Drive (URL)</span>
+                    </button>
+                    <label className="px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold inline-flex items-center gap-1.5 cursor-pointer shadow-xs transition whitespace-nowrap shrink-0">
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>แนบรูปภาพ / ไฟล์โครงการ</span>
+                      <input
+                        type="file"
+                        multiple
+                        accept="image/*,.pdf,.doc,.docx"
+                        onChange={e => handleArchiveFileUpload(e, 'during')}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
                 </div>
+
+                {renderDriveLinkInlineForm('archive', 'เช่น รูปภาพ/แบบแปลน As-Built โครงการ.pdf')}
 
                 {(!formData.projectRecord?.files || formData.projectRecord.files.length === 0) ? (
                   <div className="bg-white rounded-xl p-6 text-center border border-dashed border-sky-200 text-xs text-slate-400">
@@ -2839,10 +3179,25 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                             </div>
                           ) : (
                             <div className="relative h-32 bg-slate-50 flex flex-col items-center justify-center p-3 text-center">
-                              <FileText className="w-7 h-7 text-slate-400 mb-1" />
+                              {file.size === 0 ? (
+                                <Link2 className="w-7 h-7 text-sky-500 mb-1" />
+                              ) : (
+                                <FileText className="w-7 h-7 text-slate-400 mb-1" />
+                              )}
                               <span className="text-xs font-semibold text-slate-700 line-clamp-2">
                                 {file.name}
                               </span>
+                              {file.url && (
+                                <a
+                                  href={file.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-100 hover:bg-sky-200 text-sky-800 text-[10px] font-bold transition"
+                                >
+                                  <ExternalLink className="w-3 h-3" />
+                                  <span>เปิดใน Drive</span>
+                                </a>
+                              )}
                               <button
                                 type="button"
                                 onClick={() =>
