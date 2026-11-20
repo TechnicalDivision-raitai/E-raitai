@@ -93,6 +93,36 @@ export function getArchiveImageDisplayUrl(file?: ProjectArchiveAttachment): stri
   return rawUrl;
 }
 
+function getBudgetCategoryBadgeClass(category?: string): string {
+  const normalized = (category || '').trim();
+  if (normalized.includes('งบประมาณรายจ่าย') || normalized.includes('ข้อบัญญัติ')) {
+    return 'bg-sky-50 text-sky-800 border-sky-300';
+  }
+  if (normalized.includes('เงินสะสม')) {
+    return 'bg-amber-50 text-amber-800 border-amber-300';
+  }
+  if (normalized.includes('อุดหนุนเฉพาะกิจ') || normalized.includes('เฉพาะกิจ')) {
+    return 'bg-violet-50 text-violet-800 border-violet-300';
+  }
+  if (normalized.includes('อุดหนุนทั่วไป') || normalized.includes('อุดหนุน')) {
+    return 'bg-teal-50 text-teal-800 border-teal-300';
+  }
+  if (!normalized) {
+    return 'bg-slate-50 text-slate-600 border-slate-300';
+  }
+  const fallbackPalettes = [
+    'bg-indigo-50 text-indigo-800 border-indigo-300',
+    'bg-rose-50 text-rose-800 border-rose-300',
+    'bg-cyan-50 text-cyan-800 border-cyan-300',
+    'bg-orange-50 text-orange-800 border-orange-300'
+  ];
+  let hash = 0;
+  for (let i = 0; i < normalized.length; i += 1) {
+    hash = (hash * 31 + normalized.charCodeAt(i)) >>> 0;
+  }
+  return fallbackPalettes[hash % fallbackPalettes.length];
+}
+
 /**
  * Generates a small compressed JPEG data URL for image files so thumbnails can be viewed offline/retrospectively
  */
@@ -516,7 +546,11 @@ export const ProjectRecordsView: React.FC<ProjectRecordsViewProps> = ({
                       <span className="text-xs font-semibold px-2.5 py-0.5 rounded-lg bg-slate-200/80 text-slate-700">
                         ปีงบประมาณ {project.fiscalYear}
                       </span>
-                      <span className="text-xs font-medium px-2.5 py-0.5 rounded-lg bg-teal-50 text-teal-700 border border-teal-200">
+                      <span
+                        className={`text-xs font-semibold px-2.5 py-0.5 rounded-lg border ${getBudgetCategoryBadgeClass(
+                          project.budgetCategory
+                        )}`}
+                      >
                         {project.budgetCategory}
                       </span>
                       {hasData ? (
