@@ -561,9 +561,20 @@ export const SarabanQueuePanel: React.FC<SarabanQueuePanelProps> = ({
                   <input
                     type="date"
                     value={overrides.bookDate}
-                    onChange={e =>
-                      setOverrides(prev => (prev ? { ...prev, bookDate: e.target.value } : prev))
-                    }
+                    onChange={e => {
+                      const nextBookDate = e.target.value;
+                      setOverrides(prev => {
+                        if (!prev) return prev;
+                        const shouldSyncDelivery =
+                          reviewingItem.docCategory === 'delivery' &&
+                          (!prev.actualDeliveryDate || prev.actualDeliveryDate === prev.bookDate);
+                        return {
+                          ...prev,
+                          bookDate: nextBookDate,
+                          ...(shouldSyncDelivery ? { actualDeliveryDate: nextBookDate } : {})
+                        };
+                      });
+                    }}
                     className="w-full px-3 py-2 rounded-lg border border-slate-300 text-slate-800 text-xs tabular-nums focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>

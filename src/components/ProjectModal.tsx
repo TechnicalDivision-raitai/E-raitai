@@ -712,6 +712,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
         if (Array.isArray(cloned.deliveries)) {
           cloned.deliveries = cloned.deliveries.map(d => ({
             ...d,
+            actualDeliveryDate: d.actualDeliveryDate || d.bookDate || '',
             details: d.details && d.details.trim() ? d.details : DEFAULT_DELIVERY_DETAILS
           }));
         }
@@ -3015,21 +3016,50 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                             type="date"
                             value={del.bookDate}
                             onChange={e => {
+                              const nextBookDate = e.target.value;
                               const updated = [...formData.deliveries];
-                              updated[idx].bookDate = e.target.value;
+                              const prevBookDate = updated[idx].bookDate || '';
+                              const prevActual = updated[idx].actualDeliveryDate || '';
+                              const shouldSyncActual = !prevActual || prevActual === prevBookDate;
+                              updated[idx] = {
+                                ...updated[idx],
+                                bookDate: nextBookDate,
+                                ...(shouldSyncActual ? { actualDeliveryDate: nextBookDate } : {})
+                              };
                               setFormData({ ...formData, deliveries: updated });
                             }}
                             className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg"
                           />
                         </div>
                         <div>
-                          <label className="block text-[11px] font-medium text-slate-600 mb-0.5">วันที่ส่งมอบจริง</label>
+                          <div className="flex items-center justify-between gap-1 mb-0.5">
+                            <label className="block text-[11px] font-medium text-slate-600">วันที่ส่งมอบจริง</label>
+                            {del.bookDate && del.actualDeliveryDate !== del.bookDate && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const updated = [...formData.deliveries];
+                                  updated[idx] = {
+                                    ...updated[idx],
+                                    actualDeliveryDate: del.bookDate
+                                  };
+                                  setFormData({ ...formData, deliveries: updated });
+                                }}
+                                className="text-[10px] font-medium text-emerald-700 hover:text-emerald-800 whitespace-nowrap"
+                              >
+                                ตามวันที่หนังสือ
+                              </button>
+                            )}
+                          </div>
                           <input
                             type="date"
                             value={del.actualDeliveryDate}
                             onChange={e => {
                               const updated = [...formData.deliveries];
-                              updated[idx].actualDeliveryDate = e.target.value;
+                              updated[idx] = {
+                                ...updated[idx],
+                                actualDeliveryDate: e.target.value
+                              };
                               setFormData({ ...formData, deliveries: updated });
                             }}
                             className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg"

@@ -208,7 +208,10 @@ export const ProjectTimelineView: React.FC<ProjectTimelineViewProps> = ({
         ? `ส่งมอบแล้ว ${p.deliveries.length} งวด`
         : 'ผู้รับจ้างส่งมอบงานตามสัญญา',
       status: hasDelivery ? 'completed' : isOverdue ? 'overdue' : hasWorkNotice ? 'in_progress' : 'pending',
-      date: hasDelivery ? p.deliveries[p.deliveries.length - 1].actualDeliveryDate : undefined,
+      date: hasDelivery
+        ? p.deliveries[p.deliveries.length - 1].actualDeliveryDate ||
+          p.deliveries[p.deliveries.length - 1].bookDate
+        : undefined,
       referenceNo: hasDelivery ? p.deliveries[p.deliveries.length - 1].bookNo : undefined
     };
 
