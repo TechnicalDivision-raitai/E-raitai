@@ -251,3 +251,83 @@ export interface SarabanQueueItem {
   rejectReason?: string;
 }
 
+// =========================================================================
+// คำร้อง / งานซ่อมแซมถนน (รับเรื่องร้องทุกข์และการแก้ไขปัญหา กองช่าง อบต.ไร่ใต้)
+// =========================================================================
+export type RepairRequestStatus =
+  | 'received'       // รับคำร้องแล้ว / รอตรวจสอบ
+  | 'inspecting'     // ลงพื้นที่สำรวจ
+  | 'in_progress'    // กำลังดำเนินการซ่อมแซม
+  | 'completed'      // แก้ไข/ซ่อมแซมแล้วเสร็จ
+  | 'budget_planned'; // เสนอตั้งงบประมาณ / จัดทำโครงการ
+
+export type RepairUrgency = 'normal' | 'urgent' | 'emergency';
+
+export type RepairChannel = 'walk_in' | 'council_member' | 'phone' | 'letter' | 'online';
+
+export type RepairRoadType = 'gravel' | 'concrete' | 'asphalt' | 'drainage' | 'bridge' | 'other';
+
+export interface RepairAttachment {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  stage: 'petition' | 'before' | 'during' | 'after';
+  caption?: string;
+  url?: string;
+  previewDataUrl?: string;
+  uploadDate: string;
+}
+
+export interface RepairRequest {
+  id: string;
+  requestCode: string;            // รหัสคำร้องอัตโนมัติ เช่น ซ.69-001
+  fiscalYear: number;             // ปีงบประมาณ พ.ศ. เช่น 2569
+
+  // ส่วนรับเรื่อง อบต. และ กองช่าง
+  obtReceiveNo?: string;          // เลขรับ อบต. เช่น 2686
+  obtReceiveDate?: string;        // วันที่รับ อบต. (YYYY-MM-DD)
+  engReceiveNo?: string;          // เลขที่รับกองช่าง เช่น 288
+  engReceiveDate?: string;        // วันที่รับกองช่าง (YYYY-MM-DD)
+  channel: RepairChannel;
+
+  // ส่วนข้อมูลใบคำร้องทุกข์/ร้องเรียน
+  petitionDate: string;           // วันที่ยื่นคำร้อง (YYYY-MM-DD)
+  subject: string;                // เรื่อง เช่น ขอความอนุเคราะห์ ซ่อมแซม ถนนลูกรัง สายโคกสูง - เสี่ยวนา
+  roadName: string;               // สายถนน / จุดเกิดเหตุ
+  villageNo?: string;             // หมู่ที่
+  roadType: RepairRoadType;
+  requesterName: string;          // ชื่อ-สกุล ผู้ร้องทุกข์/ร้องเรียน
+  requesterAge?: string;          // อายุ (ปี)
+  requesterPosition?: string;     // ตำแหน่ง/อาชีพ เช่น สมาชิกสภา อบต.
+  requesterAddress?: string;      // ที่อยู่ผู้ร้อง
+  requesterPhone?: string;        // เบอร์โทรศัพท์
+  problemDetails: string;         // รายละเอียดความเดือดร้อน/สภาพการชำรุด
+  submittedEvidenceNote?: string; // เอกสารหลักฐานประกอบคำร้อง เช่น รูปถ่าย จำนวน 1 ชุด
+  officerNote?: string;           // บันทึกเจ้าหน้าที่เสนอ ผอ.กองช่าง
+  urgency: RepairUrgency;
+
+  // พิกัดจุดชำรุด (สำหรับเปิด Google Maps ลงพื้นที่)
+  locationLat?: string;
+  locationLng?: string;
+
+  // ส่วนการตรวจสอบและการแก้ไขปัญหา
+  status: RepairRequestStatus;
+  assignedStaff?: string;         // ผู้รับผิดชอบ / ชุดช่างผู้ดำเนินการ
+  inspectionDate?: string;        // วันที่ลงพื้นที่ตรวจสอบ
+  inspectionSummary?: string;     // ผลการตรวจสอบหน้างาน
+  repairMethod?: string;          // วิธีการซ่อมแซม
+  repairDetails?: string;         // รายละเอียดการแก้ไข/วัสดุ/เครื่องจักรที่ใช้
+  repairStartDate?: string;       // วันที่เริ่มดำเนินการซ่อมแซม
+  repairCompletedDate?: string;   // วันที่แก้ไข/ซ่อมแซมแล้วเสร็จ
+  repairCost?: number;            // ค่าใช้จ่ายซ่อมบำรุง (บาท) ถ้ามี
+  resolutionNote?: string;        // สรุปผลการแก้ไข / หมายเหตุปิดงาน
+
+  // เอกสารใบคำร้องและภาพถ่าย ก่อน-ระหว่าง-หลังซ่อม
+  attachments: RepairAttachment[];
+
+  createdAt: string;
+  updatedAt: string;
+}
+
+

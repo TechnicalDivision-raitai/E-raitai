@@ -19,7 +19,16 @@ import { LoginModal } from './components/LoginModal';
 import { MyInboxView } from './components/MyInboxView';
 import { VouchersSummaryView } from './components/VouchersSummaryView';
 import { ProjectRecordsView } from './components/ProjectRecordsView';
-import { Project, ProjectArchiveRecord, ProjectFilter, SarabanQueueItem, UserProfile } from './types/project';
+import { RepairRequestsView } from './components/RepairRequestsView';
+import {
+  Project,
+  ProjectArchiveRecord,
+  ProjectFilter,
+  RepairRequest,
+  RepairRequestStatus,
+  SarabanQueueItem,
+  UserProfile
+} from './types/project';
 import {
   getStoredProjects,
   saveStoredProjects,
@@ -27,7 +36,9 @@ import {
   clearAllProjects,
   getStoredUser,
   saveStoredUser,
-  clearStoredUser
+  clearStoredUser,
+  getStoredRepairRequests,
+  saveStoredRepairRequests
 } from './services/storage';
 import {
   fetchProjectsFromGoogleSheet,
@@ -60,12 +71,16 @@ const ALLOWED_TABS = new Set([
   'timeline',
   'reports',
   'project_records',
+  'repair_requests',
   'excel_import',
   'manual'
 ]);
 
 export default function App() {
   const [projects, setProjects] = useState<Project[]>(() => getStoredProjects());
+  const [repairRequests, setRepairRequests] = useState<RepairRequest[]>(() =>
+    getStoredRepairRequests()
+  );
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => getStoredUser());
   const [currentTab, setCurrentTab] = useState<string>(() => {
     try {
@@ -661,6 +676,73 @@ export default function App() {
     });
   };
 
+  // Repair Requests Handlers (Admin only; Staff is read-only)
+  const handleSaveRepairRequest = (req: RepairRequest) => {
+    if (currentUser?.role !== 'admin') {
+      Swal.fire('ไม่อนุญาต', 'เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถบันทึกหรือแก้ไขคำร้องได้', 'warning');
+      return;
+    }
+    setRepairRequests(prev => {
+      const exists = prev.some(item => item.id === req.id);
+      const next = exists
+        ? prev.map(item => (item.id === req.id ? req : item))
+        : [req, ...prev];
+      saveStoredRepairRequests(next);
+      return next;
+    });
+    showToast(`บันทึกคำร้อง ${req.requestCode} เรียบร้อยแล้ว`, 'success');
+  };
+
+  const handleDeleteRepairRequest = (id: string) => {
+    if (currentUser?.role !== 'admin') {
+      Swal.fire('ไม่อนุญาต', 'เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถลบข้อมูลคำร้องได้', 'warning');
+      return;
+    }
+    setRepairRequests(prev => {
+      const next = prev.filter(item => item.id !== id);
+      saveStoredRepairRequests(next);
+      return next;
+    });
+    showToast('ลบรายการคำร้องเรียบร้อยแล้ว', 'info');
+  };
+
+  const handleQuickRepairStatusChange = (id: string, status: RepairRequestStatus) => {
+    if (currentUser?.role !== 'admin') {
+      Swal.fire('ไม่อนุญาต', 'เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถเปลี่ยนสถานะคำร้องได้', 'warning');
+      return;
+    }
+    const nowIso = new Date().toISOString();
+    const todayStr = nowIso.slice(0, 10);
+    setRepairRequests(prev => {
+      const next = prev.map(item => {
+        if (item.id !== id) return item;
+        return {
+          ...item,
+          status,
+          repairCompletedDate:
+            status === 'completed' && !item.repairCompletedDate
+              ? todayStr
+              : item.repairCompletedDate,
+          updatedAt: nowIso
+        };
+      });
+      saveStoredRepairRequests(next);
+      return next;
+    });
+    showToast('อัปเดตสถานะคำร้องเรียบร้อยแล้ว', 'success');
+  };
+
+  const openRepairCount = useMemo(
+    () =>
+      repairRequests.filter(
+        r =>
+          r.status === 'received' ||
+          r.status === 'inspecting' ||
+          r.status === 'in_progress'
+      ).length,
+    [repairRequests]
+  );
+
   const currentCategoryTitle = filter.category && filter.category !== 'all' ? filter.category : 'ทะเบียนโครงการทั้งหมด';
 
   const pageTitles: Record<string, string> = {
@@ -672,6 +754,7 @@ export default function App() {
     timeline: 'ติดตามสถานะโครงการ',
     reports: 'รายงาน & สถิติโครงการ',
     project_records: 'ข้อมูลโครงการ',
+    repair_requests: 'คำร้อง/งานซ่อมแซม',
     excel_import: 'นำเข้าข้อมูล Excel',
     manual: 'คู่มือ & สรุปผลงาน'
   };
@@ -740,6 +823,7 @@ export default function App() {
           setFilter(prev => ({ ...prev, category: cat }));
         }}
         pendingSarabanCount={sarabanQueueItems.filter(i => i.queueStatus === 'pending').length}
+        openRepairCount={openRepairCount}
       />
 
       {/* Main Content Area */}
@@ -919,6 +1003,18 @@ export default function App() {
               onSelectYear={yr => setFilter(prev => ({ ...prev, fiscalYear: yr }))}
               currentUser={currentUser}
               onSaveProjectRecord={handleSaveProjectRecord}
+            />
+          )}
+
+          {/* 7.6 Road Petitions & Repair Work Tracker */}
+          {currentTab === 'repair_requests' && (
+            <RepairRequestsView
+              requests={repairRequests}
+              availableYears={availableYears}
+              currentUser={currentUser}
+              onSaveRequest={handleSaveRepairRequest}
+              onDeleteRequest={handleDeleteRepairRequest}
+              onQuickStatusChange={handleQuickRepairStatusChange}
             />
           )}
 

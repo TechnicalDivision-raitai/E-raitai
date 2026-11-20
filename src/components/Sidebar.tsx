@@ -17,7 +17,8 @@ import {
   X,
   CalendarClock,
   Layers,
-  MapPin
+  MapPin,
+  Wrench
 } from 'lucide-react';
 import { UserProfile, Project } from '../types/project';
 import { isProjectCompletedOrDisbursed } from '../utils/thaiDate';
@@ -35,6 +36,7 @@ interface SidebarProps {
   onSelectCategoryFilter?: (category: string) => void;
   selectedCategory?: string;
   pendingSarabanCount?: number;
+  openRepairCount?: number;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -49,7 +51,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isDesktopCollapsed = false,
   onSelectCategoryFilter,
   selectedCategory = 'all',
-  pendingSarabanCount = 0
+  pendingSarabanCount = 0,
+  openRepairCount = 0
 }) => {
   const isAdmin = currentUser.role === 'admin';
   const overdueCount = projects.filter(p => p.status === 'overdue' && !isProjectCompletedOrDisbursed(p)).length;
@@ -259,6 +262,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
           >
             <MapPin className="w-4 h-4 text-teal-300 shrink-0" />
             <span className="flex-1 text-left">ข้อมูลโครงการ</span>
+          </button>
+
+          {/* คำร้อง/งานซ่อมแซม (รับเรื่องร้องทุกข์ถนนและติดตามการแก้ไข) */}
+          <button
+            onClick={() => {
+              setCurrentTab('repair_requests');
+              setIsMobileOpen(false);
+            }}
+            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg font-medium transition ${
+              currentTab === 'repair_requests'
+                ? 'bg-emerald-600 text-white shadow-md'
+                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <Wrench className="w-4 h-4 text-amber-300 shrink-0" />
+            <span className="flex-1 text-left truncate">คำร้อง/งานซ่อมแซม</span>
+            {openRepairCount > 0 && (
+              <span
+                className={`text-xs px-2 py-0.5 rounded-full font-bold tabular-nums shrink-0 ${
+                  currentTab === 'repair_requests'
+                    ? 'bg-white/20 text-white'
+                    : 'bg-amber-500/20 text-amber-300'
+                }`}
+              >
+                {openRepairCount}
+              </span>
+            )}
           </button>
 
           {/* รายงานฎีกา & เบิกจ่าย */}
