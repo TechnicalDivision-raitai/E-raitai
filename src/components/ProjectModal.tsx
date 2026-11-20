@@ -652,7 +652,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       name: '',
       budgetCategory: 'งบประมาณรายจ่าย',
       meetingSession: '',
-      approvalYear: nextYear - 1,
+      approvalYear: nextYear,
       approvedBudget: 0,
       description: '',
       location: DEFAULT_PROJECT_LOCATION,
@@ -726,7 +726,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
           name: '',
           budgetCategory: 'งบประมาณรายจ่าย',
           meetingSession: '',
-          approvalYear: nextYear - 1,
+          approvalYear: nextYear,
           approvedBudget: 0,
           description: '',
           location: DEFAULT_PROJECT_LOCATION,
@@ -1716,7 +1716,15 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                         }
                       }
 
-                      setFormData({ ...formData, fiscalYear: yr, projectCode: newCode });
+                      const shouldSyncApprovalYear =
+                        !formData.approvalYear || formData.approvalYear === formData.fiscalYear;
+
+                      setFormData({
+                        ...formData,
+                        fiscalYear: yr,
+                        projectCode: newCode,
+                        ...(shouldSyncApprovalYear ? { approvalYear: yr } : {})
+                      });
                     }}
                     required
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-semibold text-slate-800"
@@ -1907,14 +1915,32 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    ปี พ.ศ. ของมติหรือการอนุมัติ
-                  </label>
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <label className="block text-xs font-semibold text-slate-700">
+                      ปี พ.ศ. ของมติหรือการอนุมัติ
+                    </label>
+                    {formData.approvalYear !== formData.fiscalYear && (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setFormData({ ...formData, approvalYear: formData.fiscalYear })
+                        }
+                        className="text-[10px] font-medium text-emerald-700 hover:text-emerald-800 whitespace-nowrap"
+                      >
+                        ตามปีงบประมาณ
+                      </button>
+                    )}
+                  </div>
                   <input
                     type="number"
                     value={formData.approvalYear || ''}
-                    onChange={e => setFormData({ ...formData, approvalYear: Number(e.target.value) })}
-                    placeholder="เช่น 2569"
+                    onChange={e =>
+                      setFormData({
+                        ...formData,
+                        approvalYear: e.target.value ? Number(e.target.value) : undefined
+                      })
+                    }
+                    placeholder={`เช่น ${formData.fiscalYear}`}
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                   />
                 </div>
