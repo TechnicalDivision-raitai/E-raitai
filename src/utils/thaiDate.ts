@@ -178,7 +178,13 @@ export function countCompletedSteps(p: any): number {
   // 4. จัดทำราคากลาง
   if (p.refPriceDate || (p.refPrice && Number(p.refPrice) > 0)) count += 1;
   // 5. ออกคำสั่งแต่งตั้งกรรมการ (ควบคุมงาน/ตรวจรับ)
-  if (p.inspectOrderNo || p.inspectOrderDate || (p.inspectCommittees && p.inspectCommittees.length > 0) || p.supervisorName) count += 1;
+  if (
+    p.inspectOrderNo ||
+    p.inspectOrderDate ||
+    (p.inspectCommittees && p.inspectCommittees.length > 0) ||
+    p.supervisorName ||
+    (p.supervisors && p.supervisors.some((s: any) => s?.name && String(s.name).trim()))
+  ) count += 1;
   // 6. จัดทำสัญญาจ้าง
   if (p.contractNo || p.contractDate || (p.contractAmount && Number(p.contractAmount) > 0)) count += 1;
   // 7. แจ้งเข้าทำงาน
@@ -288,7 +294,8 @@ export function deriveProjectStatusFromData(p: Partial<Project> | null | undefin
     (p.refPrice !== undefined && Number(p.refPrice) > 0) ||
     Boolean(p.inspectOrderNo && p.inspectOrderNo.trim()) ||
     Boolean(p.inspectOrderDate && p.inspectOrderDate.trim()) ||
-    Boolean(p.supervisorName && p.supervisorName.trim())
+    Boolean(p.supervisorName && p.supervisorName.trim()) ||
+    Boolean(p.supervisors && p.supervisors.some(s => s.name && s.name.trim()))
   ) {
     return 'procurement_tor';
   }

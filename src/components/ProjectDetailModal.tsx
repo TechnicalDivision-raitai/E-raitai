@@ -474,7 +474,43 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
 
                 <div className="grid grid-cols-1 md:grid-cols-3">
                   <div className="bg-slate-50 font-bold text-slate-700 p-2.5 md:col-span-1">ผู้ควบคุมงาน</div>
-                  <div className="p-2.5 text-slate-900 md:col-span-2 font-medium">{project.supervisorName || '-'}</div>
+                  <div className="p-2.5 text-slate-900 md:col-span-2">
+                    {(() => {
+                      const list =
+                        project.supervisors && project.supervisors.some(s => s.name?.trim())
+                          ? project.supervisors.filter(s => s.name?.trim())
+                          : (project.supervisorName || '')
+                              .split(/[\n,]+/)
+                              .map(part => part.trim())
+                              .filter(Boolean)
+                              .map((part, idx) => ({
+                                id: `sup-view-${idx}`,
+                                name: part,
+                                position: ''
+                              }));
+
+                      if (list.length === 0) return '-';
+                      if (list.length === 1) {
+                        const s = list[0];
+                        return (
+                          <span className="font-medium">
+                            {s.name}
+                            {s.position ? ` - ${s.position}` : ''}
+                          </span>
+                        );
+                      }
+                      return (
+                        <ol className="list-decimal list-inside space-y-1">
+                          {list.map(s => (
+                            <li key={s.id}>
+                              <span className="font-semibold">{s.name}</span>
+                              {s.position ? ` - ${s.position}` : ''}
+                            </li>
+                          ))}
+                        </ol>
+                      );
+                    })()}
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3">

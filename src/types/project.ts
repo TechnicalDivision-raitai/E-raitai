@@ -140,6 +140,7 @@ export interface Project {
   inspectOrderNo?: string;
   inspectOrderDate?: string;
   supervisorName?: string;
+  supervisors?: CommitteeMember[];
   inspectCommittees: CommitteeMember[];
 
   // หมวด 4: ข้อมูลสัญญาจ้าง

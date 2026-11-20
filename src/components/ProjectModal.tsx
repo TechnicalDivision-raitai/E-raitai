@@ -292,11 +292,12 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       addClean(p.responsiblePerson);
       addClean(p.torAuthor);
       if (p.supervisorName) {
-        // Strip position inside parentheses e.g. "นายอนันต์ ศรีสุข (นายช่างโยธา)" -> "นายอนันต์ ศรีสุข"
-        const cleanNameOnly = p.supervisorName.replace(/\s*\(.*?\)\s*/g, '');
-        addClean(cleanNameOnly);
-        addClean(p.supervisorName);
+        p.supervisorName.split(/[\n,]+/).forEach(part => {
+          const cleanNameOnly = part.replace(/\s*\(.*?\)\s*/g, '');
+          addClean(cleanNameOnly);
+        });
       }
+      (p.supervisors || []).forEach(s => addClean(s.name));
       (p.torCommittees || []).forEach(c => addClean(c.name));
       (p.inspectCommittees || []).forEach(c => addClean(c.name));
       (p.remunerations || []).forEach(r => addClean(r.payeeName));
@@ -425,12 +426,21 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       const baseProjectTs = Date.parse(p.createdAt || '') || projIdx + 1;
 
       if (p.supervisorName) {
-        const match = p.supervisorName.match(/\(([^)]+)\)/);
-        if (match && match[1]) {
-          const cleanSupName = p.supervisorName.replace(/\s*\(.*?\)\s*/g, '');
-          recordCandidate(cleanSupName, match[1], baseProjectTs);
-        }
+        p.supervisorName.split(/[\n,]+/).forEach(part => {
+          const match = part.match(/\(([^)]+)\)/);
+          if (match && match[1]) {
+            const cleanSupName = part.replace(/\s*\(.*?\)\s*/g, '');
+            recordCandidate(cleanSupName, match[1], baseProjectTs);
+          }
+        });
       }
+
+      (p.supervisors || []).forEach(s => {
+        const memberTs = s.positionUpdatedAt
+          ? Date.parse(s.positionUpdatedAt) || baseProjectTs
+          : baseProjectTs;
+        recordCandidate(s.name, s.position, memberTs);
+      });
 
       (p.torCommittees || []).forEach(c => {
         const memberTs = c.positionUpdatedAt
@@ -479,11 +489,14 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     // 2. Scan all existing projects
     existingProjects.forEach(p => {
       if (p.supervisorName) {
-        const match = p.supervisorName.match(/\(([^)]+)\)/);
-        if (match && match[1]) {
-          addCleanPos(match[1]);
-        }
+        p.supervisorName.split(/[\n,]+/).forEach(part => {
+          const match = part.match(/\(([^)]+)\)/);
+          if (match && match[1]) {
+            addCleanPos(match[1]);
+          }
+        });
       }
+      (p.supervisors || []).forEach(s => addCleanPos(s.position));
       (p.torCommittees || []).forEach(c => addCleanPos(c.position));
       (p.inspectCommittees || []).forEach(c => addCleanPos(c.position));
     });
@@ -535,8 +548,21 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
         return normalizeName(projectData.torAuthor) || normalizeName(projectData.torRemunerationPayee);
       case 'tor':
         return formatCommitteePayee(projectData.torCommittees);
-      case 'supervisor':
-        return normalizeName((projectData.supervisorName || '').replace(/\s*\(.*?\)\s*/g, ''));
+      case 'supervisor': {
+        const validSupervisors = (projectData.supervisors || []).filter(
+          s => normalizeName(s.name).length > 0
+        );
+        if (validSupervisors.length > 0) {
+          const lead = normalizeName(validSupervisors[0].name);
+          return validSupervisors.length > 1 ? `${lead} และคณะ` : lead;
+        }
+        const parts = (projectData.supervisorName || '')
+          .split(/[\n,]+/)
+          .map(part => normalizeName(part.replace(/\s*\(.*?\)\s*/g, '')))
+          .filter(Boolean);
+        if (parts.length === 0) return '';
+        return parts.length > 1 ? `${parts[0]} และคณะ` : parts[0];
+      }
       case 'inspection':
         return formatCommitteePayee(projectData.inspectCommittees);
       default:
@@ -544,16 +570,64 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     }
   };
 
+  // Parse legacy supervisorName string into structured supervisors list
+  const resolveInitialSupervisors = (projectData?: Partial<Project> | null): CommitteeMember[] => {
+    if (Array.isArray(projectData?.supervisors) && projectData!.supervisors!.length > 0) {
+      return projectData!.supervisors!.map((s, idx) => ({
+        ...s,
+        id: s.id || `sup-${idx + 1}`,
+        role: 'ผู้ควบคุมงาน'
+      }));
+    }
+    const raw = (projectData?.supervisorName || '').trim();
+    if (raw) {
+      const parts = raw
+        .split(/[\n,]+/)
+        .map(p => p.trim())
+        .filter(Boolean);
+      if (parts.length > 0) {
+        return parts.map((part, idx) => {
+          const match = part.match(/\(([^)]+)\)/);
+          const pos = match && match[1] ? match[1].trim() : '';
+          const cleanName = part.replace(/\s*\(.*?\)\s*/g, '').trim();
+          return {
+            id: `sup-init-${idx + 1}`,
+            name: cleanName || part,
+            position: pos,
+            role: 'ผู้ควบคุมงาน',
+            phone: ''
+          };
+        });
+      }
+    }
+    return [{ id: 'sup-1', name: '', position: '', role: 'ผู้ควบคุมงาน', phone: '' }];
+  };
+
+  const buildSupervisorNameSummary = (list?: CommitteeMember[]): string => {
+    return (list || [])
+      .map(s => (s.name || '').trim())
+      .filter(Boolean)
+      .join(', ');
+  };
+
   // Normalize legacy TOR title and auto-fill empty payee names from Tab 2 / Tab 3
   const syncRemunerationsWithTabs = (projectData: Project): Project => {
-    const updatedRemunerations = (projectData.remunerations || []).map(r => {
+    const normalizedSupervisors = resolveInitialSupervisors(projectData);
+    const syncedSupervisorName =
+      buildSupervisorNameSummary(normalizedSupervisors) || projectData.supervisorName || '';
+    const withSupervisors: Project = {
+      ...projectData,
+      supervisors: normalizedSupervisors,
+      supervisorName: syncedSupervisorName
+    };
+    const updatedRemunerations = (withSupervisors.remunerations || []).map(r => {
       const normalizedTitle =
         r.title === 'ค่าตอบแทนคณะกรรมการจัดทำแบบรูปและราคากลาง'
           ? REMUNERATION_TITLES.tor
           : r.title;
       const inferredType = inferRemunerationType(normalizedTitle, r.type);
       const currentPayee = normalizeName(r.payeeName);
-      const autoPayee = getDefaultPayeeByType(inferredType, projectData);
+      const autoPayee = getDefaultPayeeByType(inferredType, withSupervisors);
       return {
         ...r,
         type: inferredType,
@@ -562,7 +636,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       };
     });
     return {
-      ...projectData,
+      ...withSupervisors,
       remunerations: updatedRemunerations
     };
   };
@@ -600,6 +674,9 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       inspectOrderNo: '',
       inspectOrderDate: '',
       supervisorName: '',
+      supervisors: [
+        { id: 'sup-1', name: '', position: '', role: 'ผู้ควบคุมงาน', phone: '' }
+      ],
       inspectCommittees: [
         { id: 'cm-2', name: '', position: '', role: 'ประธานกรรมการ', phone: '' }
       ],
@@ -670,6 +747,9 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
           inspectOrderNo: '',
           inspectOrderDate: '',
           supervisorName: '',
+          supervisors: [
+            { id: 'sup-1', name: '', position: '', role: 'ผู้ควบคุมงาน', phone: '' }
+          ],
           inspectCommittees: [
             { id: 'cm-2', name: '', position: '', role: 'ประธานกรรมการ', phone: '' }
           ],
@@ -801,14 +881,48 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     }));
   };
 
-  // Shared handler for committee name changes: auto-binds the person's latest position while preserving manual edits
+  // Supervisors Helpers (supports multiple supervisors for large projects)
+  const addSupervisor = () => {
+    setFormData(prev => {
+      const current = prev.supervisors || [];
+      const next = [
+        ...current,
+        {
+          id: `sup-${Date.now()}`,
+          name: '',
+          position: '',
+          role: 'ผู้ควบคุมงาน' as const,
+          phone: ''
+        }
+      ];
+      return {
+        ...prev,
+        supervisors: next,
+        supervisorName: buildSupervisorNameSummary(next)
+      };
+    });
+  };
+
+  const removeSupervisor = (id: string) => {
+    setFormData(prev => {
+      const next = (prev.supervisors || []).filter(s => s.id !== id);
+      return {
+        ...prev,
+        supervisors: next,
+        supervisorName: buildSupervisorNameSummary(next)
+      };
+    });
+  };
+
+  // Shared handler for committee/supervisor name changes: auto-binds the person's latest position while preserving manual edits
   const handleCommitteeNameChange = (
-    listKey: 'torCommittees' | 'inspectCommittees',
+    listKey: 'torCommittees' | 'inspectCommittees' | 'supervisors',
     idx: number,
     newName: string
   ) => {
-    const updated = [...formData[listKey]];
+    const updated = [...(formData[listKey] || [])];
     const current = updated[idx];
+    if (!current) return;
     const prevCleanName = normalizeName(current.name);
     const nextCleanName = normalizeName(newName);
     const prevBoundPos = prevCleanName ? personPositionMap.get(prevCleanName) || '' : '';
@@ -834,17 +948,22 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       position: nextPosition,
       positionUpdatedAt: nextPositionUpdatedAt
     };
-    setFormData({ ...formData, [listKey]: updated });
+    setFormData({
+      ...formData,
+      [listKey]: updated,
+      ...(listKey === 'supervisors' ? { supervisorName: buildSupervisorNameSummary(updated) } : {})
+    });
   };
 
-  // Shared handler for committee position changes: allows free editing and records the latest position for this person
+  // Shared handler for committee/supervisor position changes: allows free editing and records the latest position for this person
   const handleCommitteePositionChange = (
-    listKey: 'torCommittees' | 'inspectCommittees',
+    listKey: 'torCommittees' | 'inspectCommittees' | 'supervisors',
     idx: number,
     newPosition: string
   ) => {
     const nowIso = new Date().toISOString();
-    const updated = [...formData[listKey]];
+    const updated = [...(formData[listKey] || [])];
+    if (!updated[idx]) return;
     updated[idx] = {
       ...updated[idx],
       position: newPosition,
@@ -1380,16 +1499,25 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       return;
     }
 
-    const finalProgress = calculateProjectProgress(formData);
+    const cleanedSupervisors = (formData.supervisors || []).filter(
+      s => (s.name || '').trim().length > 0 || (s.position || '').trim().length > 0
+    );
+    const finalFormData: Project = {
+      ...formData,
+      supervisors: cleanedSupervisors,
+      supervisorName: buildSupervisorNameSummary(cleanedSupervisors)
+    };
+
+    const finalProgress = calculateProjectProgress(finalFormData);
     const previousStatus = initialProject?.status;
     const didStatusChange = initialProject
-      ? formData.status !== previousStatus
-      : formData.status !== 'not_started';
+      ? finalFormData.status !== previousStatus
+      : finalFormData.status !== 'not_started';
 
     onSave({
-      ...formData,
+      ...finalFormData,
       progressPercent: finalProgress,
-      statusUpdatedAt: didStatusChange ? formatThaiDateTime() : formData.statusUpdatedAt,
+      statusUpdatedAt: didStatusChange ? formatThaiDateTime() : finalFormData.statusUpdatedAt,
       updatedAt: new Date().toISOString()
     });
   };
@@ -2276,7 +2404,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
                     เลขที่คำสั่งแต่งตั้ง
@@ -2301,19 +2429,69 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                   />
                 </div>
+              </div>
 
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    ผู้ควบคุมงาน
-                  </label>
-                  <AutoSuggestInput
-                    value={formData.supervisorName || ''}
-                    onChange={val => setFormData({ ...formData, supervisorName: val })}
-                    suggestions={suggestedPersonNames}
-                    onRemoveSuggestion={handleHideSuggestion}
-                    placeholder="พิมพ์ชื่อเพื่อค้นหา เช่น นายอนันต์ ศรีสุข..."
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                  />
+              {/* Supervisors List (supports 1 or more supervisors) */}
+              <div className="space-y-3 pt-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-slate-700">
+                    รายชื่อผู้ควบคุมงาน ({(formData.supervisors || []).length} คน)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={addSupervisor}
+                    className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1 whitespace-nowrap shrink-0"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> ผู้ควบคุมงาน
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {(formData.supervisors || []).length === 0 ? (
+                    <div className="p-3 bg-slate-50 rounded-xl border border-dashed border-slate-300 text-xs text-slate-500 text-center">
+                      ยังไม่มีรายชื่อผู้ควบคุมงาน กดปุ่ม &ldquo;+ ผู้ควบคุมงาน&rdquo; ด้านบนเพื่อเพิ่ม
+                    </div>
+                  ) : (
+                    (formData.supervisors || []).map((sup, idx) => (
+                      <div
+                        key={sup.id}
+                        className="flex flex-col sm:flex-row items-center gap-2 p-2.5 bg-slate-50 rounded-xl border border-slate-200"
+                      >
+                        <span className="text-xs font-bold text-slate-400 w-6 text-center shrink-0">
+                          {idx + 1}
+                        </span>
+                        <div className="flex-1 w-full">
+                          <AutoSuggestInput
+                            value={sup.name || ''}
+                            onChange={val => handleCommitteeNameChange('supervisors', idx, val)}
+                            suggestions={suggestedPersonNames}
+                            getItemHint={getBoundPositionHint}
+                            onRemoveSuggestion={handleHideSuggestion}
+                            placeholder="ชื่อ-นามสกุล ผู้ควบคุมงาน..."
+                            className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                          />
+                        </div>
+                        <div className="flex-1 w-full">
+                          <AutoSuggestInput
+                            value={sup.position || ''}
+                            onChange={val => handleCommitteePositionChange('supervisors', idx, val)}
+                            suggestions={suggestedPositions}
+                            onRemoveSuggestion={handleHideSuggestion}
+                            placeholder="ตำแหน่ง..."
+                            className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeSupervisor(sup.id)}
+                          title="ลบผู้ควบคุมงาน"
+                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg shrink-0"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
 
