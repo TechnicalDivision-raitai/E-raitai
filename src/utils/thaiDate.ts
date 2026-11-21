@@ -162,6 +162,18 @@ export function getCurrentThaiFiscalYear(): number {
 }
 
 /**
+ * Checks whether Step 1 (ขออนุมัติโครงการ) has been recorded
+ */
+export function hasProjectApprovalData(p: Partial<Project> | null | undefined): boolean {
+  if (!p) return false;
+  return (
+    Boolean(p.approvalRequestNo && String(p.approvalRequestNo).trim()) ||
+    Boolean(p.approvalRequestDate && String(p.approvalRequestDate).trim()) ||
+    Boolean(p.attachments && p.attachments.some(a => a.category === 'approval_request'))
+  );
+}
+
+/**
  * Counts how many of the 12 pipeline stages are completed
  */
 export function countCompletedSteps(p: any): number {
@@ -169,8 +181,8 @@ export function countCompletedSteps(p: any): number {
   if (p.status === 'completed') return 12;
 
   let count = 0;
-  // 1. บันทึกข้อมูลโครงการ
-  if (p.name) count += 1;
+  // 1. ขออนุมัติโครงการ (เลขที่หนังสือขออนุมัติ / วันที่ขออนุมัติ / ไฟล์แนบหมวดขออนุมัติ)
+  if (hasProjectApprovalData(p)) count += 1;
   // 2. ออกคำสั่งแต่งตั้งกรรมการจัดทำ TOR และราคากลาง
   if (p.torOrderNo || p.torOrderDate || (p.torCommittees && p.torCommittees.length > 0)) count += 1;
   // 3. จัดทำ TOR
@@ -283,8 +295,8 @@ export function hasTab2OrLaterWorkflowData(p: Partial<Project> | null | undefine
 
 /**
  * Determines whether a project should appear and be counted in "กล่องงานของฉัน" (My Inbox):
- * - Enters automatically once Tab 2 (TOR/ราคากลาง) or later workflow data is recorded
- * - Projects with ONLY Tab 1 data stay in ทะเบียนโครงการ & ภาพรวม and do NOT enter My Inbox
+ * - Enters automatically once Step 1 (ขออนุมัติโครงการ: เลขที่หนังสือขออนุมัติ/วันที่) OR Tab 2+ data is recorded
+ * - Projects with ONLY general Tab 1 data (without approval request) stay in ทะเบียนโครงการ & ภาพรวม and do NOT enter My Inbox
  * - Exits automatically once status is completed/disbursed or cancelled
  */
 export function isProjectInMyInbox(
@@ -295,7 +307,7 @@ export function isProjectInMyInbox(
   if (p.status === 'completed' || p.status === 'cancelled' || isProjectCompletedOrDisbursed(p)) {
     return false;
   }
-  if (!hasTab2OrLaterWorkflowData(p)) {
+  if (!hasProjectApprovalData(p) && !hasTab2OrLaterWorkflowData(p)) {
     return false;
   }
 
@@ -366,8 +378,8 @@ export function deriveProjectStatusFromData(p: Partial<Project> | null | undefin
     return 'contracted';
   }
 
-  // 6. จัดทำ TOR / ราคากลาง / คำสั่งแต่งตั้งกรรมการ (รวมหมายเหตุ TOR, คณะกรรมการ TOR และไฟล์แนบหมวด TOR)
-  if (hasTab2OrLaterWorkflowData(p)) {
+  // 6. ขออนุมัติโครงการ หรือ จัดทำ TOR / ราคากลาง / คำสั่งแต่งตั้งกรรมการ
+  if (hasProjectApprovalData(p) || hasTab2OrLaterWorkflowData(p)) {
     return 'procurement_tor';
   }
 
@@ -566,6 +578,8 @@ export function getFirstAttachmentTab(p?: Partial<Project> | null): number {
   const first = p?.attachments?.[0];
   if (!first) return 1;
   switch (first.category) {
+    case 'approval_request':
+      return 1;
     case 'tor':
       return 2;
     case 'order':

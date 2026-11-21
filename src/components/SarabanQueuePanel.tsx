@@ -538,7 +538,9 @@ export const SarabanQueuePanel: React.FC<SarabanQueuePanelProps> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="block font-semibold text-slate-700">
-                    {reviewingItem.docCategory === 'disbursement' || reviewingItem.docCategory === 'remuneration'
+                    {reviewingItem.docCategory === 'project_approval'
+                      ? 'เลขที่หนังสือขออนุมัติโครงการ'
+                      : reviewingItem.docCategory === 'disbursement' || reviewingItem.docCategory === 'remuneration'
                       ? 'เลขที่ฎีกา / เอกสาร'
                       : reviewingItem.docCategory === 'contract'
                       ? 'เลขที่สัญญาจ้าง'

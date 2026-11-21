@@ -57,6 +57,14 @@ export interface SarabanDocCategoryMeta {
 }
 
 export const SARABAN_DOC_CATEGORY_META: Record<SarabanDocCategory, SarabanDocCategoryMeta> = {
+  project_approval: {
+    code: 'project_approval',
+    label: 'หนังสือขออนุมัติโครงการ',
+    stepNo: 1,
+    detailTab: 1,
+    attachmentCategory: 'approval_request',
+    targetSummary: 'อัปเดตเลขที่หนังสือขออนุมัติ วันที่ขออนุมัติ และแนบไฟล์ในแท็บ 1 (เริ่มนับขั้นตอนที่ 1 และเข้ากล่องงาน)'
+  },
   tor_order: {
     code: 'tor_order',
     label: 'คำสั่งแต่งตั้ง กก. TOR / ราคากลาง',
@@ -274,6 +282,14 @@ export function applySarabanQueueToProject(
   };
 
   switch (item.docCategory) {
+    case 'project_approval':
+      updated = {
+        ...updated,
+        approvalRequestNo: bookNo || updated.approvalRequestNo,
+        approvalRequestDate: bookDate || updated.approvalRequestDate
+      };
+      break;
+
     case 'tor_order':
       updated = {
         ...updated,
@@ -470,7 +486,10 @@ export function rollbackSarabanQueueFromProject(
     updatedAt: new Date().toISOString()
   };
 
-  if (item.docCategory === 'tor_order') {
+  if (item.docCategory === 'project_approval') {
+    if (updated.approvalRequestNo === cleanBookNo) updated.approvalRequestNo = undefined;
+    if (updated.approvalRequestDate === isoBookDate) updated.approvalRequestDate = undefined;
+  } else if (item.docCategory === 'tor_order') {
     if (updated.torOrderNo === cleanBookNo) updated.torOrderNo = undefined;
     if (updated.torOrderDate === isoBookDate) updated.torOrderDate = undefined;
   } else if (item.docCategory === 'tor_approval') {
@@ -871,6 +890,10 @@ function handleDeleteSarabanQueue_(body) {
           proj.inspections = (proj.inspections || []).filter(function(i) { return i.id !== 'ins-' + queueId; });
           proj.disbursements = (proj.disbursements || []).filter(function(d) { return d.id !== 'dis-' + queueId; });
           proj.remunerations = (proj.remunerations || []).filter(function(r) { return r.id !== 'rem-' + queueId; });
+          if (rowDocCat === 'project_approval') {
+            if (proj.approvalRequestNo === rowBookNo) proj.approvalRequestNo = '';
+            if (proj.approvalRequestDate === rowBookDate) proj.approvalRequestDate = '';
+          }
           if (rowDocCat === 'tor_order' && proj.torOrderNo === rowBookNo) proj.torOrderNo = '';
           if (rowDocCat === 'tor_approval' && proj.torDate === rowBookDate) proj.torDate = '';
           if (rowDocCat === 'ref_price' && proj.refPriceDate === rowBookDate) proj.refPriceDate = '';

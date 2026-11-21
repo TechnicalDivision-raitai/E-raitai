@@ -380,11 +380,36 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                   <div className="bg-slate-50 font-bold text-slate-700 p-2.5 md:col-span-1">หมายเหตุ</div>
                   <div className="p-2.5 text-slate-600 md:col-span-2">{project.notes || '-'}</div>
                 </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 bg-emerald-50/30">
+                  <div className="bg-emerald-50/70 font-bold text-emerald-900 p-2.5 md:col-span-1">
+                    หนังสือขออนุมัติโครงการ (ขั้นตอนที่ 1)
+                  </div>
+                  <div className="p-2.5 text-slate-900 md:col-span-2">
+                    {project.approvalRequestNo || project.approvalRequestDate ? (
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span>
+                          เลขที่หนังสือ:{' '}
+                          <strong className="font-mono text-emerald-900">
+                            {project.approvalRequestNo || '-'}
+                          </strong>
+                        </span>
+                        {project.approvalRequestDate && (
+                          <span className="text-slate-600">
+                            ลงวันที่ {formatThaiDate(project.approvalRequestDate, 'official')}
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-slate-400">- ยังไม่บันทึกการขออนุมัติโครงการ -</span>
+                    )}
+                  </div>
+                </div>
               </div>
               <SectionAttachments
                 attachments={project.attachments}
-                categories={['other', 'project_record']}
-                title="เอกสารแนบข้อมูลทั่วไปของโครงการ"
+                categories={['approval_request', 'other', 'project_record']}
+                title="เอกสารแนบข้อมูลทั่วไปและหนังสือขออนุมัติโครงการ"
               />
             </section>
           )}

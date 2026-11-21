@@ -42,6 +42,8 @@ import {
   formatCurrency,
   formatThaiDate,
   formatThaiDateTime,
+  getCurrentThaiFiscalYear,
+  hasProjectApprovalData,
   calculateProjectProgress,
   countCompletedSteps,
   deriveProjectStatusFromData,
@@ -645,7 +647,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   // Form State
   const [formData, setFormData] = useState<Project>(() => {
     if (initialProject) return syncRemunerationsWithTabs(JSON.parse(JSON.stringify(initialProject)));
-    const nextYear = 2569;
+    const nextYear = getCurrentThaiFiscalYear();
     return {
       id: `prj-${Date.now()}`,
       projectCode: generateNextProjectCode('ถ.', nextYear),
@@ -659,6 +661,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       location: DEFAULT_PROJECT_LOCATION,
       responsiblePerson: DEFAULT_RESPONSIBLE_PERSON,
       notes: '',
+      approvalRequestNo: '',
+      approvalRequestDate: '',
 
       torOrderNo: '',
       torOrderDate: '',
@@ -719,7 +723,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
         }
         setFormData(syncRemunerationsWithTabs(cloned));
       } else {
-        const nextYear = 2569;
+        const nextYear = getCurrentThaiFiscalYear();
         setFormData({
           id: `prj-${Date.now()}`,
           projectCode: generateNextProjectCode('ถ.', nextYear),
@@ -733,6 +737,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
           location: DEFAULT_PROJECT_LOCATION,
           responsiblePerson: DEFAULT_RESPONSIBLE_PERSON,
           notes: '',
+          approvalRequestNo: '',
+          approvalRequestDate: '',
 
           torOrderNo: '',
           torOrderDate: '',
@@ -809,6 +815,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   }, [
     isOpen,
     hasManualStatusChange,
+    formData.approvalRequestNo,
+    formData.approvalRequestDate,
     formData.torOrderNo,
     formData.torOrderDate,
     formData.torAuthor,
@@ -1285,6 +1293,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   };
 
   const ATTACHMENT_CATEGORY_LABELS: Record<AttachmentFile['category'], string> = {
+    approval_request: 'ขออนุมัติโครงการ',
     other: 'เอกสารทั่วไป',
     tor: 'TOR / ราคากลาง',
     order: 'คำสั่งควบคุมงาน/ตรวจรับ',
@@ -1786,12 +1795,44 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                     required
                     className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-semibold text-slate-800"
                   >
-                    {[2569, 2570, 2571, 2572, 2573, 2574, 2575].map(yr => (
-                      <option key={yr} value={yr}>
-                        ปีงบประมาณ พ.ศ. {yr}
-                      </option>
-                    ))}
+                    {(() => {
+                      const currentFY = getCurrentThaiFiscalYear();
+                      const maxFutureFY = Math.max(2575, currentFY + 5);
+                      const minPastFY = Math.min(2565, formData.fiscalYear || 2565);
+                      const currentAndFutureYears: number[] = [];
+                      for (let y = currentFY; y <= maxFutureFY; y++) {
+                        currentAndFutureYears.push(y);
+                      }
+                      const pastYears: number[] = [];
+                      for (let y = currentFY - 1; y >= minPastFY; y--) {
+                        pastYears.push(y);
+                      }
+                      return (
+                        <>
+                          <optgroup label="ปีงบประมาณปัจจุบันและล่วงหน้า">
+                            {currentAndFutureYears.map(yr => (
+                              <option key={yr} value={yr}>
+                                ปีงบประมาณ พ.ศ. {yr}
+                                {yr === currentFY ? ' (ปีงบประมาณปัจจุบัน)' : ''}
+                              </option>
+                            ))}
+                          </optgroup>
+                          {pastYears.length > 0 && (
+                            <optgroup label="เพิ่มโครงการย้อนหลัง">
+                              {pastYears.map(yr => (
+                                <option key={yr} value={yr}>
+                                  ปีงบประมาณ พ.ศ. {yr} (ย้อนหลัง)
+                                </option>
+                              ))}
+                            </optgroup>
+                          )}
+                        </>
+                      );
+                    })()}
                   </select>
+                  <div className="text-[10px] text-slate-400 mt-0.5">
+                    ค่าเริ่มต้นอ้างอิงปีงบประมาณปัจจุบัน (พ.ศ. {getCurrentThaiFiscalYear()}) หากเพิ่มย้อนหลังเลือกปีเดิมได้
+                  </div>
                 </div>
 
                 <div>
@@ -2113,9 +2154,9 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                           style={{ width: `${calculateProjectProgress(formData)}%` }}
                         />
                       </div>
-                      <div className="text-[10px] text-slate-500 mt-1 flex justify-between">
+                      <div className="text-[10px] text-slate-500 mt-1 flex justify-between gap-2">
                         <span>ผ่านแล้ว {countCompletedSteps(formData)}/12 ขั้นตอน</span>
-                        <span className="font-semibold text-slate-700">ขั้นละ ~8.33%</span>
+                        <span className="font-semibold text-slate-700">เริ่มที่ขออนุมัติโครงการ</span>
                       </div>
                     </div>
                     <span className="font-bold text-sm px-2.5 py-1 bg-emerald-100 text-emerald-800 rounded-lg">
@@ -2200,6 +2241,107 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                   placeholder="บันทึกข้อความเพิ่มเติม หรือสถานะพิเศษ..."
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
                 />
+              </div>
+
+              {/* ขั้นตอนที่ 1: หนังสือขออนุมัติโครงการ (เริ่มนับความคืบหน้าและนำเข้ากล่องงานของฉัน) */}
+              <div className="p-4 rounded-2xl border border-emerald-200/80 bg-emerald-50/40 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div>
+                    <h5 className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
+                      <FileCheck className="w-4 h-4 text-emerald-700 shrink-0" />
+                      <span>ขออนุมัติโครงการ (ขั้นตอนที่ 1 จาก 12 ขั้นตอน)</span>
+                    </h5>
+                    <p className="text-[11px] text-slate-600 mt-0.5">
+                      เมื่อบันทึกเลขที่หรือวันที่หนังสือขออนุมัติ (หรือรับข้อมูลจากระบบสารบรรณ) ระบบจะเริ่มนับความคืบหน้าขั้นตอนที่ 1 และแสดงในกล่องงานของฉันอัตโนมัติ
+                    </p>
+                  </div>
+                  <span
+                    className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold border whitespace-nowrap shrink-0 self-start sm:self-center ${
+                      hasProjectApprovalData(formData)
+                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                        : 'bg-white text-slate-500 border-slate-200'
+                    }`}
+                  >
+                    {hasProjectApprovalData(formData) ? (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>นับขั้นตอนที่ 1 แล้ว • เข้ากล่องงาน</span>
+                      </>
+                    ) : (
+                      <>
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        <span>ยังไม่บันทึกขออนุมัติ (ยังไม่เข้ากล่องงาน)</span>
+                      </>
+                    )}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      เลขที่หนังสือขออนุมัติ
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.approvalRequestNo || ''}
+                      onChange={e =>
+                        setFormData({ ...formData, approvalRequestNo: e.target.value })
+                      }
+                      placeholder="เช่น อบ 74503/... หรือ ที่ กช. ..."
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-sm font-mono focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      วันที่หนังสือขออนุมัติ{' '}
+                      {formData.approvalRequestDate && (
+                        <span className="font-normal text-emerald-700">
+                          ({formatThaiDate(formData.approvalRequestDate)})
+                        </span>
+                      )}
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.approvalRequestDate || ''}
+                      onChange={e =>
+                        setFormData({ ...formData, approvalRequestDate: e.target.value })
+                      }
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                  <span className="text-[11px] text-slate-500">
+                    รองรับการรับหนังสือขออนุมัติจากคิวสารบรรณ (รหัสหมวด <span className="font-mono text-emerald-800 font-semibold">project_approval</span>)
+                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => toggleDriveLinkForm('approval_request')}
+                      className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold border transition whitespace-nowrap ${
+                        openDriveLinkTarget === 'approval_request'
+                          ? 'bg-sky-600 text-white border-sky-600 hover:bg-sky-700'
+                          : 'bg-white hover:bg-sky-50 text-sky-800 border-sky-300'
+                      }`}
+                    >
+                      <Link2 className="w-3 h-3" />
+                      <span>แนบลิงก์หนังสือขออนุมัติ</span>
+                    </button>
+                    <label className="cursor-pointer inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-emerald-50 text-emerald-800 rounded-lg text-[11px] font-bold border border-emerald-300 transition whitespace-nowrap">
+                      <Upload className="w-3 h-3" />
+                      <span>อัปโหลดหนังสือขออนุมัติ</span>
+                      <input
+                        type="file"
+                        multiple
+                        onChange={e => handleFileUpload(e, 'approval_request')}
+                        className="hidden"
+                      />
+                    </label>
+                  </div>
+                </div>
+
+                {renderDriveLinkInlineForm('approval_request', 'เช่น หนังสือขออนุมัติโครงการ.pdf')}
               </div>
 
               {/* รายการไฟล์แนบในระบบทั้งหมด (Google Drive) */}

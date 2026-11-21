@@ -419,6 +419,8 @@ const FIELD_ALIASES: Record<string, string[]> = {
   location: ['สถานที่ดำเนินโครงการ', 'สถานที่ดำเนินการ', 'สถานที่ก่อสร้าง', 'สถานที่', 'พื้นที่ดำเนินการ', 'หมู่บ้าน', 'location'],
   responsiblePerson: ['ผู้รับผิดชอบโครงการ', 'ผู้รับผิดชอบ', 'เจ้าของเรื่อง', 'responsibleperson'],
   notes: ['หมายเหตุ', 'หมายเหตุโครงการ', 'บันทึกเพิ่มเติม', 'notes'],
+  approvalRequestNo: ['เลขที่หนังสือขออนุมัติ', 'เลขที่ขออนุมัติ', 'หนังสือขออนุมัติ', 'เลขที่หนังสือขออนุมัติโครงการ', 'approvalrequestno'],
+  approvalRequestDate: ['วันที่หนังสือขออนุมัติ', 'วันที่ขออนุมัติ', 'วันที่ขออนุมัติโครงการ', 'approvalrequestdate'],
 
   // หมวด 2: ข้อมูล TOR และราคากลาง
   torOrderNo: ['เลขที่คำสั่ง TOR', 'เลขที่คำสั่งTOR', 'คำสั่งTOR', 'คำสั่งแต่งตั้งTOR', 'tororderno'],
@@ -635,6 +637,11 @@ export function parseWorkbookSheet(
     const location = cleanString(fields.location);
     const responsiblePerson = cleanString(fields.responsiblePerson);
     const notes = cleanString(fields.notes);
+    const approvalRequestNo = cleanString(fields.approvalRequestNo);
+    const approvalRequestDate = parseExcelDate(fields.approvalRequestDate);
+    if (approvalRequestNo || approvalRequestDate) {
+      importedSections.push('ขออนุมัติโครงการ');
+    }
 
     // --- Section 2: TOR & Ref Price ---
     const torOrderNo = cleanString(fields.torOrderNo);
@@ -1024,6 +1031,8 @@ export function parseWorkbookSheet(
         location: location || matchedExisting.location,
         responsiblePerson: responsiblePerson || matchedExisting.responsiblePerson,
         notes: notes || matchedExisting.notes,
+        approvalRequestNo: approvalRequestNo || matchedExisting.approvalRequestNo,
+        approvalRequestDate: approvalRequestDate || matchedExisting.approvalRequestDate,
 
         // Section 2
         torOrderNo: torOrderNo || matchedExisting.torOrderNo,
@@ -1092,6 +1101,8 @@ export function parseWorkbookSheet(
         location: location || 'ต.ไร่ใต้ อ.พิบูลมังสาหาร',
         responsiblePerson: responsiblePerson || 'กองช่าง อบต.ไร่ใต้',
         notes: notes || undefined,
+        approvalRequestNo: approvalRequestNo || undefined,
+        approvalRequestDate: approvalRequestDate || undefined,
 
         // Section 2
         torOrderNo: torOrderNo || undefined,

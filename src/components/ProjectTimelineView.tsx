@@ -81,17 +81,24 @@ export const ProjectTimelineView: React.FC<ProjectTimelineViewProps> = ({
     const remaining = getDaysRemaining(p.endDate);
     const isOverdue = remaining.isOverdue && p.status !== 'completed';
 
+    const hasProjectApproval = Boolean(
+      (p.approvalRequestNo && p.approvalRequestNo.trim()) ||
+        (p.approvalRequestDate && p.approvalRequestDate.trim()) ||
+        (p.attachments && p.attachments.some(a => a.category === 'approval_request'))
+    );
     const step1: TimelineStep = {
       id: 'step-1',
       stepNo: 1,
       phase: 1,
       detailTab: 1,
-      name: 'บันทึกข้อมูลโครงการ',
-      shortName: 'บันทึกโครงการ',
-      description: 'บันทึกงบประมาณและรายละเอียดในแผนพัฒนา',
-      status: 'completed',
-      date: p.createdAt?.split('T')[0],
-      referenceNo: p.projectCode
+      name: 'ขออนุมัติโครงการ',
+      shortName: 'ขออนุมัติโครงการ',
+      description: p.approvalRequestNo
+        ? `หนังสือขออนุมัติเลขที่ ${p.approvalRequestNo}`
+        : 'บันทึกเลขที่หนังสือและวันที่ขออนุมัติโครงการ',
+      status: hasProjectApproval || p.status === 'completed' ? 'completed' : 'pending',
+      date: p.approvalRequestDate,
+      referenceNo: p.approvalRequestNo
     };
 
     const hasTorOrder = Boolean(p.torOrderNo || p.torOrderDate || (p.torCommittees && p.torCommittees.length > 0));

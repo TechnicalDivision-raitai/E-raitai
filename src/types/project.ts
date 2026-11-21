@@ -26,7 +26,7 @@ export interface AttachmentFile {
   name: string;
   size: number; // in bytes
   type: string;
-  category: 'tor' | 'order' | 'contract' | 'notice' | 'delivery' | 'inspection' | 'disbursement' | 'remuneration' | 'project_record' | 'other';
+  category: 'approval_request' | 'tor' | 'order' | 'contract' | 'notice' | 'delivery' | 'inspection' | 'disbursement' | 'remuneration' | 'project_record' | 'other';
   uploadDate: string;
   url?: string;
 }
@@ -125,6 +125,8 @@ export interface Project {
   location: string;
   responsiblePerson: string;
   notes?: string;
+  approvalRequestNo?: string;   // เลขที่หนังสือขออนุมัติโครงการ (ขั้นตอนที่ 1)
+  approvalRequestDate?: string; // วันที่หนังสือขออนุมัติโครงการ (YYYY-MM-DD)
 
   // หมวด 2: ข้อมูล TOR และราคากลาง
   torOrderNo?: string;
@@ -217,6 +219,7 @@ export interface ProjectFilter {
 }
 
 export type SarabanDocCategory =
+  | 'project_approval'
   | 'tor_order'
   | 'tor_approval'
   | 'ref_price'
