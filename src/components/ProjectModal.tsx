@@ -843,6 +843,32 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     }
   }, [activeTab]);
 
+  // Live duplicate projectCode check while typing (excludes current project when editing)
+  const duplicateCodeProject = React.useMemo(() => {
+    const normalized = (formData.projectCode || '').trim().replace(/\s+/g, '').toLowerCase();
+    if (!normalized) return null;
+    return (
+      existingProjects.find(p => {
+        if (initialProject && p.id === initialProject.id) return false;
+        if (formData.id && p.id === formData.id) return false;
+        const existingNorm = (p.projectCode || '').trim().replace(/\s+/g, '').toLowerCase();
+        return existingNorm === normalized;
+      }) || null
+    );
+  }, [formData.projectCode, formData.id, existingProjects, initialProject]);
+
+  // Option 1: Detect vacant sequential codes (e.g. ถ.69-025) so user can reuse with 1 click
+  const vacantProjectCodes = React.useMemo(
+    () =>
+      findMissingProjectCodes(
+        existingProjects,
+        projectCodePrefix,
+        formData.fiscalYear,
+        initialProject?.id
+      ),
+    [existingProjects, projectCodePrefix, formData.fiscalYear, initialProject?.id]
+  );
+
   if (!isOpen) return null;
 
   // Committee Helpers
@@ -1496,32 +1522,6 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
   const paidRemuneration = (formData.remunerations || [])
     .filter(r => r.status === 'paid')
     .reduce((sum, r) => sum + (r.amount || 0), 0);
-
-  // Live duplicate projectCode check while typing (excludes current project when editing)
-  const duplicateCodeProject = React.useMemo(() => {
-    const normalized = (formData.projectCode || '').trim().replace(/\s+/g, '').toLowerCase();
-    if (!normalized) return null;
-    return (
-      existingProjects.find(p => {
-        if (initialProject && p.id === initialProject.id) return false;
-        if (formData.id && p.id === formData.id) return false;
-        const existingNorm = (p.projectCode || '').trim().replace(/\s+/g, '').toLowerCase();
-        return existingNorm === normalized;
-      }) || null
-    );
-  }, [formData.projectCode, formData.id, existingProjects, initialProject]);
-
-  // Option 1: Detect vacant sequential codes (e.g. ถ.69-025) so user can reuse with 1 click
-  const vacantProjectCodes = React.useMemo(
-    () =>
-      findMissingProjectCodes(
-        existingProjects,
-        projectCodePrefix,
-        formData.fiscalYear,
-        initialProject?.id
-      ),
-    [existingProjects, projectCodePrefix, formData.fiscalYear, initialProject?.id]
-  );
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
