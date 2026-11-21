@@ -90,14 +90,6 @@ export const MyInboxView: React.FC<MyInboxViewProps> = ({
     };
 
     onUpdateProject(updated);
-
-    Swal.fire({
-      icon: 'success',
-      title: 'รับทราบงานสำเร็จ',
-      text: `บันทึกการรับทราบงานโครงการ "${project.name}" เรียบร้อยแล้ว (${ackTimeStr})`,
-      timer: 1800,
-      showConfirmButton: false
-    });
   };
 
   const handleUpdateStatus = (project: Project) => {
