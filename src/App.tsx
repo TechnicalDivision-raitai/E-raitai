@@ -55,6 +55,7 @@ import {
   isProjectCompletedOrDisbursed,
   formatThaiDateTime
 } from './utils/thaiDate';
+import { enrichProjectsWithKnownDirectory } from './utils/projectEnrichment';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 
 const SESSION_TAB_KEY = 'raitai_engineering_active_tab';
@@ -250,15 +251,42 @@ export default function App() {
         if (!isMounted) return;
         if (res.success) {
           if (Array.isArray(res.projects) && res.projects.length > 0) {
-            setProjects(res.projects);
-            saveStoredProjects(res.projects);
+            const { projects: enriched, stats } = enrichProjectsWithKnownDirectory(res.projects);
+            setProjects(enriched);
+            saveStoredProjects(enriched);
             setSelectedProjectForDetail(prev =>
-              prev ? res.projects!.find(p => p.id === prev.id) || prev : null
+              prev ? enriched.find(p => p.id === prev.id) || prev : null
             );
-            showToast(`ดึงข้อมูลจาก Google Sheet อัตโนมัติสำเร็จ (${res.projects.length} รายการ)`, 'success');
+
+            const activeUser = getStoredUser();
+            if (stats.updatedProjectsCount > 0 && activeUser?.role === 'admin') {
+              const summaryParts: string[] = [];
+              if (stats.filledPositionsCount > 0) {
+                summaryParts.push(`ตำแหน่ง ${stats.filledPositionsCount} รายชื่อ`);
+              }
+              const contractorFields = stats.filledContractorTaxIdCount + stats.filledContractorContactCount;
+              if (contractorFields > 0) {
+                summaryParts.push(`ข้อมูลผู้รับจ้าง ${stats.filledContractorProjectsCount} โครงการ`);
+              }
+              showToast(
+                `เติมข้อมูลที่เคยบันทึกไว้อัตโนมัติ (${summaryParts.join(' • ')}) ใน ${stats.updatedProjectsCount} โครงการแล้ว`,
+                'success'
+              );
+              // Persist enriched fields back to Google Sheet
+              syncProjectsToGoogleSheet(enriched).catch(() => {});
+            } else {
+              showToast(`ดึงข้อมูลจาก Google Sheet อัตโนมัติสำเร็จ (${enriched.length} รายการ)`, 'success');
+            }
           }
           setSyncStatus('synced');
         } else {
+          // Offline fallback: enrich locally stored projects if any known blanks exist
+          const localProjects = getStoredProjects();
+          const { projects: enrichedLocal, stats } = enrichProjectsWithKnownDirectory(localProjects);
+          if (stats.updatedProjectsCount > 0 && getStoredUser()?.role === 'admin') {
+            setProjects(enrichedLocal);
+            saveStoredProjects(enrichedLocal);
+          }
           setSyncStatus('error');
         }
       } catch {
@@ -621,15 +649,71 @@ export default function App() {
       }
     });
 
-    updateProjects(updatedProjects);
+    const { projects: enrichedProjects, stats } = enrichProjectsWithKnownDirectory(updatedProjects);
+    updateProjects(enrichedProjects);
+
+    const extraNotes: string[] = [];
+    if (stats.filledPositionsCount > 0) {
+      extraNotes.push(`เติมตำแหน่งอัตโนมัติ ${stats.filledPositionsCount} รายชื่อ`);
+    }
+    if (stats.filledContractorProjectsCount > 0) {
+      extraNotes.push(`เติมข้อมูลผู้รับจ้าง ${stats.filledContractorProjectsCount} โครงการ`);
+    }
+
     Swal.fire({
       icon: 'success',
       title: 'นำเข้าข้อมูลสำเร็จ',
-      text: `นำเข้า/อัปเดตโครงการจากไฟล์ Excel สำเร็จจำนวน ${imported.length} รายการ`,
-      timer: 2000,
+      text: `นำเข้า/อัปเดตโครงการจากไฟล์ Excel สำเร็จจำนวน ${imported.length} รายการ${
+        extraNotes.length > 0 ? ` (${extraNotes.join(', ')})` : ''
+      }`,
+      timer: 2400,
       showConfirmButton: false
     });
     setCurrentTab('projects');
+  };
+
+  // Preview how many projects have blank positions / contractor details that match previously recorded records
+  const enrichmentPreview = useMemo(() => enrichProjectsWithKnownDirectory(projects), [projects]);
+
+  // Manual 1-click trigger to propagate newly entered positions / contractor details to matching blank projects
+  const handleEnrichKnownData = () => {
+    if (currentUser?.role !== 'admin') {
+      Swal.fire('ไม่อนุญาต', 'เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถอัปเดตข้อมูลโครงการได้', 'warning');
+      return;
+    }
+
+    const { projects: enrichedProjects, stats } = enrichProjectsWithKnownDirectory(projects);
+    if (stats.updatedProjectsCount === 0) {
+      Swal.fire({
+        icon: 'info',
+        title: 'ข้อมูลครบถ้วนตามฐานข้อมูลแล้ว',
+        text: 'ไม่มีช่องตำแหน่งหรือข้อมูลผู้รับจ้างว่างที่ตรงกับข้อมูลที่เคยบันทึกไว้ในระบบ',
+        timer: 2000,
+        showConfirmButton: false
+      });
+      return;
+    }
+
+    updateProjects(enrichedProjects);
+
+    const details: string[] = [];
+    if (stats.filledPositionsCount > 0) {
+      details.push(`เติมตำแหน่งบุคลากร/กรรมการ/ผู้ควบคุมงาน ${stats.filledPositionsCount} รายการ`);
+    }
+    if (stats.filledContractorTaxIdCount > 0) {
+      details.push(`เติมเลขผู้เสียภาษีผู้รับจ้าง ${stats.filledContractorTaxIdCount} โครงการ`);
+    }
+    if (stats.filledContractorContactCount > 0) {
+      details.push(`เติมเบอร์โทร/ติดต่อผู้รับจ้าง ${stats.filledContractorContactCount} โครงการ`);
+    }
+
+    Swal.fire({
+      icon: 'success',
+      title: `เติมข้อมูลอัตโนมัติสำเร็จ (${stats.updatedProjectsCount} โครงการ)`,
+      text: `${details.join(' • ')} (รายชื่อที่ยังไม่เคยมีข้อมูลบันทึกไว้ยังคงเว้นว่างตามเดิม)`,
+      confirmButtonText: 'ตกลง',
+      confirmButtonColor: '#047857'
+    });
   };
 
   // Reset to default sample dataset
@@ -935,6 +1019,8 @@ export default function App() {
                 setProjectToEdit(null);
                 setIsProjectModalOpen(true);
               }}
+              onEnrichKnownData={handleEnrichKnownData}
+              fillableCount={enrichmentPreview.stats.updatedProjectsCount}
             />
           )}
 

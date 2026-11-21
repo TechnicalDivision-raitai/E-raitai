@@ -19,6 +19,10 @@ import {
   deriveProjectStatusFromData,
   getCurrentThaiFiscalYear
 } from './thaiDate';
+import {
+  buildKnownDirectory,
+  enrichSingleProjectWithDirectory
+} from './projectEnrichment';
 
 export interface ParsedExcelRow {
   rowIdx: number;
@@ -1152,12 +1156,28 @@ export function parseWorkbookSheet(
     });
   }
 
+  // Enrich parsed rows with previously recorded positions & contractor taxId/contact
+  // (from existing projects + RAI_TAI_PERSONNEL + other complete rows in this same file)
+  const directory = buildKnownDirectory([
+    ...existingProjects,
+    ...parsedRows.map(r => r.data)
+  ]);
+
+  const enrichedRows = parsedRows.map(row => {
+    const res = enrichSingleProjectWithDirectory(row.data, directory);
+    if (!res.changed) return row;
+    return {
+      ...row,
+      data: res.project
+    };
+  });
+
   return {
     sheetName,
     headerRowIndex,
     rawHeaders: headerRow.filter(Boolean),
     matchedFieldKeys: Array.from(matchedFieldSet),
     unmatchedHeaders,
-    rows: parsedRows
+    rows: enrichedRows
   };
 }

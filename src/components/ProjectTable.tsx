@@ -12,7 +12,8 @@ import {
   AlertCircle,
   HardHat,
   Paperclip,
-  Coins
+  Coins,
+  UserCheck
 } from 'lucide-react';
 import { Project, ProjectFilter, UserProfile } from '../types/project';
 import {
@@ -35,6 +36,8 @@ interface ProjectTableProps {
   onEditProject: (p: Project) => void;
   onDeleteProject: (p: Project) => void;
   onOpenNewProjectModal: () => void;
+  onEnrichKnownData?: () => void;
+  fillableCount?: number;
 }
 
 type SortField = 'sequence' | 'fiscalYear' | 'name' | 'startDate' | 'endDate' | 'approvedBudget' | 'contractAmount';
@@ -96,7 +99,9 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
   onSelectProject,
   onEditProject,
   onDeleteProject,
-  onOpenNewProjectModal
+  onOpenNewProjectModal,
+  onEnrichKnownData,
+  fillableCount = 0
 }) => {
   const [sortField, setSortField] = useState<SortField>('fiscalYear');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
@@ -234,6 +239,21 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Auto-fill Known Positions & Contractor Details Button (Admin only, visible when fillable blanks exist) */}
+          {currentUser.role === 'admin' && onEnrichKnownData && fillableCount > 0 && (
+            <button
+              onClick={onEnrichKnownData}
+              className="flex items-center gap-1.5 px-3 py-2 bg-teal-50 hover:bg-teal-100 text-teal-800 font-semibold text-xs rounded-xl border border-teal-200 transition active:scale-95 shadow-xs"
+              title="เติมตำแหน่งกรรมการ/ผู้ควบคุมงาน และข้อมูลผู้รับจ้าง จากข้อมูลที่เคยบันทึกไว้ (เว้นว่างสำหรับรายชื่อที่ไม่เคยบันทึก)"
+            >
+              <UserCheck className="w-4 h-4 text-teal-600" />
+              <span>เติมตำแหน่ง/ผู้รับจ้าง</span>
+              <span className="px-1.5 py-0.2 rounded-full bg-teal-700 text-white text-[10px] font-bold">
+                {fillableCount}
+              </span>
+            </button>
+          )}
+
           {/* Export Excel Button */}
           <button
             onClick={() => exportProjectsToExcel(sortedProjects, `ทะเบียนโครงการ_${filter.fiscalYear}.xlsx`)}
