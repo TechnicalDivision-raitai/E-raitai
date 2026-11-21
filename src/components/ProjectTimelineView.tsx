@@ -16,7 +16,13 @@ import {
   List
 } from 'lucide-react';
 import { Project, UserProfile } from '../types/project';
-import { formatCurrency, formatThaiDate, getDaysRemaining, getWorkNoticeAlert } from '../utils/thaiDate';
+import {
+  calculateProjectProgress,
+  formatCurrency,
+  formatThaiDate,
+  getDaysRemaining,
+  getWorkNoticeAlert
+} from '../utils/thaiDate';
 import { STATUS_LABELS } from '../utils/excelExport';
 
 interface ProjectTimelineViewProps {
@@ -101,7 +107,14 @@ export const ProjectTimelineView: React.FC<ProjectTimelineViewProps> = ({
       referenceNo: p.approvalRequestNo
     };
 
-    const hasTorOrder = Boolean(p.torOrderNo || p.torOrderDate || (p.torCommittees && p.torCommittees.length > 0));
+    const hasNamedTorCommittee = Boolean(
+      p.torCommittees && p.torCommittees.some(c => Boolean(c?.name && c.name.trim()))
+    );
+    const hasTorOrder = Boolean(
+      (p.torOrderNo && p.torOrderNo.trim()) ||
+        (p.torOrderDate && p.torOrderDate.trim()) ||
+        hasNamedTorCommittee
+    );
     const step2: TimelineStep = {
       id: 'step-2',
       stepNo: 2,
@@ -117,6 +130,9 @@ export const ProjectTimelineView: React.FC<ProjectTimelineViewProps> = ({
       referenceNo: p.torOrderNo
     };
 
+    const hasTorDoc = Boolean(
+      (p.torDate && p.torDate.trim()) || (p.torAuthor && p.torAuthor.trim())
+    );
     const step3: TimelineStep = {
       id: 'step-3',
       stepNo: 3,
@@ -125,7 +141,7 @@ export const ProjectTimelineView: React.FC<ProjectTimelineViewProps> = ({
       name: 'จัดทำ TOR',
       shortName: 'จัดทำ TOR',
       description: p.torAuthor ? `จัดทำโดย ${p.torAuthor}` : 'ร่างขอบเขตงานก่อสร้าง (TOR)',
-      status: p.torDate ? 'completed' : p.status === 'procurement_tor' ? 'in_progress' : 'pending',
+      status: hasTorDoc ? 'completed' : p.status === 'procurement_tor' ? 'in_progress' : 'pending',
       date: p.torDate
     };
 
@@ -139,11 +155,28 @@ export const ProjectTimelineView: React.FC<ProjectTimelineViewProps> = ({
       description: p.refPrice
         ? `ราคากลาง ${formatCurrency(p.refPrice)} บ.`
         : 'กำหนดราคาอ้างอิงของทางราชการ',
-      status: p.refPriceDate || (p.refPrice && p.refPrice > 0) ? 'completed' : p.status === 'procurement_tor' ? 'in_progress' : 'pending',
+      status:
+        (p.refPriceDate && p.refPriceDate.trim()) || (p.refPrice && p.refPrice > 0)
+          ? 'completed'
+          : p.status === 'procurement_tor'
+          ? 'in_progress'
+          : 'pending',
       date: p.refPriceDate
     };
 
-    const hasOrder = Boolean(p.inspectOrderNo || (p.inspectCommittees && p.inspectCommittees.length > 0) || p.supervisorName);
+    const hasNamedInspectCommittee = Boolean(
+      p.inspectCommittees && p.inspectCommittees.some(c => Boolean(c?.name && c.name.trim()))
+    );
+    const hasNamedSupervisor = Boolean(
+      (p.supervisorName && p.supervisorName.trim()) ||
+        (p.supervisors && p.supervisors.some(s => Boolean(s?.name && s.name.trim())))
+    );
+    const hasOrder = Boolean(
+      (p.inspectOrderNo && p.inspectOrderNo.trim()) ||
+        (p.inspectOrderDate && p.inspectOrderDate.trim()) ||
+        hasNamedInspectCommittee ||
+        hasNamedSupervisor
+    );
     const step5: TimelineStep = {
       id: 'step-5',
       stepNo: 5,
@@ -159,7 +192,11 @@ export const ProjectTimelineView: React.FC<ProjectTimelineViewProps> = ({
       referenceNo: p.inspectOrderNo
     };
 
-    const hasContract = Boolean(p.contractNo && p.contractAmount);
+    const hasContract = Boolean(
+      (p.contractNo && p.contractNo.trim()) ||
+        (p.contractDate && p.contractDate.trim()) ||
+        (p.contractAmount && Number(p.contractAmount) > 0)
+    );
     const step6: TimelineStep = {
       id: 'step-6',
       stepNo: 6,
@@ -668,7 +705,7 @@ export const ProjectTimelineView: React.FC<ProjectTimelineViewProps> = ({
                   <div className="p-3">
                     <div className="text-slate-500 text-[11px]">ความคืบหน้า</div>
                     <div className="font-bold text-slate-900 mt-0.5">
-                      {completedCount} / 12 ขั้นตอน ({currentProject.progressPercent}%)
+                      {completedCount} / 12 ขั้นตอน ({calculateProjectProgress(currentProject)}%)
                     </div>
                   </div>
                 </div>

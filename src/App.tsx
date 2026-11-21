@@ -84,7 +84,12 @@ const ALLOWED_TABS = new Set([
 ]);
 
 export default function App() {
-  const [projects, setProjects] = useState<Project[]>(() => getStoredProjects());
+  const [projects, setProjects] = useState<Project[]>(() =>
+    getStoredProjects().map(p => ({
+      ...p,
+      progressPercent: calculateProjectProgress(p)
+    }))
+  );
   const [repairRequests, setRepairRequests] = useState<RepairRequest[]>(() =>
     getStoredRepairRequests()
   );
@@ -258,7 +263,11 @@ export default function App() {
         if (!isMounted) return;
         if (res.success) {
           if (Array.isArray(res.projects) && res.projects.length > 0) {
-            const { projects: enriched, stats } = enrichProjectsWithKnownDirectory(res.projects);
+            const { projects: enrichedRaw, stats } = enrichProjectsWithKnownDirectory(res.projects);
+            const enriched = enrichedRaw.map(p => ({
+              ...p,
+              progressPercent: calculateProjectProgress(p)
+            }));
             setProjects(enriched);
             saveStoredProjects(enriched);
             setSelectedProjectForDetail(prev =>

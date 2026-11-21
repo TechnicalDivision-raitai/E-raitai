@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { Project, ProjectFilter, UserProfile } from '../types/project';
 import {
+  calculateProjectProgress,
   formatCurrency,
   formatThaiDate,
   getDaysRemaining,
@@ -665,7 +666,7 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
                           </div>
                         ) : (
                           <div className="text-[10px] text-slate-400 mt-1">
-                            ความคืบหน้า {p.progressPercent}%
+                            ความคืบหน้า {calculateProjectProgress(p)}%
                           </div>
                         )}
                         {currentUser.role === 'admin' && getWorkNoticeAlert(p).hasAlert && (

@@ -457,17 +457,21 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                     รายชื่อคณะกรรมการกำหนดราคากลาง
                   </div>
                   <div className="p-2.5 text-slate-900 md:col-span-2">
-                    {project.torCommittees && project.torCommittees.length > 0 ? (
-                      <ol className="list-decimal list-inside space-y-1">
-                        {project.torCommittees.map(c => (
-                          <li key={c.id}>
-                            <span className="font-semibold">{c.name}</span> - {c.position} ({c.role})
-                          </li>
-                        ))}
-                      </ol>
-                    ) : (
-                      '- ไม่ระบุ -'
-                    )}
+                    {(() => {
+                      const list = (project.torCommittees || []).filter(c => c?.name?.trim());
+                      return list.length > 0 ? (
+                        <ol className="list-decimal list-inside space-y-1">
+                          {list.map(c => (
+                            <li key={c.id}>
+                              <span className="font-semibold">{c.name}</span>
+                              {c.position ? ` - ${c.position}` : ''} ({c.role})
+                            </li>
+                          ))}
+                        </ol>
+                      ) : (
+                        '- ไม่ระบุ -'
+                      );
+                    })()}
                   </div>
                 </div>
 
@@ -555,17 +559,21 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                     รายชื่อคณะกรรมการตรวจรับงานจ้าง
                   </div>
                   <div className="p-2.5 text-slate-900 md:col-span-2">
-                    {project.inspectCommittees && project.inspectCommittees.length > 0 ? (
-                      <ol className="list-decimal list-inside space-y-1">
-                        {project.inspectCommittees.map(c => (
-                          <li key={c.id}>
-                            <span className="font-semibold">{c.name}</span> - {c.position} ({c.role})
-                          </li>
-                        ))}
-                      </ol>
-                    ) : (
-                      '- ไม่ระบุ -'
-                    )}
+                    {(() => {
+                      const list = (project.inspectCommittees || []).filter(c => c?.name?.trim());
+                      return list.length > 0 ? (
+                        <ol className="list-decimal list-inside space-y-1">
+                          {list.map(c => (
+                            <li key={c.id}>
+                              <span className="font-semibold">{c.name}</span>
+                              {c.position ? ` - ${c.position}` : ''} ({c.role})
+                            </li>
+                          ))}
+                        </ol>
+                      ) : (
+                        '- ไม่ระบุ -'
+                      );
+                    })()}
                   </div>
                 </div>
               </div>

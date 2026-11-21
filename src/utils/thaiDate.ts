@@ -174,31 +174,42 @@ export function hasProjectApprovalData(p: Partial<Project> | null | undefined): 
 }
 
 /**
+ * Checks whether a committee/supervisor array has at least one member with a non-empty name
+ */
+function hasNamedMember(list?: Array<{ name?: string }> | null): boolean {
+  return Boolean(
+    Array.isArray(list) && list.some(m => Boolean(m?.name && String(m.name).trim()))
+  );
+}
+
+/**
  * Counts how many of the 12 pipeline stages are completed
  */
 export function countCompletedSteps(p: any): number {
   if (!p) return 0;
   if (p.status === 'completed') return 12;
 
+  const hasText = (val: unknown): boolean => Boolean(val && String(val).trim());
+
   let count = 0;
   // 1. ขออนุมัติโครงการ (เลขที่หนังสือขออนุมัติ / วันที่ขออนุมัติ / ไฟล์แนบหมวดขออนุมัติ)
   if (hasProjectApprovalData(p)) count += 1;
   // 2. ออกคำสั่งแต่งตั้งกรรมการจัดทำ TOR และราคากลาง
-  if (p.torOrderNo || p.torOrderDate || (p.torCommittees && p.torCommittees.length > 0)) count += 1;
+  if (hasText(p.torOrderNo) || hasText(p.torOrderDate) || hasNamedMember(p.torCommittees)) count += 1;
   // 3. จัดทำ TOR
-  if (p.torDate || p.torAuthor) count += 1;
+  if (hasText(p.torDate) || hasText(p.torAuthor)) count += 1;
   // 4. จัดทำราคากลาง
-  if (p.refPriceDate || (p.refPrice && Number(p.refPrice) > 0)) count += 1;
+  if (hasText(p.refPriceDate) || (p.refPrice && Number(p.refPrice) > 0)) count += 1;
   // 5. ออกคำสั่งแต่งตั้งกรรมการ (ควบคุมงาน/ตรวจรับ)
   if (
-    p.inspectOrderNo ||
-    p.inspectOrderDate ||
-    (p.inspectCommittees && p.inspectCommittees.length > 0) ||
-    p.supervisorName ||
-    (p.supervisors && p.supervisors.some((s: any) => s?.name && String(s.name).trim()))
+    hasText(p.inspectOrderNo) ||
+    hasText(p.inspectOrderDate) ||
+    hasNamedMember(p.inspectCommittees) ||
+    hasText(p.supervisorName) ||
+    hasNamedMember(p.supervisors)
   ) count += 1;
   // 6. จัดทำสัญญาจ้าง
-  if (p.contractNo || p.contractDate || (p.contractAmount && Number(p.contractAmount) > 0)) count += 1;
+  if (hasText(p.contractNo) || hasText(p.contractDate) || (p.contractAmount && Number(p.contractAmount) > 0)) count += 1;
   // 7. แจ้งเข้าทำงาน
   if (p.workNotices && p.workNotices.length > 0) count += 1;
   // 8. ส่งมอบงาน

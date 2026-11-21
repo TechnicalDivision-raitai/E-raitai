@@ -1566,13 +1566,21 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
       return;
     }
 
+    const cleanedTorCommittees = (formData.torCommittees || []).filter(
+      c => (c.name || '').trim().length > 0 || (c.position || '').trim().length > 0
+    );
     const cleanedSupervisors = (formData.supervisors || []).filter(
       s => (s.name || '').trim().length > 0 || (s.position || '').trim().length > 0
     );
+    const cleanedInspectCommittees = (formData.inspectCommittees || []).filter(
+      c => (c.name || '').trim().length > 0 || (c.position || '').trim().length > 0
+    );
     const finalFormData: Project = {
       ...formData,
+      torCommittees: cleanedTorCommittees,
       supervisors: cleanedSupervisors,
-      supervisorName: buildSupervisorNameSummary(cleanedSupervisors)
+      supervisorName: buildSupervisorNameSummary(cleanedSupervisors),
+      inspectCommittees: cleanedInspectCommittees
     };
 
     const finalProgress = calculateProjectProgress(finalFormData);
