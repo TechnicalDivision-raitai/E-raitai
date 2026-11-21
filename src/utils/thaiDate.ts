@@ -1,4 +1,4 @@
-import { Project, ProjectStatus } from '../types/project';
+import { Project, ProjectStatus, UserProfile } from '../types/project';
 
 const THAI_MONTHS_SHORT = [
   'ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.',
@@ -218,7 +218,7 @@ export function calculateProjectProgress(p: any): number {
  */
 export function isProjectCompletedOrDisbursed(p: any): boolean {
   if (!p) return false;
-  if (p.status === 'completed') return true;
+  if (p.status === 'completed' || p.status === 'cancelled') return true;
   // If all disbursements are paid and there is at least one paid disbursement
   if (p.disbursements && p.disbursements.length > 0) {
     const hasDisbursements = p.disbursements.length > 0;
@@ -226,6 +226,86 @@ export function isProjectCompletedOrDisbursed(p: any): boolean {
     if (hasDisbursements && allPaid) return true;
   }
   return false;
+}
+
+/**
+ * Checks whether a project has any data recorded in Tab 2 (TOR & Reference Price)
+ * or any subsequent workflow stage (Tabs 3–6), including TOR attachments or Saraban TOR imports.
+ * Projects with ONLY Tab 1 (General Info) data return false.
+ */
+export function hasTab2OrLaterWorkflowData(p: Partial<Project> | null | undefined): boolean {
+  if (!p) return false;
+
+  // Tab 2: TOR & ราคากลาง (คำสั่งแต่งตั้ง กก., วันที่จัดทำ, ราคากลาง, รายชื่อกรรมการ, หมายเหตุ, ค่าตอบแทน TOR, หรือไฟล์แนบหมวด TOR)
+  const hasTorData =
+    Boolean(p.torOrderNo && p.torOrderNo.trim()) ||
+    Boolean(p.torOrderDate && p.torOrderDate.trim()) ||
+    Boolean(p.torAuthor && p.torAuthor.trim()) ||
+    Boolean(p.torDate && p.torDate.trim()) ||
+    Boolean(p.refPriceDate && p.refPriceDate.trim()) ||
+    (p.refPrice !== undefined && Number(p.refPrice) > 0) ||
+    Boolean(p.torNotes && p.torNotes.trim()) ||
+    Boolean(p.torRemunerationPayee && p.torRemunerationPayee.trim()) ||
+    (p.torRemunerationAmount !== undefined && Number(p.torRemunerationAmount) > 0) ||
+    Boolean(
+      p.torCommittees &&
+        p.torCommittees.some(
+          c => Boolean(c?.name && c.name.trim()) || Boolean(c?.position && c.position.trim())
+        )
+    ) ||
+    Boolean(p.attachments && p.attachments.some(a => a.category === 'tor'));
+
+  if (hasTorData) return true;
+
+  // Tabs 3–6: คำสั่งควบคุมงาน/ตรวจรับ, สัญญาจ้าง, แจ้งเข้าทำงาน, ส่งมอบ, ตรวจรับ, เบิกจ่าย, ค่าตอบแทน หรือเอกสารแนบขั้นดำเนินงาน
+  const hasLaterWorkflowData =
+    Boolean(p.inspectOrderNo && p.inspectOrderNo.trim()) ||
+    Boolean(p.inspectOrderDate && p.inspectOrderDate.trim()) ||
+    Boolean(p.supervisorName && p.supervisorName.trim()) ||
+    Boolean(p.supervisors && p.supervisors.some(s => Boolean(s?.name && s.name.trim()))) ||
+    Boolean(p.inspectCommittees && p.inspectCommittees.some(c => Boolean(c?.name && c.name.trim()))) ||
+    Boolean(p.contractNo && p.contractNo.trim()) ||
+    Boolean(p.contractDate && p.contractDate.trim()) ||
+    (p.contractAmount !== undefined && Number(p.contractAmount) > 0) ||
+    Boolean(p.contractorName && p.contractorName.trim()) ||
+    Boolean(p.workNotices && p.workNotices.length > 0) ||
+    Boolean(p.deliveries && p.deliveries.length > 0) ||
+    Boolean(p.inspections && p.inspections.length > 0) ||
+    Boolean(p.disbursements && p.disbursements.length > 0) ||
+    Boolean(p.remunerations && p.remunerations.length > 0) ||
+    Boolean(
+      p.attachments &&
+        p.attachments.some(a => a.category !== 'other' && a.category !== 'project_record')
+    );
+
+  return hasLaterWorkflowData;
+}
+
+/**
+ * Determines whether a project should appear and be counted in "กล่องงานของฉัน" (My Inbox):
+ * - Enters automatically once Tab 2 (TOR/ราคากลาง) or later workflow data is recorded
+ * - Projects with ONLY Tab 1 data stay in ทะเบียนโครงการ & ภาพรวม and do NOT enter My Inbox
+ * - Exits automatically once status is completed/disbursed or cancelled
+ */
+export function isProjectInMyInbox(
+  p: Project | null | undefined,
+  currentUser: UserProfile
+): boolean {
+  if (!p) return false;
+  if (p.status === 'completed' || p.status === 'cancelled' || isProjectCompletedOrDisbursed(p)) {
+    return false;
+  }
+  if (!hasTab2OrLaterWorkflowData(p)) {
+    return false;
+  }
+
+  if (currentUser.role === 'admin') return true;
+  const userName = currentUser.displayName;
+  return Boolean(
+    (p.responsiblePerson && p.responsiblePerson.includes(userName)) ||
+      (p.supervisorName && p.supervisorName.includes(userName)) ||
+      (p.supervisors && p.supervisors.some(s => s?.name && s.name.includes(userName)))
+  );
 }
 
 /**
@@ -249,6 +329,7 @@ export function formatThaiDateTime(dateInput?: Date | string | null): string {
  */
 export function deriveProjectStatusFromData(p: Partial<Project> | null | undefined): ProjectStatus {
   if (!p) return 'not_started';
+  if (p.status === 'cancelled') return 'cancelled';
 
   const disbursements = p.disbursements || [];
   const inspections = p.inspections || [];
@@ -285,18 +366,8 @@ export function deriveProjectStatusFromData(p: Partial<Project> | null | undefin
     return 'contracted';
   }
 
-  // 6. จัดทำ TOR / ราคากลาง / คำสั่งแต่งตั้งกรรมการ
-  if (
-    Boolean(p.torOrderNo && p.torOrderNo.trim()) ||
-    Boolean(p.torOrderDate && p.torOrderDate.trim()) ||
-    Boolean(p.torDate && p.torDate.trim()) ||
-    Boolean(p.torAuthor && p.torAuthor.trim()) ||
-    (p.refPrice !== undefined && Number(p.refPrice) > 0) ||
-    Boolean(p.inspectOrderNo && p.inspectOrderNo.trim()) ||
-    Boolean(p.inspectOrderDate && p.inspectOrderDate.trim()) ||
-    Boolean(p.supervisorName && p.supervisorName.trim()) ||
-    Boolean(p.supervisors && p.supervisors.some(s => s.name && s.name.trim()))
-  ) {
+  // 6. จัดทำ TOR / ราคากลาง / คำสั่งแต่งตั้งกรรมการ (รวมหมายเหตุ TOR, คณะกรรมการ TOR และไฟล์แนบหมวด TOR)
+  if (hasTab2OrLaterWorkflowData(p)) {
     return 'procurement_tor';
   }
 

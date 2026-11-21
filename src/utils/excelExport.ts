@@ -10,7 +10,8 @@ export const STATUS_LABELS: Record<string, string> = {
   delivered: 'ส่งมอบงานแล้ว รอตรวจรับ',
   inspected: 'ตรวจรับงานแล้ว รอเบิกจ่าย',
   completed: 'แล้วเสร็จ/เบิกจ่ายแล้ว',
-  overdue: 'เกินกำหนดสัญญา'
+  overdue: 'เกินกำหนดสัญญา',
+  cancelled: 'ยกเลิกโครงการ'
 };
 
 export const INSPECTION_RESULT_LABELS: Record<string, string> = {

@@ -20,6 +20,7 @@ import { MyInboxView } from './components/MyInboxView';
 import { VouchersSummaryView } from './components/VouchersSummaryView';
 import { ProjectRecordsView } from './components/ProjectRecordsView';
 import { RepairRequestsView } from './components/RepairRequestsView';
+import { ProjectCodeRenumberModal } from './components/ProjectCodeRenumberModal';
 import {
   Project,
   ProjectArchiveRecord,
@@ -56,6 +57,11 @@ import {
   formatThaiDateTime
 } from './utils/thaiDate';
 import { enrichProjectsWithKnownDirectory } from './utils/projectEnrichment';
+import {
+  findAllCodeGapGroups,
+  ProjectCodeGapGroup,
+  ProjectCodeRenumberItem
+} from './utils/projectCodeUtils';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
 
 const SESSION_TAB_KEY = 'raitai_engineering_active_tab';
@@ -159,6 +165,7 @@ export default function App() {
   });
   const [isProjectModalOpen, setIsProjectModalOpen] = useState<boolean>(false);
   const [projectToEdit, setProjectToEdit] = useState<Project | null>(null);
+  const [isRenumberModalOpen, setIsRenumberModalOpen] = useState<boolean>(false);
   const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'error'>('syncing');
 
   // Saraban Queue State (Approach B Integration)
@@ -675,6 +682,52 @@ export default function App() {
   // Preview how many projects have blank positions / contractor details that match previously recorded records
   const enrichmentPreview = useMemo(() => enrichProjectsWithKnownDirectory(projects), [projects]);
 
+  // Option 3: Detect vacant sequential code gaps across all (prefix, fiscalYear) groups
+  const codeGapGroups = useMemo(() => findAllCodeGapGroups(projects), [projects]);
+  const totalCodeGapCount = useMemo(
+    () => codeGapGroups.reduce((sum, g) => sum + g.missingCodes.length, 0),
+    [codeGapGroups]
+  );
+
+  const handleApplyCodeRenumber = (
+    group: ProjectCodeGapGroup,
+    changes: ProjectCodeRenumberItem[]
+  ) => {
+    if (currentUser?.role !== 'admin') {
+      Swal.fire('ไม่อนุญาต', 'เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถจัดเรียงรหัสโครงการได้', 'warning');
+      return;
+    }
+    if (changes.length === 0) return;
+
+    const changeMap = new Map(changes.map(c => [c.projectId, c.newCode]));
+    const nowIso = new Date().toISOString();
+    const updated = projects.map(p => {
+      const nextCode = changeMap.get(p.id);
+      if (!nextCode) return p;
+      return {
+        ...p,
+        projectCode: nextCode,
+        updatedAt: nowIso
+      };
+    });
+
+    updateProjects(updated);
+    setSelectedProjectForDetail(prev => {
+      if (!prev) return null;
+      const nextCode = changeMap.get(prev.id);
+      return nextCode ? { ...prev, projectCode: nextCode, updatedAt: nowIso } : prev;
+    });
+    setIsRenumberModalOpen(false);
+
+    Swal.fire({
+      icon: 'success',
+      title: 'จัดเรียงรหัสโครงการใหม่สำเร็จ',
+      text: `ปรับเรียงรหัส ${group.prefixLabel} ปีงบประมาณ ${group.fiscalYear} จำนวน ${changes.length} โครงการเรียบร้อยแล้ว`,
+      timer: 2200,
+      showConfirmButton: false
+    });
+  };
+
   // Manual 1-click trigger to propagate newly entered positions / contractor details to matching blank projects
   const handleEnrichKnownData = () => {
     if (currentUser?.role !== 'admin') {
@@ -1021,6 +1074,8 @@ export default function App() {
               }}
               onEnrichKnownData={handleEnrichKnownData}
               fillableCount={enrichmentPreview.stats.updatedProjectsCount}
+              onOpenRenumberModal={() => setIsRenumberModalOpen(true)}
+              codeGapCount={totalCodeGapCount}
             />
           )}
 
@@ -1158,6 +1213,14 @@ export default function App() {
           setSelectedProjectForDetail(updated);
         }}
         currentUser={currentUser}
+      />
+
+      {/* Project Code Re-number Preview Modal (Option 3) */}
+      <ProjectCodeRenumberModal
+        isOpen={isRenumberModalOpen}
+        onClose={() => setIsRenumberModalOpen(false)}
+        gapGroups={codeGapGroups}
+        onApplyRenumber={handleApplyCodeRenumber}
       />
 
       {/* Login Screen Modal: Mandatory before access if not logged in */}

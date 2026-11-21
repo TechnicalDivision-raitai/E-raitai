@@ -238,12 +238,14 @@ export function parseProjectStatus(raw: unknown): ProjectStatus | undefined {
     'delivered',
     'inspected',
     'completed',
-    'overdue'
+    'overdue',
+    'cancelled'
   ];
   if (validCodes.includes(str as ProjectStatus)) {
     return str as ProjectStatus;
   }
 
+  if (str.includes('ยกเลิก')) return 'cancelled';
   if (str.includes('เกินกำหนด') || str.includes('ล่าช้า') || str.includes('พ้นกำหนด')) return 'overdue';
   if (str.includes('แล้วเสร็จ') || str.includes('เสร็จสิ้น') || str.includes('เบิกจ่ายแล้ว') || str.includes('จ่ายแล้ว')) {
     return 'completed';

@@ -154,7 +154,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
       delivered: 0,
       inspected: 0,
       completed: 0,
-      overdue: 0
+      overdue: 0,
+      cancelled: 0
     };
     filteredProjects.forEach(p => {
       counts[p.status] = (counts[p.status] || 0) + 1;
@@ -660,7 +661,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 { key: 'delivered', label: 'ส่งมอบงานแล้ว รอตรวจรับ', count: statusDistribution.delivered, color: 'bg-purple-500' },
                 { key: 'procurement_tor', label: 'จัดทำ TOR/ราคากลาง', count: statusDistribution.procurement_tor, color: 'bg-amber-500' },
                 { key: 'not_started', label: 'ยังไม่เริ่มดำเนินการ', count: statusDistribution.not_started, color: 'bg-slate-400' },
-                { key: 'overdue', label: 'เกินกำหนดสัญญา', count: statusDistribution.overdue, color: 'bg-rose-500' }
+                { key: 'overdue', label: 'เกินกำหนดสัญญา', count: statusDistribution.overdue, color: 'bg-rose-500' },
+                ...(statusDistribution.cancelled > 0
+                  ? [{ key: 'cancelled', label: 'ยกเลิกโครงการ', count: statusDistribution.cancelled, color: 'bg-slate-500' }]
+                  : [])
               ].map(item => {
                 const percent = totalCount > 0 ? Math.round((item.count / totalCount) * 100) : 0;
                 return (

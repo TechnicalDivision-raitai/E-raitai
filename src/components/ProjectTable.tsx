@@ -13,7 +13,8 @@ import {
   HardHat,
   Paperclip,
   Coins,
-  UserCheck
+  UserCheck,
+  ListOrdered
 } from 'lucide-react';
 import { Project, ProjectFilter, UserProfile } from '../types/project';
 import {
@@ -38,6 +39,8 @@ interface ProjectTableProps {
   onOpenNewProjectModal: () => void;
   onEnrichKnownData?: () => void;
   fillableCount?: number;
+  onOpenRenumberModal?: () => void;
+  codeGapCount?: number;
 }
 
 type SortField = 'sequence' | 'fiscalYear' | 'name' | 'startDate' | 'endDate' | 'approvedBudget' | 'contractAmount';
@@ -101,7 +104,9 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
   onDeleteProject,
   onOpenNewProjectModal,
   onEnrichKnownData,
-  fillableCount = 0
+  fillableCount = 0,
+  onOpenRenumberModal,
+  codeGapCount = 0
 }) => {
   const [sortField, setSortField] = useState<SortField>('fiscalYear');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
@@ -239,6 +244,21 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {/* Option 3: Re-number vacant project code gaps (Admin only, visible when gaps exist) */}
+          {currentUser.role === 'admin' && onOpenRenumberModal && codeGapCount > 0 && (
+            <button
+              onClick={onOpenRenumberModal}
+              className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-900 font-semibold text-xs rounded-xl border border-amber-300 transition active:scale-95 shadow-xs"
+              title="พบช่องว่างของรหัสโครงการ — คลิกเพื่อตรวจสอบและเลือกจัดเรียงรหัสใหม่ (พร้อมตัวอย่างก่อนยืนยัน)"
+            >
+              <ListOrdered className="w-4 h-4 text-amber-700" />
+              <span>จัดเรียงรหัสใหม่</span>
+              <span className="px-1.5 py-0.2 rounded-full bg-amber-600 text-white text-[10px] font-bold">
+                ว่าง {codeGapCount}
+              </span>
+            </button>
+          )}
+
           {/* Auto-fill Known Positions & Contractor Details Button (Admin only, visible when fillable blanks exist) */}
           {currentUser.role === 'admin' && onEnrichKnownData && fillableCount > 0 && (
             <button
@@ -346,6 +366,7 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
             <option value="inspected">ตรวจรับแล้ว</option>
             <option value="completed">แล้วเสร็จ/เบิกจ่ายแล้ว</option>
             <option value="overdue">เกินกำหนดสัญญา</option>
+            <option value="cancelled">ยกเลิกโครงการ</option>
           </select>
         </div>
       </div>
@@ -587,7 +608,7 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
                         <div className="text-slate-800 font-medium mt-0.5">
                           ถึง {formatThaiDate(p.endDate)}
                         </div>
-                        {p.endDate && p.status !== 'completed' && (
+                        {p.endDate && p.status !== 'completed' && p.status !== 'cancelled' && (
                           <span
                             className={`inline-block text-[10px] font-bold px-1.5 py-0.2 rounded-xs mt-0.5 ${
                               remaining.isOverdue
@@ -608,6 +629,8 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
                           className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${
                             p.status === 'completed'
                               ? 'bg-teal-100 text-teal-800 border border-teal-200'
+                              : p.status === 'cancelled'
+                              ? 'bg-slate-200/80 text-slate-600 border border-slate-300 line-through'
                               : p.status === 'in_progress'
                               ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
                               : p.status === 'overdue'
@@ -624,6 +647,7 @@ export const ProjectTable: React.FC<ProjectTableProps> = ({
                           {STATUS_LABELS[p.status] || p.status}
                         </span>
                         {currentUser.role === 'admin' &&
+                        p.status !== 'cancelled' &&
                         isProjectCompletedOrDisbursed(p) &&
                         (!p.remunerations ||
                           p.remunerations.length === 0 ||

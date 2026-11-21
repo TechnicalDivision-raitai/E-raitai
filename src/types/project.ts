@@ -6,7 +6,8 @@ export type ProjectStatus =
   | 'delivered'         // ส่งมอบงานแล้ว รอตรวจรับ
   | 'inspected'         // ตรวจรับงานแล้ว รอเบิกจ่าย
   | 'completed'         // ดำเนินการแล้วเสร็จ (เบิกจ่ายเรียบร้อย)
-  | 'overdue';          // เกินกำหนดสัญญา
+  | 'overdue'           // เกินกำหนดสัญญา
+  | 'cancelled';        // ยกเลิกโครงการ
 
 export type BudgetCategory = string;
 
@@ -133,6 +134,7 @@ export interface Project {
   refPriceDate?: string;
   refPrice?: number;
   torCommittees: CommitteeMember[];
+  torNotes?: string;               // หมายเหตุหมวด TOR และราคากลาง
   torRemunerationPayee?: string;   // ผู้รับเงินค่าตอบแทนผู้จัดทำ TOR
   torRemunerationAmount?: number;  // ยอดเงินค่าตอบแทนผู้จัดทำ TOR (บาท)
 

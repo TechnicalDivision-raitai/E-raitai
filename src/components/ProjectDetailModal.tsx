@@ -158,7 +158,8 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
         delivered: STATUS_LABELS.delivered,
         inspected: STATUS_LABELS.inspected,
         completed: STATUS_LABELS.completed,
-        overdue: STATUS_LABELS.overdue
+        overdue: STATUS_LABELS.overdue,
+        cancelled: STATUS_LABELS.cancelled
       },
       inputValue: project.status,
       showCancelButton: true,
@@ -444,6 +445,17 @@ export const ProjectDetailModal: React.FC<ProjectDetailModalProps> = ({
                     )}
                   </div>
                 </div>
+
+                {project.torNotes && (
+                  <div className="grid grid-cols-1 md:grid-cols-3">
+                    <div className="bg-slate-50 font-bold text-slate-700 p-2.5 md:col-span-1">
+                      หมายเหตุ TOR / ราคากลาง
+                    </div>
+                    <div className="p-2.5 text-slate-900 md:col-span-2 whitespace-pre-wrap">
+                      {project.torNotes}
+                    </div>
+                  </div>
+                )}
               </div>
               <SectionAttachments
                 attachments={project.attachments}

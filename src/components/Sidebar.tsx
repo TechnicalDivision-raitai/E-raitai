@@ -21,7 +21,7 @@ import {
   Wrench
 } from 'lucide-react';
 import { UserProfile, Project } from '../types/project';
-import { isProjectCompletedOrDisbursed } from '../utils/thaiDate';
+import { isProjectCompletedOrDisbursed, isProjectInMyInbox } from '../utils/thaiDate';
 
 interface SidebarProps {
   currentTab: string;
@@ -57,17 +57,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const isAdmin = currentUser.role === 'admin';
   const overdueCount = projects.filter(p => p.status === 'overdue' && !isProjectCompletedOrDisbursed(p)).length;
 
-  // Requirement 5: ตัวเลขกล่องงานของฉันนับเฉพาะโครงการที่เริ่มดำเนินงานแล้วและยังไม่เสร็จ โดยคำนึงถึงผู้รับผิดชอบหรือผู้ควบคุมงาน
-  const myInboxCount = projects.filter(p => {
-    const isStartedAndNotCompleted = p.status !== 'not_started' && p.status !== 'completed';
-    if (!isStartedAndNotCompleted) return false;
-
-    if (currentUser.role === 'admin') return true;
-    return (
-      (p.responsiblePerson && p.responsiblePerson.includes(currentUser.displayName)) ||
-      (p.supervisorName && p.supervisorName.includes(currentUser.displayName))
-    );
-  }).length;
+  // นับเฉพาะโครงการที่มีข้อมูลตั้งแต่แท็บ 2 (TOR/ราคากลาง) ขึ้นไป และยังไม่ปิดสถานะเสร็จสิ้น/เบิกจ่ายแล้ว หรือยกเลิก
+  const myInboxCount = projects.filter(p => isProjectInMyInbox(p, currentUser)).length;
 
   return (
     <>

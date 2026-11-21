@@ -50,6 +50,7 @@ import {
   getDeliveryContractStatus
 } from '../utils/thaiDate';
 import { uploadFileToDrive } from '../services/storage';
+import { findMissingProjectCodes } from '../utils/projectCodeUtils';
 import { AutoSuggestInput } from './AutoSuggestInput';
 import {
   getGoogleMapsPointUrl,
@@ -812,10 +813,17 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     formData.torOrderDate,
     formData.torAuthor,
     formData.torDate,
+    formData.refPriceDate,
     formData.refPrice,
+    formData.torNotes,
+    formData.torCommittees,
+    formData.torRemunerationPayee,
+    formData.torRemunerationAmount,
     formData.inspectOrderNo,
     formData.inspectOrderDate,
     formData.supervisorName,
+    formData.supervisors,
+    formData.inspectCommittees,
     formData.contractNo,
     formData.contractDate,
     formData.contractAmount,
@@ -823,7 +831,9 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     formData.workNotices,
     formData.deliveries,
     formData.inspections,
-    formData.disbursements
+    formData.disbursements,
+    formData.remunerations,
+    formData.attachments
   ]);
 
   // Keep empty remuneration payees synchronized with Tab 2 & Tab 3 when opening Tab 6
@@ -1487,15 +1497,62 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     .filter(r => r.status === 'paid')
     .reduce((sum, r) => sum + (r.amount || 0), 0);
 
+  // Live duplicate projectCode check while typing (excludes current project when editing)
+  const duplicateCodeProject = React.useMemo(() => {
+    const normalized = (formData.projectCode || '').trim().replace(/\s+/g, '').toLowerCase();
+    if (!normalized) return null;
+    return (
+      existingProjects.find(p => {
+        if (initialProject && p.id === initialProject.id) return false;
+        if (formData.id && p.id === formData.id) return false;
+        const existingNorm = (p.projectCode || '').trim().replace(/\s+/g, '').toLowerCase();
+        return existingNorm === normalized;
+      }) || null
+    );
+  }, [formData.projectCode, formData.id, existingProjects, initialProject]);
+
+  // Option 1: Detect vacant sequential codes (e.g. ถ.69-025) so user can reuse with 1 click
+  const vacantProjectCodes = React.useMemo(
+    () =>
+      findMissingProjectCodes(
+        existingProjects,
+        projectCodePrefix,
+        formData.fiscalYear,
+        initialProject?.id
+      ),
+    [existingProjects, projectCodePrefix, formData.fiscalYear, initialProject?.id]
+  );
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (duplicateCodeProject) {
+      setActiveTab(1);
+      Swal.fire({
+        icon: 'warning',
+        title: 'รหัสโครงการซ้ำในระบบ',
+        text: `รหัส "${formData.projectCode.trim()}" ซ้ำกับโครงการ "${duplicateCodeProject.name}" (ปีงบประมาณ ${duplicateCodeProject.fiscalYear}) กรุณาแก้ไขรหัสโครงการก่อนบันทึก`,
+        confirmButtonText: 'ตกลง',
+        confirmButtonColor: '#047857'
+      });
+      return;
+    }
     if (!formData.name.trim()) {
-      alert('กรุณากรอกชื่อโครงการ');
+      Swal.fire({
+        icon: 'warning',
+        title: 'กรุณากรอกชื่อโครงการ',
+        confirmButtonText: 'ตกลง',
+        confirmButtonColor: '#047857'
+      });
       setActiveTab(1);
       return;
     }
     if (!formData.fiscalYear) {
-      alert('กรุณาระบุปีงบประมาณ');
+      Swal.fire({
+        icon: 'warning',
+        title: 'กรุณาระบุปีงบประมาณ',
+        confirmButtonText: 'ตกลง',
+        confirmButtonColor: '#047857'
+      });
       setActiveTab(1);
       return;
     }
@@ -1785,25 +1842,105 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                       </button>
                     </div>
                   </div>
-                  <input
-                    type="text"
-                    value={formData.projectCode}
-                    onChange={e => {
-                      const val = e.target.value;
-                      setHasManualCodeEdit(true);
-                      if (val.trim().startsWith('อ.')) {
-                        setProjectCodePrefix('อ.');
-                      } else if (val.trim().startsWith('ถ.')) {
-                        setProjectCodePrefix('ถ.');
-                      }
-                      setFormData({ ...formData, projectCode: val });
-                    }}
-                    placeholder="เช่น ถ.69-001 หรือ อ.69-001"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-mono focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-                  />
-                  <div className="text-[10px] text-slate-400 mt-0.5">
-                    รันอัตโนมัติ: ถ. = ถนน, อ. = อาคาร (แก้ไขเองได้)
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={formData.projectCode}
+                      onChange={e => {
+                        const val = e.target.value;
+                        setHasManualCodeEdit(true);
+                        if (val.trim().startsWith('อ.')) {
+                          setProjectCodePrefix('อ.');
+                        } else if (val.trim().startsWith('ถ.')) {
+                          setProjectCodePrefix('ถ.');
+                        }
+                        setFormData({ ...formData, projectCode: val });
+                      }}
+                      placeholder="เช่น ถ.69-001 หรือ อ.69-001"
+                      aria-invalid={Boolean(duplicateCodeProject)}
+                      className={`w-full pl-3 pr-9 py-2 rounded-xl text-sm font-mono transition border ${
+                        duplicateCodeProject
+                          ? 'bg-rose-50/60 border-rose-500 text-rose-900 focus:bg-white focus:ring-2 focus:ring-rose-500/20 focus:border-rose-500'
+                          : 'bg-slate-50 border-slate-300 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500'
+                      }`}
+                    />
+                    {formData.projectCode.trim() && (
+                      <div className="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none">
+                        {duplicateCodeProject ? (
+                          <AlertCircle className="w-4 h-4 text-rose-600" />
+                        ) : (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        )}
+                      </div>
+                    )}
                   </div>
+                  {duplicateCodeProject ? (
+                    <div className="mt-1.5 p-2 rounded-xl bg-rose-50 border border-rose-200 text-[11px] text-rose-800 space-y-1">
+                      <div className="flex items-start gap-1.5 font-semibold leading-snug">
+                        <AlertCircle className="w-3.5 h-3.5 text-rose-600 shrink-0 mt-0.5" />
+                        <span>
+                          รหัสซ้ำกับ: {duplicateCodeProject.name} (ปีงบ {duplicateCodeProject.fiscalYear})
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const nextCode = generateNextProjectCode(
+                            projectCodePrefix,
+                            formData.fiscalYear,
+                            initialProject?.id
+                          );
+                          setHasManualCodeEdit(false);
+                          setFormData(prev => ({ ...prev, projectCode: nextCode }));
+                        }}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white hover:bg-rose-100/70 text-rose-700 font-bold border border-rose-300 text-[10px] transition"
+                      >
+                        ใช้รหัสถัดไปอัตโนมัติ (
+                        {generateNextProjectCode(projectCodePrefix, formData.fiscalYear, initialProject?.id)})
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="text-[10px] mt-0.5 flex items-center justify-between gap-2">
+                      <span className="text-slate-400">
+                        รันอัตโนมัติ: ถ. = ถนน, อ. = อาคาร (แก้ไขเองได้)
+                      </span>
+                      {formData.projectCode.trim() && (
+                        <span className="text-emerald-700 font-semibold whitespace-nowrap">
+                          ไม่ซ้ำในระบบ
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {!duplicateCodeProject &&
+                    vacantProjectCodes.length > 0 &&
+                    !vacantProjectCodes.includes(formData.projectCode.trim()) && (
+                      <div className="mt-1.5 p-2 rounded-xl bg-amber-50/90 border border-amber-200/90 text-[11px] text-amber-900 space-y-1">
+                        <div className="font-semibold text-[10px] text-amber-800">
+                          พบเลขรหัสว่างในหมวดนี้ ({vacantProjectCodes.length} รหัส) — คลิกเพื่อนำกลับมาใช้ได้:
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {vacantProjectCodes.slice(0, 6).map(code => (
+                            <button
+                              key={code}
+                              type="button"
+                              onClick={() => {
+                                setHasManualCodeEdit(true);
+                                setFormData(prev => ({ ...prev, projectCode: code }));
+                              }}
+                              className="px-2 py-0.5 rounded-md bg-white hover:bg-amber-100 text-amber-900 border border-amber-300 font-mono font-bold text-[10px] transition shadow-2xs"
+                              title={`คลิกเพื่อใช้รหัสว่าง ${code}`}
+                            >
+                              {code}
+                            </button>
+                          ))}
+                          {vacantProjectCodes.length > 6 && (
+                            <span className="text-[10px] text-amber-700 self-center">
+                              +{vacantProjectCodes.length - 6} รหัส
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
                 </div>
 
                 <div>
@@ -1826,6 +1963,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                     <option value="inspected">ตรวจรับงานแล้ว รอเบิกจ่าย</option>
                     <option value="completed">แล้วเสร็จ/เบิกจ่ายแล้ว</option>
                     <option value="overdue">เกินกำหนดสัญญา</option>
+                    <option value="cancelled">ยกเลิกโครงการ</option>
                   </select>
                   <div className="text-[10px] text-slate-400 mt-0.5">
                     {formData.statusUpdatedAt
@@ -2331,6 +2469,20 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
                     </div>
                   ))}
                 </div>
+              </div>
+
+              {/* หมายเหตุหมวด TOR และราคากลาง */}
+              <div className="pt-1">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  หมายเหตุหมวด TOR / ราคากลาง
+                </label>
+                <textarea
+                  rows={2}
+                  value={formData.torNotes || ''}
+                  onChange={e => setFormData({ ...formData, torNotes: e.target.value })}
+                  placeholder="บันทึกหมายเหตุเพิ่มเติมเกี่ยวกับการจัดทำ TOR หรือการกำหนดราคากลาง (ถ้ามี)..."
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs focus:bg-white focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
+                />
               </div>
 
               {/* Attachments Section */}
@@ -3979,9 +4131,19 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
           )}
 
           {/* Modal Footer Controls */}
-          <div className="pt-4 border-t border-slate-200 flex items-center justify-between">
-            <div className="text-xs text-slate-500">
-              หมวดที่ {activeTab} จาก 7
+          <div className="pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <span>หมวดที่ {activeTab} จาก 7</span>
+              {duplicateCodeProject && (
+                <button
+                  type="button"
+                  onClick={() => setActiveTab(1)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold text-[11px] transition"
+                >
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                  <span>รหัสโครงการ "{formData.projectCode.trim()}" ซ้ำ — คลิกเพื่อแก้ไข</span>
+                </button>
+              )}
             </div>
 
             <div className="flex items-center gap-2">
@@ -4005,7 +4167,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
 
               <button
                 type="submit"
-                className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold shadow-md shadow-emerald-700/20 active:scale-95 transition"
+                disabled={Boolean(duplicateCodeProject)}
+                className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:bg-slate-300 disabled:shadow-none disabled:cursor-not-allowed text-white text-xs font-bold shadow-md shadow-emerald-700/20 active:scale-95 transition"
               >
                 <Save className="w-4 h-4" />
                 <span>บันทึกข้อมูลโครงการ</span>

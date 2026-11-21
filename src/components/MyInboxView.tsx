@@ -10,7 +10,12 @@ import {
   ArrowDownToLine
 } from 'lucide-react';
 import { Project, UserProfile, ProjectStatus, SarabanQueueItem } from '../types/project';
-import { formatThaiDateTime, deriveProjectStatusFromData, getWorkNoticeAlert } from '../utils/thaiDate';
+import {
+  formatThaiDateTime,
+  deriveProjectStatusFromData,
+  getWorkNoticeAlert,
+  isProjectInMyInbox
+} from '../utils/thaiDate';
 import { STATUS_LABELS } from '../utils/excelExport';
 import { SarabanQueuePanel } from './SarabanQueuePanel';
 
@@ -57,17 +62,8 @@ export const MyInboxView: React.FC<MyInboxViewProps> = ({
     pendingSarabanCount > 0 ? 'saraban' : 'inbox'
   );
 
-  // Requirement 5: ตัวเลขกล่องงานของฉันนับเฉพาะโครงการที่เริ่มดำเนินงานแล้วและยังไม่เสร็จ โดยคำนึงถึงผู้รับผิดชอบหรือผู้ควบคุมงาน
-  const myProjects = projects.filter(p => {
-    const isStartedAndNotCompleted = p.status !== 'not_started' && p.status !== 'completed';
-    if (!isStartedAndNotCompleted) return false;
-
-    if (currentUser.role === 'admin') return true;
-    return (
-      (p.responsiblePerson && p.responsiblePerson.includes(currentUser.displayName)) ||
-      (p.supervisorName && p.supervisorName.includes(currentUser.displayName))
-    );
-  });
+  // แสดงเฉพาะโครงการที่เริ่มบันทึกข้อมูลตั้งแต่แท็บ 2 (TOR/ราคากลาง) ขึ้นไป และยังไม่เสร็จสิ้น/เบิกจ่ายแล้ว หรือยกเลิก
+  const myProjects = projects.filter(p => isProjectInMyInbox(p, currentUser));
 
   const handleAcknowledge = (project: Project) => {
     if (currentUser.role !== 'admin') {
@@ -116,7 +112,8 @@ export const MyInboxView: React.FC<MyInboxViewProps> = ({
         delivered: STATUS_LABELS.delivered,
         inspected: STATUS_LABELS.inspected,
         completed: STATUS_LABELS.completed,
-        overdue: STATUS_LABELS.overdue
+        overdue: STATUS_LABELS.overdue,
+        cancelled: STATUS_LABELS.cancelled
       },
       inputValue: project.status,
       showCancelButton: true,
@@ -161,6 +158,8 @@ export const MyInboxView: React.FC<MyInboxViewProps> = ({
         return 'bg-sky-50 text-sky-900 border-2 border-sky-400 shadow-[0_0_10px_rgba(56,189,248,0.45)]';
       case 'contracted':
         return 'bg-blue-50 text-blue-800 border-2 border-blue-400 shadow-[0_0_10px_rgba(96,165,250,0.45)]';
+      case 'cancelled':
+        return 'bg-slate-100 text-slate-600 border-2 border-slate-400 line-through';
       default:
         return 'bg-slate-50 text-slate-700 border-2 border-slate-300 shadow-[0_0_8px_rgba(148,163,184,0.35)]';
     }
@@ -177,7 +176,7 @@ export const MyInboxView: React.FC<MyInboxViewProps> = ({
             </h2>
             <p className="text-xs text-gray-500 mt-1">
               {activeSubTab === 'inbox'
-                ? 'รายการโครงการและงานมอบหมายที่ท่านต้องรับทราบและกำกับดูแล กดรับทราบงานและปรับสถานะได้ทันที'
+                ? 'แสดงโครงการที่เริ่มบันทึกข้อมูลตั้งแต่หมวดที่ 2 (TOR/ราคากลาง) ขึ้นไป และจะนำออกอัตโนมัติเมื่อเบิกจ่ายแล้ว/เสร็จสิ้น หรือยกเลิก'
                 : 'รายการเอกสารที่ส่งซิงค์มาจากระบบสารบรรณ รอตรวจสอบและกดยืนยันรับเข้าสู่ทะเบียนโครงการ'}
             </p>
           </div>
@@ -264,7 +263,10 @@ export const MyInboxView: React.FC<MyInboxViewProps> = ({
                   <td colSpan={7} className="p-8 text-center text-gray-400">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <CheckCircle2 className="w-8 h-8 text-emerald-400" />
-                      <p className="text-sm font-medium">ไม่มีงานหรือโครงการค้างรับทราบในขณะนี้</p>
+                      <p className="text-sm font-medium">ไม่มีงานหรือโครงการค้างดำเนินการในกล่องงานขณะนี้</p>
+                      <p className="text-xs text-gray-400">
+                        โครงการที่บันทึกเฉพาะหมวดที่ 1 (ข้อมูลทั่วไป) จะอยู่ในทะเบียนโครงการ และจะเข้ากล่องงานอัตโนมัติเมื่อเริ่มบันทึกข้อมูลหมวดที่ 2 (TOR/ราคากลาง)
+                      </p>
                     </div>
                   </td>
                 </tr>
