@@ -411,30 +411,15 @@ export const Dashboard: React.FC<DashboardProps> = ({
   return (
     <div className="space-y-3.5">
       {/* =====================================================================
-          1. HERO EXECUTIVE BANNER (Seamless White Canvas + Continuous Civic Art)
+          1. HERO EXECUTIVE BANNER (@container Layered Seamless Banner)
          ===================================================================== */}
-      <section className="relative bg-white rounded-2xl border border-emerald-100/90 shadow-xs overflow-hidden">
-        <div className="relative flex flex-col sm:flex-row items-stretch sm:h-[110px] md:h-[118px] lg:h-[128px] xl:h-[136px]">
-          {/* Left Typography Zone (Pure continuous white canvas) */}
-          <div className="relative z-20 flex-1 px-5 py-3 sm:px-7 sm:py-0 flex flex-col justify-center min-w-0">
-            <h2
-              className="text-xl sm:text-[24px] lg:text-[27px] font-extrabold text-emerald-900 font-heading tracking-tight leading-tight truncate"
-              style={{ textWrap: 'balance' }}
-            >
-              ภาพรวมโครงการกองช่าง
-            </h2>
-            <p className="text-xs sm:text-[13px] lg:text-sm font-medium text-slate-500 mt-1 truncate">
-              สถานะ ความคืบหน้า งบประมาณ และกำหนดการดำเนินงาน
-            </p>
-            <p className="text-xs sm:text-[13px] lg:text-sm font-bold text-emerald-700 mt-0.5 truncate">
-              {filter.fiscalYear !== 'all'
-                ? `ปีงบประมาณ พ.ศ. ${filter.fiscalYear}`
-                : 'ทุกปีงบประมาณ'}
-            </p>
-          </div>
-
-          {/* Right Continuous Illustration (Scaled boldly to fill height & width cleanly on baseline) */}
-          <div className="relative h-32 sm:h-full w-full sm:w-[395px] md:w-[445px] lg:w-[500px] xl:w-[540px] shrink-0 overflow-hidden bg-white select-none pointer-events-none">
+      <section className="@container relative bg-white rounded-2xl border border-emerald-100/90 shadow-xs overflow-hidden">
+        <div className="relative min-h-[104px] @xl:h-[112px] @3xl:h-[124px] @5xl:h-[136px] flex items-center">
+          {/* Background Layer: Right-Anchored Continuous Illustration (scales fluidly with card width & never pushes text) */}
+          <div
+            className="absolute inset-0 overflow-hidden pointer-events-none select-none"
+            aria-hidden="true"
+          >
             {!bannerImgFailed ? (
               <>
                 <img
@@ -442,20 +427,32 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   alt="ภาพประกอบงานก่อสร้างและวิศวกรกองช่าง"
                   referrerPolicy="no-referrer"
                   onError={() => setBannerImgFailed(true)}
-                  className="absolute left-1/2 -translate-x-[56%] sm:left-auto sm:translate-x-0 sm:right-2 lg:right-3 top-[-65%] h-[214%] w-auto max-w-none mix-blend-multiply"
+                  className="absolute right-0 @2xl:right-2 @4xl:right-3 top-[-54%] @3xl:top-[-64%] h-[196%] @3xl:h-[214%] w-auto max-w-none mix-blend-multiply opacity-30 @lg:opacity-55 @2xl:opacity-85 @3xl:opacity-100 transition-opacity duration-200"
                 />
-                {/* Soft white feather on left edge so artwork flows seamlessly into the text area */}
-                <div
-                  className="hidden sm:block absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-white via-white/75 to-transparent"
-                  aria-hidden="true"
-                />
+                {/* Adaptive Left White Scrim: protects text readability when overlapping image on narrower widths */}
+                <div className="absolute inset-0 bg-gradient-to-r from-white via-white/95 via-[48%] @3xl:via-[38%] @5xl:via-[30%] to-transparent" />
               </>
             ) : (
-              <div className="w-full h-full bg-gradient-to-r from-white via-emerald-50/70 to-emerald-100/60 flex items-center justify-end gap-2 text-emerald-900/70 px-6">
+              <div className="w-full h-full bg-gradient-to-r from-white via-emerald-50/60 to-emerald-100/50 flex items-center justify-end gap-2 text-emerald-900/60 px-6">
                 <HardHat className="w-6 h-6 shrink-0" />
                 <span className="text-xs font-semibold">งานก่อสร้างและบำรุงรักษา กองช่าง</span>
               </div>
             )}
+          </div>
+
+          {/* Foreground Layer: Unobstructed Typography (never squeezed or clipped when resizing or opening sidebar) */}
+          <div className="relative z-10 w-full px-5 py-3 @2xl:px-7 @2xl:py-0 flex flex-col justify-center">
+            <h2 className="text-lg @md:text-xl @2xl:text-[24px] @4xl:text-[27px] font-extrabold text-emerald-900 font-heading tracking-tight leading-snug">
+              ภาพรวมโครงการกองช่าง
+            </h2>
+            <p className="text-xs @2xl:text-[13px] @4xl:text-sm font-medium text-slate-600 mt-0.5 @2xl:mt-1 max-w-[92%] @3xl:max-w-[56%]">
+              สถานะ ความคืบหน้า งบประมาณ และกำหนดการดำเนินงาน
+            </p>
+            <p className="text-xs @2xl:text-[13px] @4xl:text-sm font-bold text-emerald-700 mt-0.5">
+              {filter.fiscalYear !== 'all'
+                ? `ปีงบประมาณ พ.ศ. ${filter.fiscalYear}`
+                : 'ทุกปีงบประมาณ'}
+            </p>
           </div>
         </div>
       </section>
