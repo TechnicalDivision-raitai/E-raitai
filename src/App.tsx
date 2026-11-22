@@ -1010,6 +1010,7 @@ export default function App() {
           {currentTab === 'dashboard' && (
             <Dashboard
               projects={projects}
+              repairRequests={repairRequests}
               filter={filter}
               setFilter={setFilter}
               availableYears={availableYears}
@@ -1022,6 +1023,7 @@ export default function App() {
                 setProjectToEdit(null);
                 setIsProjectModalOpen(true);
               }}
+              onNavigateToRepairRequests={() => setCurrentTab('repair_requests')}
             />
           )}
 

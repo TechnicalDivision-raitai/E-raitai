@@ -1,49 +1,100 @@
 import React, { useMemo, useState } from 'react';
 import {
-  FolderKanban,
-  CheckCircle2,
   Clock,
-  AlertOctagon,
-  Coins,
-  FileCheck,
-  TrendingUp,
-  AlertCircle,
-  Building2,
-  PiggyBank,
+  AlertTriangle,
+  Megaphone,
   ArrowUpRight,
-  Sparkles,
-  BarChart3,
-  PieChart,
-  HardHat,
-  AlertTriangle
+  ChevronDown,
+  ChevronUp,
+  RotateCcw,
+  Wrench,
+  CheckCircle2,
+  HardHat
 } from 'lucide-react';
-import { Project, ProjectFilter, BudgetCategory, ProjectStatus, UserProfile } from '../types/project';
-import { formatCurrency, formatThaiDate, getWorkNoticeAlert } from '../utils/thaiDate';
+import {
+  Project,
+  ProjectFilter,
+  RepairRequest,
+  RepairRequestStatus,
+  UserProfile
+} from '../types/project';
+import {
+  calculateProjectProgress,
+  formatCurrency,
+  formatThaiDate,
+  getDaysRemaining,
+  getWorkNoticeAlert,
+  isProjectCompletedOrDisbursed
+} from '../utils/thaiDate';
 import { STATUS_LABELS } from '../utils/excelExport';
+
+const HERO_BANNER_IMAGE = '/assets/aistudio/____________________8169f350.png';
 
 interface DashboardProps {
   projects: Project[];
+  repairRequests?: RepairRequest[];
   filter: ProjectFilter;
   setFilter: React.Dispatch<React.SetStateAction<ProjectFilter>>;
   availableYears: number[];
   onSelectProject: (p: Project, tab?: number) => void;
   onOpenNewProjectModal: () => void;
+  onNavigateToRepairRequests?: () => void;
   currentUser?: UserProfile;
+}
+
+type SummaryBucketKey = 'in_progress' | 'completed' | 'pending' | 'overdue' | 'cancelled';
+
+const REPAIR_STATUS_META: Record<
+  RepairRequestStatus,
+  { label: string; textClass: string }
+> = {
+  received: { label: 'รับคำร้อง / รอตรวจ', textClass: 'text-rose-600' },
+  inspecting: { label: 'ลงพื้นที่สำรวจ', textClass: 'text-amber-700' },
+  in_progress: { label: 'กำลังซ่อมแซม', textClass: 'text-sky-700' },
+  budget_planned: { label: 'เสนอตั้งงบฯ', textClass: 'text-indigo-700' },
+  completed: { label: 'แก้ไขแล้วเสร็จ', textClass: 'text-emerald-700' }
+};
+
+function classifyProjectBucket(p: Project): SummaryBucketKey {
+  if (p.status === 'cancelled') return 'cancelled';
+  if (p.status === 'completed' || isProjectCompletedOrDisbursed(p)) return 'completed';
+  const rem = p.endDate ? getDaysRemaining(p.endDate) : null;
+  if (p.status === 'overdue' || (rem && rem.isOverdue)) return 'overdue';
+  if (p.status === 'not_started' || p.status === 'procurement_tor') return 'pending';
+  return 'in_progress';
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({
   projects,
+  repairRequests = [],
   filter,
   setFilter,
   availableYears,
   onSelectProject,
   onOpenNewProjectModal,
+  onNavigateToRepairRequests,
   currentUser
 }) => {
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
+  const [activeBucketFilter, setActiveBucketFilter] = useState<SummaryBucketKey | 'all'>('all');
+  const [hoveredBucket, setHoveredBucket] = useState<SummaryBucketKey | null>(null);
+  const [bannerImgFailed, setBannerImgFailed] = useState<boolean>(false);
+  const [showAllNearDue, setShowAllNearDue] = useState<boolean>(false);
+  const [showAllOverdue, setShowAllOverdue] = useState<boolean>(false);
+  const [showAllFollowUp, setShowAllFollowUp] = useState<boolean>(false);
+  const [followUpMode, setFollowUpMode] = useState<'repairs' | 'notices'>('repairs');
 
-  // Apply filtering based on current filter state
-  const filteredProjects = useMemo(() => {
+  // Available budget categories for filter dropdown
+  const availableCategories = useMemo(
+    () =>
+      Array.from(new Set(projects.map(p => p.budgetCategory).filter(Boolean))).sort((a, b) =>
+        a.localeCompare(b, 'th')
+      ),
+    [projects]
+  );
+
+  // Base filtered projects (year, category, status, keyword)
+  const baseFilteredProjects = useMemo(() => {
     return projects.filter(p => {
       if (filter.fiscalYear !== 'all' && p.fiscalYear !== Number(filter.fiscalYear)) {
         return false;
@@ -60,7 +111,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
         const matchCode = p.projectCode.toLowerCase().includes(query);
         const matchContract = p.contractNo?.toLowerCase().includes(query) ?? false;
         const matchContractor = p.contractorName?.toLowerCase().includes(query) ?? false;
-        if (!matchName && !matchCode && !matchContract && !matchContractor) {
+        const matchLocation = p.location?.toLowerCase().includes(query) ?? false;
+        if (!matchName && !matchCode && !matchContract && !matchContractor && !matchLocation) {
           return false;
         }
       }
@@ -68,147 +120,402 @@ export const Dashboard: React.FC<DashboardProps> = ({
     });
   }, [projects, filter]);
 
-  // Metric 1: Total
-  const totalCount = filteredProjects.length;
+  // Projects filtered further if user clicked a status row/slice in the summary card
+  const displayProjects = useMemo(() => {
+    if (activeBucketFilter === 'all') return baseFilteredProjects;
+    return baseFilteredProjects.filter(p => classifyProjectBucket(p) === activeBucketFilter);
+  }, [baseFilteredProjects, activeBucketFilter]);
 
-  // Metric 2: In progress
-  const inProgressCount = filteredProjects.filter(p => p.status === 'in_progress').length;
-
-  // Metric 3: Completed
-  const completedCount = filteredProjects.filter(p => p.status === 'completed').length;
-
-  // Metric 4: Not started
-  const notStartedCount = filteredProjects.filter(
-    p => p.status === 'not_started' || p.status === 'procurement_tor'
-  ).length;
-
-  // Metric 5: Overdue
-  const overdueCount = filteredProjects.filter(p => p.status === 'overdue').length;
-
-  // Projects that have recorded a work notice but have not recorded an actual work start date within 15 days
-  const workNoticeAlerts = useMemo(() => {
-    return filteredProjects
-      .map(p => ({ project: p, alert: getWorkNoticeAlert(p) }))
-      .filter(item => item.alert.hasAlert);
-  }, [filteredProjects]);
-
-  // Metric 6: Total Approved Budget
-  const totalApprovedBudget = filteredProjects.reduce((sum, p) => sum + (p.approvedBudget || 0), 0);
-
-  // Metric 7: Total Contract Amount
-  const totalContractAmount = filteredProjects.reduce((sum, p) => sum + (p.contractAmount || 0), 0);
-
-  // Metric 8: Total Disbursed Amount
-  const totalDisbursedAmount = filteredProjects.reduce((sum, p) => {
-    const paidInProject = (p.disbursements || [])
-      .filter(d => d.status === 'paid')
-      .reduce((sub, d) => sub + (d.amount || 0), 0);
-    return sum + paidInProject;
-  }, 0);
-
-  // Disbursement rate percentage
-  const disbursementPercent = totalContractAmount > 0
-    ? Math.min(100, Math.round((totalDisbursedAmount / totalContractAmount) * 100))
-    : 0;
-
-  // Metric 9: Projects count by fiscal year
-  const projectsByYear = useMemo(() => {
-    const map: Record<number, number> = {};
-    projects.forEach(p => {
-      map[p.fiscalYear] = (map[p.fiscalYear] || 0) + 1;
-    });
-    return availableYears.map(yr => ({
-      year: yr,
-      count: map[yr] || 0
-    }));
-  }, [projects, availableYears]);
-
-  // Metric 10: Budget by fiscal year
-  const budgetByYear = useMemo(() => {
-    const map: Record<number, { approved: number; contracted: number; disbursed: number }> = {};
-    projects.forEach(p => {
-      if (!map[p.fiscalYear]) {
-        map[p.fiscalYear] = { approved: 0, contracted: 0, disbursed: 0 };
-      }
-      map[p.fiscalYear].approved += p.approvedBudget || 0;
-      map[p.fiscalYear].contracted += p.contractAmount || 0;
-      const disbursed = (p.disbursements || [])
-        .filter(d => d.status === 'paid')
-        .reduce((s, d) => s + d.amount, 0);
-      map[p.fiscalYear].disbursed += disbursed;
-    });
-
-    return availableYears.map(yr => ({
-      year: yr,
-      ...(map[yr] || { approved: 0, contracted: 0, disbursed: 0 })
-    }));
-  }, [projects, availableYears]);
-
-  // Metric 11: Progress status distribution
-  const statusDistribution = useMemo(() => {
-    const counts: Record<string, number> = {
-      not_started: 0,
-      procurement_tor: 0,
-      contracted: 0,
+  // 5-Bucket Summary Counts (always computed from baseFilteredProjects so donut stays full context)
+  const bucketCounts = useMemo(() => {
+    const counts: Record<SummaryBucketKey, number> = {
       in_progress: 0,
-      delivered: 0,
-      inspected: 0,
       completed: 0,
+      pending: 0,
       overdue: 0,
       cancelled: 0
     };
-    filteredProjects.forEach(p => {
-      counts[p.status] = (counts[p.status] || 0) + 1;
+    baseFilteredProjects.forEach(p => {
+      counts[classifyProjectBucket(p)] += 1;
     });
     return counts;
-  }, [filteredProjects]);
+  }, [baseFilteredProjects]);
 
-  // Breakdown by budget category
+  const totalCount = baseFilteredProjects.length;
+
+  const summaryItems: Array<{
+    key: SummaryBucketKey;
+    label: string;
+    count: number;
+    swatchClass: string;
+    strokeColor: string;
+  }> = useMemo(
+    () => [
+      {
+        key: 'pending',
+        label: 'เตรียมดำเนินการ',
+        count: bucketCounts.pending,
+        swatchClass: 'bg-amber-500',
+        strokeColor: '#f59e0b'
+      },
+      {
+        key: 'in_progress',
+        label: 'อยู่ระหว่างดำเนินการ',
+        count: bucketCounts.in_progress,
+        swatchClass: 'bg-emerald-600',
+        strokeColor: '#059669'
+      },
+      {
+        key: 'completed',
+        label: 'แล้วเสร็จ',
+        count: bucketCounts.completed,
+        swatchClass: 'bg-blue-500',
+        strokeColor: '#3b82f6'
+      },
+      {
+        key: 'overdue',
+        label: 'ล่าช้า',
+        count: bucketCounts.overdue,
+        swatchClass: 'bg-rose-600',
+        strokeColor: '#e11d48'
+      },
+      {
+        key: 'cancelled',
+        label: 'ยกเลิก / ระงับ',
+        count: bucketCounts.cancelled,
+        swatchClass: 'bg-slate-400',
+        strokeColor: '#94a3b8'
+      }
+    ],
+    [bucketCounts]
+  );
+
+  // Budget Totals
+  const totalApprovedBudget = useMemo(
+    () => displayProjects.reduce((sum, p) => sum + (p.approvedBudget || 0), 0),
+    [displayProjects]
+  );
+  const totalContractAmount = useMemo(
+    () => displayProjects.reduce((sum, p) => sum + (p.contractAmount || 0), 0),
+    [displayProjects]
+  );
+  const totalDisbursedAmount = useMemo(
+    () =>
+      displayProjects.reduce((sum, p) => {
+        const paidInProject = (p.disbursements || [])
+          .filter(d => d.status === 'paid')
+          .reduce((sub, d) => sub + (d.amount || 0), 0);
+        return sum + paidInProject;
+      }, 0),
+    [displayProjects]
+  );
+
+  const budgetScaleMax = Math.max(totalApprovedBudget, totalContractAmount, totalDisbursedAmount, 1);
+  const approvedBarPct =
+    totalApprovedBudget > 0 ? Math.max(6, Math.round((totalApprovedBudget / budgetScaleMax) * 100)) : 0;
+  const contractBarPct =
+    totalContractAmount > 0 ? Math.max(4, Math.round((totalContractAmount / budgetScaleMax) * 100)) : 0;
+  const disbursedBarPct =
+    totalDisbursedAmount > 0 ? Math.max(4, Math.round((totalDisbursedAmount / budgetScaleMax) * 100)) : 0;
+
+  const contractRatePct =
+    totalApprovedBudget > 0 ? Math.round((totalContractAmount / totalApprovedBudget) * 100) : 0;
+  const disbursedRatePct =
+    totalContractAmount > 0
+      ? Math.min(100, Math.round((totalDisbursedAmount / totalContractAmount) * 100))
+      : totalApprovedBudget > 0
+      ? Math.min(100, Math.round((totalDisbursedAmount / totalApprovedBudget) * 100))
+      : 0;
+
+  // Breakdown by Budget Source (หมวดงบประมาณ) + Infrastructure Type (ถ./อ.) + Average Progress
   const categoryBreakdown = useMemo(() => {
-    const map: Record<string, { count: number; totalBudget: number }> = {};
-    filteredProjects.forEach(p => {
-      const cat = p.budgetCategory || 'อื่นๆ';
-      if (!map[cat]) map[cat] = { count: 0, totalBudget: 0 };
-      map[cat].count += 1;
-      map[cat].totalBudget += p.approvedBudget || 0;
+    const palette = [
+      'bg-[#155d96]',
+      'bg-teal-600',
+      'bg-amber-500',
+      'bg-indigo-600',
+      'bg-rose-500'
+    ];
+    const map = new Map<string, { name: string; count: number; budget: number }>();
+    displayProjects.forEach(p => {
+      const cat = (p.budgetCategory || 'ไม่ระบุหมวดงบ').trim();
+      const prev = map.get(cat) || { name: cat, count: 0, budget: 0 };
+      prev.count += 1;
+      prev.budget += p.approvedBudget || 0;
+      map.set(cat, prev);
     });
-    return Object.entries(map).map(([category, val]) => ({
-      category,
-      ...val
+    const sorted = Array.from(map.values()).sort(
+      (a, b) => b.budget - a.budget || b.count - a.count
+    );
+    const totalBudgetSum = sorted.reduce((s, item) => s + item.budget, 0);
+    return sorted.slice(0, 4).map((item, idx) => ({
+      ...item,
+      barColor: palette[idx % palette.length],
+      sharePct:
+        totalBudgetSum > 0
+          ? Math.round((item.budget / totalBudgetSum) * 100)
+          : displayProjects.length > 0
+          ? Math.round((item.count / displayProjects.length) * 100)
+          : 0
     }));
-  }, [filteredProjects]);
+  }, [displayProjects]);
 
-  const maxYearBudget = Math.max(...budgetByYear.map(b => b.approved), 1);
+  const workTypeSummary = useMemo(() => {
+    let road = 0;
+    let building = 0;
+    let other = 0;
+    displayProjects.forEach(p => {
+      const code = (p.projectCode || '').trim();
+      if (code.startsWith('ถ.')) road += 1;
+      else if (code.startsWith('อ.')) building += 1;
+      else other += 1;
+    });
+    return { road, building, other };
+  }, [displayProjects]);
+
+  const avgProgressPct = useMemo(() => {
+    const active = displayProjects.filter(p => p.status !== 'cancelled');
+    if (active.length === 0) return 0;
+    const sum = active.reduce((acc, p) => acc + calculateProjectProgress(p), 0);
+    return Math.round(sum / active.length);
+  }, [displayProjects]);
+
+  const procurementSavings = useMemo(() => {
+    return displayProjects.reduce((sum, p) => {
+      if (p.status === 'cancelled') return sum;
+      if (p.approvedBudget > 0 && p.contractAmount && p.contractAmount > 0 && p.approvedBudget > p.contractAmount) {
+        return sum + (p.approvedBudget - p.contractAmount);
+      }
+      return sum;
+    }, 0);
+  }, [displayProjects]);
+
+  // Alert List 1: Projects Near Deadline (<= 30 days remaining, not completed/cancelled)
+  const nearDeadlineProjects = useMemo(() => {
+    return baseFilteredProjects
+      .filter(p => {
+        if (!p.endDate || p.status === 'completed' || p.status === 'cancelled' || isProjectCompletedOrDisbursed(p)) {
+          return false;
+        }
+        const rem = getDaysRemaining(p.endDate);
+        return !rem.isOverdue && rem.days <= 30;
+      })
+      .map(p => ({ project: p, remaining: getDaysRemaining(p.endDate) }))
+      .sort((a, b) => a.remaining.days - b.remaining.days);
+  }, [baseFilteredProjects]);
+
+  // Alert List 2: Overdue Projects (past endDate or status === 'overdue', not completed/cancelled)
+  const overdueProjects = useMemo(() => {
+    return baseFilteredProjects
+      .filter(p => {
+        if (p.status === 'completed' || p.status === 'cancelled' || isProjectCompletedOrDisbursed(p)) {
+          return false;
+        }
+        const rem = p.endDate ? getDaysRemaining(p.endDate) : null;
+        return p.status === 'overdue' || Boolean(rem && rem.isOverdue);
+      })
+      .map(p => ({
+        project: p,
+        overdueDays: p.endDate ? getDaysRemaining(p.endDate).days : 0
+      }))
+      .sort((a, b) => b.overdueDays - a.overdueDays);
+  }, [baseFilteredProjects]);
+
+  // Alert List 3: Open Repair Petitions (คำร้อง/ซ่อมแซมที่ยังไม่แล้วเสร็จ) + Contractor Acceleration Alerts
+  const openRepairPetitions = useMemo(() => {
+    const urgencyRank: Record<string, number> = { emergency: 0, urgent: 1, normal: 2 };
+    const filteredRepairs = repairRequests.filter(r => {
+      if (r.status === 'completed') return false;
+      if (filter.fiscalYear !== 'all' && r.fiscalYear && r.fiscalYear !== Number(filter.fiscalYear)) {
+        return false;
+      }
+      return true;
+    });
+
+    // If year filter hides all repairs while there are open repairs in other years, keep showing all open repairs so nothing urgent is missed
+    const sourceList =
+      filteredRepairs.length > 0
+        ? filteredRepairs
+        : repairRequests.filter(r => r.status !== 'completed');
+
+    return [...sourceList].sort((a, b) => {
+      const rankDiff = (urgencyRank[a.urgency] ?? 2) - (urgencyRank[b.urgency] ?? 2);
+      if (rankDiff !== 0) return rankDiff;
+      return (b.petitionDate || '').localeCompare(a.petitionDate || '');
+    });
+  }, [repairRequests, filter.fiscalYear]);
+
+  const workNoticeAlerts = useMemo(() => {
+    return baseFilteredProjects
+      .map(p => ({ project: p, alert: getWorkNoticeAlert(p) }))
+      .filter(item => item.alert.hasAlert)
+      .sort((a, b) => b.alert.daysElapsed - a.alert.daysElapsed);
+  }, [baseFilteredProjects]);
+
+  // Latest projects sorted newest first (preserving original behavior)
+  const latestProjects = useMemo(() => {
+    return [...displayProjects]
+      .sort((a, b) => {
+        const timeB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+        const timeA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+        return timeB - timeA;
+      })
+      .slice(0, 6);
+  }, [displayProjects]);
+
+  // Donut Chart Geometry (SVG stroke-dasharray)
+  const donutRadius = 56;
+  const donutCircumference = 2 * Math.PI * donutRadius;
+  const donutSegments = useMemo(() => {
+    if (totalCount === 0) return [];
+    let cumulativeFraction = 0;
+    return summaryItems
+      .filter(item => item.count > 0)
+      .map(item => {
+        const fraction = item.count / totalCount;
+        const length = fraction * donutCircumference;
+        const offset = -cumulativeFraction * donutCircumference;
+        cumulativeFraction += fraction;
+        return {
+          ...item,
+          length,
+          offset,
+          percent: Math.round(fraction * 100)
+        };
+      });
+  }, [summaryItems, totalCount, donutCircumference]);
+
+  const hasActiveFilters =
+    filter.category !== 'all' ||
+    filter.status !== 'all' ||
+    activeBucketFilter !== 'all' ||
+    Boolean(filter.searchQuery.trim());
+
+  const handleResetFilters = () => {
+    setFilter(prev => ({
+      ...prev,
+      category: 'all',
+      status: 'all',
+      searchQuery: ''
+    }));
+    setActiveBucketFilter('all');
+  };
+
+  const budgetYearLabel =
+    filter.fiscalYear !== 'all' ? `พ.ศ. ${filter.fiscalYear}` : 'ทุกปีงบประมาณ';
+
+  const visibleNearDue = showAllNearDue ? nearDeadlineProjects : nearDeadlineProjects.slice(0, 4);
+  const visibleOverdue = showAllOverdue ? overdueProjects : overdueProjects.slice(0, 4);
+  const visibleRepairs = showAllFollowUp ? openRepairPetitions : openRepairPetitions.slice(0, 4);
+  const visibleNotices = showAllFollowUp ? workNoticeAlerts : workNoticeAlerts.slice(0, 4);
 
   return (
-    <div className="space-y-6">
-      {/* Top Banner / Breadcrumb & Active Filters */}
-      <div className="bg-gradient-to-r from-emerald-800 via-emerald-700 to-teal-800 rounded-3xl p-6 sm:p-8 text-white shadow-xl shadow-emerald-950/20 relative overflow-hidden">
-        <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-white/5 rounded-full blur-2xl pointer-events-none" />
-        <div className="absolute right-10 top-6 opacity-10">
-          <HardHat className="w-48 h-48 text-white" />
-        </div>
-
-        <div className="relative z-10 max-w-3xl">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-900/60 border border-emerald-500/30 text-emerald-200 text-xs font-medium mb-3">
-            <Sparkles className="w-3.5 h-3.5 text-emerald-300" />
-            ระบบติดตามงานโครงการ กองช่าง
+    <div className="space-y-3.5">
+      {/* =====================================================================
+          1. HERO EXECUTIVE BANNER (Slim Compact Strip + Engineering Illustration)
+         ===================================================================== */}
+      <section className="relative bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+        <div className="flex flex-col sm:flex-row items-stretch sm:h-[84px] lg:h-[92px]">
+          {/* Left Typography Zone */}
+          <div className="relative z-10 flex-1 px-5 py-2.5 sm:px-6 sm:py-0 flex flex-col justify-center bg-gradient-to-r from-sky-50/90 via-white to-white min-w-0">
+            <h2
+              className="text-lg sm:text-[22px] font-extrabold text-[#124e82] font-heading tracking-tight leading-tight truncate"
+              style={{ textWrap: 'balance' }}
+            >
+              ภาพรวมโครงการกองช่าง
+            </h2>
+            <p className="text-xs sm:text-[13px] font-medium text-slate-600 mt-0.5 truncate">
+              สถานะ ความคืบหน้า งบประมาณ และกำหนดการ
+              <span className="text-slate-400 mx-1.5" aria-hidden="true">·</span>
+              <span className="text-[#124e82] font-semibold">
+                {filter.fiscalYear !== 'all'
+                  ? `ปีงบประมาณ พ.ศ. ${filter.fiscalYear}`
+                  : 'ทุกปีงบประมาณ'}
+              </span>
+            </p>
           </div>
-          <h2 className="text-2xl sm:text-3xl font-bold font-heading tracking-tight text-white mb-2">
-            ภาพรวมงานโครงการกองช่าง
-            {filter.fiscalYear !== 'all' ? ` ประจำปีงบประมาณ พ.ศ. ${filter.fiscalYear}` : ' (ทุกปีงบประมาณ)'}
-          </h2>
-          <p className="text-emerald-100/90 text-sm sm:text-base leading-relaxed">
-            ติดตามความคืบหน้าโครงการก่อสร้าง ปรับปรุง บำรุงรักษา งานจัดซื้อจัดจ้างตามระเบียบพัสดุ
-            และรายงานสถานะการเบิกจ่ายงบประมาณขององค์กรปกครองส่วนท้องถิ่น
-          </p>
-        </div>
 
-        {/* Global Filter Bar Inside Banner / Card */}
-        <div className="mt-6 pt-5 border-t border-emerald-600/50 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          {/* Year Filter */}
-          <div>
-            <label className="block text-[11px] font-semibold text-emerald-200 mb-1">
+          {/* Right Illustration Strip with Crisp Diagonal Civic Edge */}
+          <div
+            className="relative h-20 sm:h-full sm:w-[48%] lg:w-[50%] shrink-0 bg-[#2b82c9] overflow-hidden"
+            style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%, 26px 100%)' }}
+          >
+            <div
+              className="w-full h-full bg-sky-100 overflow-hidden"
+              style={{ clipPath: 'polygon(8px 0, 100% 0, 100% 100%, 34px 100%)' }}
+            >
+              {!bannerImgFailed ? (
+                <img
+                  src={HERO_BANNER_IMAGE}
+                  alt="ภาพประกอบวิศวกรกองช่างตรวจสอบงานก่อสร้างถนน"
+                  referrerPolicy="no-referrer"
+                  onError={() => setBannerImgFailed(true)}
+                  className="w-full h-full object-cover object-[52%_36%]"
+                />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-sky-100 via-sky-50 to-emerald-50 flex items-center justify-center gap-2 text-[#124e82]/70 px-6">
+                  <HardHat className="w-6 h-6 shrink-0" />
+                  <span className="text-xs font-semibold">งานก่อสร้างและบำรุงรักษา กองช่าง</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* =====================================================================
+          2. COMPACT 3-DROPDOWN FILTER BAR
+         ===================================================================== */}
+      <section className="flex flex-wrap items-center justify-between gap-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 flex-1">
+          {/* Filter 1: Budget Category */}
+          <div className="bg-sky-50/70 border border-sky-200/80 rounded-xl px-3 py-1 hover:border-sky-300 transition-colors">
+            <label className="block text-[10px] font-semibold text-slate-500 leading-tight">
+              หมวดงบประมาณ
+            </label>
+            <select
+              value={filter.category}
+              onChange={e => setFilter(prev => ({ ...prev, category: e.target.value }))}
+              className="w-full bg-transparent text-xs font-bold text-[#124e82] focus:outline-hidden cursor-pointer pt-0.5 truncate"
+            >
+              <option value="all">ทั้งหมด</option>
+              {availableCategories.map(cat => (
+                <option key={cat} value={cat}>
+                  {cat}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Filter 2: Project Status */}
+          <div className="bg-sky-50/70 border border-sky-200/80 rounded-xl px-3 py-1 hover:border-sky-300 transition-colors">
+            <label className="block text-[10px] font-semibold text-slate-500 leading-tight">
+              สถานะโครงการ
+            </label>
+            <select
+              value={filter.status}
+              onChange={e => {
+                setActiveBucketFilter('all');
+                setFilter(prev => ({ ...prev, status: e.target.value }));
+              }}
+              className="w-full bg-transparent text-xs font-bold text-[#124e82] focus:outline-hidden cursor-pointer pt-0.5 truncate"
+            >
+              <option value="all">ทั้งหมด</option>
+              <option value="not_started">ยังไม่เริ่มดำเนินการ</option>
+              <option value="procurement_tor">จัดทำ TOR/ราคากลาง</option>
+              <option value="contracted">ลงนามสัญญาแล้ว</option>
+              <option value="in_progress">อยู่ระหว่างดำเนินการ</option>
+              <option value="delivered">ส่งมอบงานแล้ว รอตรวจรับ</option>
+              <option value="inspected">ตรวจรับแล้ว รอเบิกจ่าย</option>
+              <option value="completed">แล้วเสร็จ/เบิกจ่ายแล้ว</option>
+              <option value="overdue">เกินกำหนดสัญญา</option>
+              <option value="cancelled">ยกเลิกโครงการ</option>
+            </select>
+          </div>
+
+          {/* Filter 3: Fiscal Year */}
+          <div className="bg-sky-50/70 border border-sky-200/80 rounded-xl px-3 py-1 hover:border-sky-300 transition-colors">
+            <label className="block text-[10px] font-semibold text-slate-500 leading-tight">
               ปีงบประมาณ
             </label>
             <select
@@ -219,510 +526,697 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   fiscalYear: e.target.value === 'all' ? 'all' : Number(e.target.value)
                 }))
               }
-              className="w-full bg-emerald-950/60 border border-emerald-500/40 text-white rounded-xl px-3 py-2 text-xs font-medium focus:outline-hidden focus:ring-2 focus:ring-emerald-400"
+              className="w-full bg-transparent text-xs font-bold text-[#124e82] focus:outline-hidden cursor-pointer pt-0.5 truncate"
             >
               <option value="all">ทุกปีงบประมาณ</option>
               {availableYears.map(yr => (
                 <option key={yr} value={yr}>
-                  ปีงบประมาณ พ.ศ. {yr}
+                  ปีงบประมาณ {yr}
                 </option>
               ))}
             </select>
           </div>
-
-          {/* Category Filter */}
-          <div>
-            <label className="block text-[11px] font-semibold text-emerald-200 mb-1">
-              หมวดงบประมาณ
-            </label>
-            <select
-              value={filter.category}
-              onChange={e => setFilter(prev => ({ ...prev, category: e.target.value }))}
-              className="w-full bg-emerald-950/60 border border-emerald-500/40 text-white rounded-xl px-3 py-2 text-xs font-medium focus:outline-hidden focus:ring-2 focus:ring-emerald-400"
-            >
-              <option value="all">ทุกหมวดงบประมาณ</option>
-              {Array.from(new Set(projects.map(p => p.budgetCategory).filter(Boolean)))
-                .sort((a, b) => a.localeCompare(b, 'th'))
-                .map(cat => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
-            </select>
-          </div>
-
-          {/* Status Filter */}
-          <div>
-            <label className="block text-[11px] font-semibold text-emerald-200 mb-1">
-              สถานะโครงการ
-            </label>
-            <select
-              value={filter.status}
-              onChange={e => setFilter(prev => ({ ...prev, status: e.target.value }))}
-              className="w-full bg-emerald-950/60 border border-emerald-500/40 text-white rounded-xl px-3 py-2 text-xs font-medium focus:outline-hidden focus:ring-2 focus:ring-emerald-400"
-            >
-              <option value="all">ทุกสถานะการดำเนินงาน</option>
-              <option value="not_started">ยังไม่เริ่มดำเนินการ</option>
-              <option value="procurement_tor">จัดทำ TOR/ราคากลาง</option>
-              <option value="contracted">ลงนามสัญญาแล้ว</option>
-              <option value="in_progress">อยู่ระหว่างดำเนินการ</option>
-              <option value="delivered">ส่งมอบงานแล้ว รอตรวจรับ</option>
-              <option value="inspected">ตรวจรับแล้ว รอเบิกจ่าย</option>
-              <option value="completed">แล้วเสร็จ/เบิกจ่ายแล้ว</option>
-              <option value="overdue">เกินกำหนดสัญญา</option>
-            </select>
-          </div>
-
-          {/* Keyword Filter */}
-          <div>
-            <label className="block text-[11px] font-semibold text-emerald-200 mb-1">
-              ค้นหาชื่อ/เลขสัญญา
-            </label>
-            <input
-              type="text"
-              value={filter.searchQuery}
-              onChange={e => setFilter(prev => ({ ...prev, searchQuery: e.target.value }))}
-              placeholder="พิมพ์คำค้นหา..."
-              className="w-full bg-emerald-950/60 border border-emerald-500/40 text-white placeholder-emerald-300/50 rounded-xl px-3 py-2 text-xs focus:outline-hidden focus:ring-2 focus:ring-emerald-400"
-            />
-          </div>
         </div>
-      </div>
 
-      {/* Work Notice 15-Day Contractor Expedition Alert Banner (Admin only) */}
-      {currentUser?.role === 'admin' && workNoticeAlerts.length > 0 && (
-        <div className="bg-amber-50/90 border-2 border-amber-300 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-amber-500 text-white shrink-0">
-                <AlertTriangle className="w-5 h-5" />
-              </div>
-              <div>
-                <h3 className="text-sm sm:text-base font-bold text-amber-950 font-heading">
-                  แจ้งเตือนการเร่งรัดผู้รับจ้างเข้าทำงาน ({workNoticeAlerts.length} โครงการ)
-                </h3>
-                <p className="text-xs text-amber-800">
-                  โครงการที่มีการบันทึกหนังสือแจ้งเข้าทำงานแล้ว แต่ยังไม่มีการบันทึกวันเข้าทำงานจริงภายใน 15 วัน
-                </p>
-              </div>
-            </div>
+        {hasActiveFilters && (
+          <button
+            type="button"
+            onClick={handleResetFilters}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors whitespace-nowrap shrink-0"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            <span>ล้างตัวกรอง</span>
+          </button>
+        )}
+      </section>
+
+      {/* =====================================================================
+          3. ROW 1: STATUS DONUT | BUDGET SOURCE & PROGRESS | BUDGET OVERVIEW
+         ===================================================================== */}
+      <section className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-stretch">
+        {/* Card 1: Status Proportion Donut + Bottom Total Count */}
+        <div className="lg:col-span-4 bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden flex flex-col">
+          <div className="bg-[#155d96] px-4 py-2 flex items-center justify-between">
+            <h3 className="text-xs sm:text-sm font-bold text-white font-heading">
+              สัดส่วนโครงการตามสถานะ
+            </h3>
+            {activeBucketFilter !== 'all' && (
+              <button
+                type="button"
+                onClick={() => setActiveBucketFilter('all')}
+                className="text-[11px] font-medium text-sky-100 hover:text-white underline whitespace-nowrap"
+              >
+                แสดงทั้งหมด
+              </button>
+            )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-            {workNoticeAlerts.map(({ project: p, alert }) => (
-              <div
-                key={p.id}
-                className={`p-3 rounded-xl border flex items-center justify-between gap-3 bg-white ${
-                  alert.isOver15Days ? 'border-rose-300' : 'border-amber-200'
-                }`}
-              >
-                <div className="min-w-0 space-y-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
-                      {p.projectCode}
-                    </span>
-                    <span
-                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        alert.isOver15Days
-                          ? 'bg-rose-100 text-rose-800 border border-rose-300'
-                          : 'bg-amber-100 text-amber-900 border border-amber-300'
+          <div className="p-3 flex-1 flex flex-col justify-between gap-2.5">
+            <div className="flex-1 flex flex-col sm:flex-row lg:flex-col xl:flex-row items-center justify-center gap-3">
+              {/* SVG Donut */}
+              <div className="relative w-32 h-32 shrink-0">
+                <svg
+                  viewBox="0 0 160 160"
+                  className="w-full h-full -rotate-90"
+                  role="img"
+                  aria-label={`สัดส่วนโครงการทั้งหมด ${totalCount} โครงการ`}
+                >
+                  <circle
+                    cx="80"
+                    cy="80"
+                    r={donutRadius}
+                    fill="none"
+                    stroke="#e2e8f0"
+                    strokeWidth="22"
+                  />
+                  {donutSegments.map(seg => {
+                    const isHighlighted =
+                      hoveredBucket === seg.key || activeBucketFilter === seg.key;
+                    const isDimmed =
+                      (hoveredBucket && hoveredBucket !== seg.key) ||
+                      (activeBucketFilter !== 'all' && activeBucketFilter !== seg.key);
+                    return (
+                      <circle
+                        key={seg.key}
+                        cx="80"
+                        cy="80"
+                        r={donutRadius}
+                        fill="none"
+                        stroke={seg.strokeColor}
+                        strokeWidth={isHighlighted ? 25 : 22}
+                        strokeDasharray={`${seg.length} ${donutCircumference - seg.length}`}
+                        strokeDashoffset={seg.offset}
+                        className="cursor-pointer transition-all duration-200"
+                        style={{ opacity: isDimmed ? 0.35 : 1 }}
+                        onClick={() =>
+                          setActiveBucketFilter(prev => (prev === seg.key ? 'all' : seg.key))
+                        }
+                        onMouseEnter={() => setHoveredBucket(seg.key)}
+                        onMouseLeave={() => setHoveredBucket(null)}
+                      >
+                        <title>{`${seg.label}: ${seg.count} โครงการ (${seg.percent}%)`}</title>
+                      </circle>
+                    );
+                  })}
+                </svg>
+
+                {/* Center Metric */}
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                  {(() => {
+                    const focusItem = hoveredBucket
+                      ? summaryItems.find(i => i.key === hoveredBucket)
+                      : activeBucketFilter !== 'all'
+                      ? summaryItems.find(i => i.key === activeBucketFilter)
+                      : null;
+                    const centerVal = focusItem ? focusItem.count : totalCount;
+                    const centerSub = focusItem
+                      ? `${totalCount > 0 ? Math.round((focusItem.count / totalCount) * 100) : 0}%`
+                      : 'โครงการ';
+                    return (
+                      <>
+                        <span className="text-3xl font-extrabold text-[#124e82] tabular-nums leading-none">
+                          {centerVal}
+                        </span>
+                        <span className="text-xs font-semibold text-slate-500 mt-1">
+                          {centerSub}
+                        </span>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+
+              {/* Compact Right Legend */}
+              <div className="w-full sm:flex-1 space-y-1 text-xs">
+                {summaryItems.map(item => {
+                  const isActive = activeBucketFilter === item.key;
+                  const pct = totalCount > 0 ? Math.round((item.count / totalCount) * 100) : 0;
+                  return (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={() =>
+                        setActiveBucketFilter(prev => (prev === item.key ? 'all' : item.key))
+                      }
+                      onMouseEnter={() => setHoveredBucket(item.key)}
+                      onMouseLeave={() => setHoveredBucket(null)}
+                      className={`w-full flex items-center justify-between gap-2 px-1.5 py-0.5 rounded-lg transition-colors ${
+                        isActive ? 'bg-sky-50 text-[#124e82]' : 'hover:bg-slate-50 text-slate-700'
                       }`}
                     >
-                      {alert.badgeLabel}
-                    </span>
-                  </div>
-                  <div className="text-xs font-bold text-slate-800 truncate" title={p.name}>
-                    {p.name}
-                  </div>
-                  <div className="text-[11px] text-slate-500 truncate">
-                    ผู้รับจ้าง: {p.contractorName || '-'} • หนังสือแจ้ง:{' '}
-                    {alert.bookNo || 'ไม่ระบุเลขที่'}{' '}
-                    {alert.bookDate ? `(${formatThaiDate(alert.bookDate)})` : ''}
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => onSelectProject(p, 5)}
-                  className="px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shrink-0 transition shadow-2xs"
-                >
-                  ติดตามงาน
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 5 Status Summary Cards (Requirements 1-5) */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5 sm:gap-4">
-        {/* 1. Total */}
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200/80 shadow-xs hover:shadow-md transition">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-slate-500">โครงการทั้งหมด</span>
-            <div className="p-2 rounded-xl bg-slate-100 text-slate-700">
-              <FolderKanban className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-2xl sm:text-3xl font-bold font-heading text-slate-800">
-            {totalCount}
-          </div>
-          <div className="text-[11px] text-slate-400 mt-1">โครงการในระบบ</div>
-        </div>
-
-        {/* 2. In progress */}
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-emerald-200/80 shadow-xs hover:shadow-md transition">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-emerald-700">อยู่ระหว่างดำเนินการ</span>
-            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
-              <TrendingUp className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-2xl sm:text-3xl font-bold font-heading text-emerald-700">
-            {inProgressCount}
-          </div>
-          <div className="text-[11px] text-emerald-600/80 mt-1">
-            {totalCount > 0 ? Math.round((inProgressCount / totalCount) * 100) : 0}% ของทั้งหมด
-          </div>
-        </div>
-
-        {/* 3. Completed */}
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-teal-200/80 shadow-xs hover:shadow-md transition">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-teal-700">ดำเนินการแล้วเสร็จ</span>
-            <div className="p-2 rounded-xl bg-teal-50 text-teal-600">
-              <CheckCircle2 className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-2xl sm:text-3xl font-bold font-heading text-teal-700">
-            {completedCount}
-          </div>
-          <div className="text-[11px] text-teal-600/80 mt-1">
-            {totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0}% ของทั้งหมด
-          </div>
-        </div>
-
-        {/* 4. Not started */}
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-blue-200/80 shadow-xs hover:shadow-md transition">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium text-blue-700">ยังไม่เริ่ม/ทำ TOR</span>
-            <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
-              <Clock className="w-4 h-4" />
-            </div>
-          </div>
-          <div className="text-2xl sm:text-3xl font-bold font-heading text-blue-700">
-            {notStartedCount}
-          </div>
-          <div className="text-[11px] text-blue-600/80 mt-1">รอเริ่มงาน/รอเปิดซอง</div>
-        </div>
-
-        {/* 5. Overdue */}
-        <div
-          className={`col-span-2 sm:col-span-1 rounded-2xl p-4 sm:p-5 border shadow-xs hover:shadow-md transition ${
-            overdueCount > 0
-              ? 'bg-rose-50/70 border-rose-300 text-rose-900'
-              : 'bg-white border-slate-200 text-slate-800'
-          }`}
-        >
-          <div className="flex items-center justify-between mb-2">
-            <span
-              className={`text-xs font-medium ${
-                overdueCount > 0 ? 'text-rose-700 font-bold' : 'text-slate-500'
-              }`}
-            >
-              เกินกำหนดสัญญา
-            </span>
-            <div
-              className={`p-2 rounded-xl ${
-                overdueCount > 0 ? 'bg-rose-100 text-rose-600' : 'bg-slate-100 text-slate-600'
-              }`}
-            >
-              <AlertOctagon className="w-4 h-4" />
-            </div>
-          </div>
-          <div
-            className={`text-2xl sm:text-3xl font-bold font-heading ${
-              overdueCount > 0 ? 'text-rose-600' : 'text-slate-700'
-            }`}
-          >
-            {overdueCount}
-          </div>
-          <div
-            className={`text-[11px] mt-1 ${
-              overdueCount > 0 ? 'text-rose-600 font-semibold' : 'text-slate-400'
-            }`}
-          >
-            {overdueCount > 0 ? 'ต้องเร่งรัดหรือคิดค่าปรับ' : 'ปกติ ไม่มีงานค้างสัญญา'}
-          </div>
-        </div>
-      </div>
-
-      {/* 3 Financial Overview Cards (Requirements 6, 7, 8) */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* 6. Total Approved Budget */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-xs relative overflow-hidden">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2.5 rounded-xl bg-amber-50 text-amber-700 border border-amber-200/60">
-                <PiggyBank className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-xs font-semibold text-slate-500">งบประมาณรวมที่อนุมัติ</div>
-                <div className="text-[11px] text-slate-400">Total Approved Budget</div>
+                      <span className="flex items-center gap-2 min-w-0">
+                        <span
+                          className={`w-2.5 h-3 rounded-xs shrink-0 ${item.swatchClass}`}
+                          aria-hidden="true"
+                        />
+                        <span className="font-semibold truncate">{item.label}</span>
+                      </span>
+                      <span className="font-bold text-slate-900 tabular-nums whitespace-nowrap">
+                        {item.count}
+                        <span className="text-[10px] font-normal text-slate-400 ml-1">({pct}%)</span>
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
-          </div>
-          <div className="text-2xl font-bold font-heading text-slate-900">
-            {formatCurrency(totalApprovedBudget)} <span className="text-sm font-normal text-slate-500">บาท</span>
-          </div>
-          <div className="mt-3 text-xs text-slate-500 flex items-center justify-between pt-2 border-t border-slate-100">
-            <span>จำนวน {totalCount} โครงการ</span>
-            <span className="text-amber-700 font-medium">กรอบวงเงินอนุมัติ</span>
+
+            {/* Bottom Total Count Footer (moved from card header) */}
+            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-sky-50/80 border border-sky-100">
+              <span className="text-xs font-bold text-slate-800">รวมทั้งหมด</span>
+              <span className="text-xs font-bold text-[#124e82] tabular-nums">
+                <strong className="text-base mr-1">{totalCount}</strong>โครงการ
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* 7. Total Contract Amount */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-xs relative overflow-hidden">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200/60">
-                <FileCheck className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-xs font-semibold text-slate-500">วงเงินตามสัญญารวม</div>
-                <div className="text-[11px] text-slate-400">Total Contract Amount</div>
-              </div>
-            </div>
-            {totalApprovedBudget > totalContractAmount && totalContractAmount > 0 && (
-              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800">
-                ประหยัดงบได้ {formatCurrency(totalApprovedBudget - totalContractAmount)} บ.
+        {/* Card 2: Budget Sources, Work Types & Average 12-Step Progress */}
+        <div className="lg:col-span-4 bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden flex flex-col">
+          <div className="bg-[#155d96] px-4 py-2 flex items-center justify-between">
+            <h3 className="text-xs sm:text-sm font-bold text-white font-heading">
+              จำแนกตามแหล่งงบและประเภทงาน
+            </h3>
+            {filter.category !== 'all' ? (
+              <button
+                type="button"
+                onClick={() => setFilter(prev => ({ ...prev, category: 'all' }))}
+                className="text-[11px] font-medium text-sky-100 hover:text-white underline whitespace-nowrap"
+              >
+                ทุกหมวดงบ
+              </button>
+            ) : (
+              <span className="text-[11px] text-sky-100 tabular-nums">
+                คืบหน้าเฉลี่ย {avgProgressPct}%
               </span>
             )}
           </div>
-          <div className="text-2xl font-bold font-heading text-emerald-800">
-            {formatCurrency(totalContractAmount)} <span className="text-sm font-normal text-slate-500">บาท</span>
-          </div>
-          <div className="mt-3 text-xs text-slate-500 flex items-center justify-between pt-2 border-t border-slate-100">
-            <span>สัญญาที่ลงนามแล้ว</span>
-            <span className="text-emerald-700 font-medium">
-              {totalApprovedBudget > 0
-                ? `${Math.round((totalContractAmount / totalApprovedBudget) * 100)}% ของงบอนุมัติ`
-                : '0%'}
-            </span>
-          </div>
-        </div>
 
-        {/* 8. Total Disbursed Amount */}
-        <div className="bg-white rounded-2xl p-5 border border-slate-200/90 shadow-xs relative overflow-hidden">
-          <div className="flex items-center justify-between mb-3">
-            <div className="flex items-center gap-2.5">
-              <div className="p-2.5 rounded-xl bg-blue-50 text-blue-700 border border-blue-200/60">
-                <Coins className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="text-xs font-semibold text-slate-500">เบิกจ่ายเงินแล้วจริง</div>
-                <div className="text-[11px] text-slate-400">Total Disbursed</div>
+          <div className="p-3 flex-1 flex flex-col justify-between gap-2.5">
+            {/* Funding Source Breakdown */}
+            <div className="space-y-2 flex-1 flex flex-col justify-center">
+              {categoryBreakdown.length === 0 ? (
+                <div className="py-5 text-center text-xs text-slate-400">
+                  ไม่มีข้อมูลหมวดงบประมาณในช่วงที่เลือก
+                </div>
+              ) : (
+                categoryBreakdown.map(item => {
+                  const isSelected = filter.category === item.name;
+                  return (
+                    <button
+                      key={item.name}
+                      type="button"
+                      onClick={() =>
+                        setFilter(prev => ({
+                          ...prev,
+                          category: prev.category === item.name ? 'all' : item.name
+                        }))
+                      }
+                      className={`w-full text-left px-2 py-1 rounded-lg transition-colors ${
+                        isSelected
+                          ? 'bg-sky-50 ring-1 ring-sky-300'
+                          : 'hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2 text-xs mb-1">
+                        <span className="font-semibold text-slate-800 truncate min-w-0">
+                          {item.name}
+                        </span>
+                        <span className="font-bold text-slate-900 tabular-nums whitespace-nowrap shrink-0">
+                          {formatCurrency(item.budget)} บ.
+                          <span className="text-[10px] font-medium text-slate-500 ml-1">
+                            ({item.count})
+                          </span>
+                        </span>
+                      </div>
+                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-300 ${item.barColor}`}
+                          style={{ width: `${Math.max(4, item.sharePct)}%` }}
+                        />
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+
+              {/* Average 12-Step Progress & Procurement Savings */}
+              <div className="pt-1.5 border-t border-slate-100 px-2 space-y-1">
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-semibold text-slate-600">
+                    ความคืบหน้าเฉลี่ย (12 ขั้นตอน)
+                  </span>
+                  <span className="font-bold text-[#124e82] tabular-nums">
+                    {avgProgressPct}%
+                  </span>
+                </div>
+                <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-500 rounded-full transition-all duration-300"
+                    style={{ width: `${avgProgressPct}%` }}
+                  />
+                </div>
+                {procurementSavings > 0 && (
+                  <div className="flex items-center justify-between text-[11px] pt-0.5">
+                    <span className="text-slate-500">ประหยัดงบจัดซื้อจัดจ้าง</span>
+                    <span className="font-bold text-emerald-700 tabular-nums">
+                      {formatCurrency(procurementSavings)} บ.
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
-            <span className="text-xs font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200/60">
-              {disbursementPercent}%
-            </span>
-          </div>
-          <div className="text-2xl font-bold font-heading text-blue-800">
-            {formatCurrency(totalDisbursedAmount)} <span className="text-sm font-normal text-slate-500">บาท</span>
-          </div>
-          {/* Visual progress bar for disbursement */}
-          <div className="mt-3 space-y-1">
-            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full transition-all duration-500"
-                style={{ width: `${disbursementPercent}%` }}
-              />
-            </div>
-            <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
-              <span>คงเหลือเบิกจ่าย:</span>
-              <span className="font-semibold text-slate-700">
-                {formatCurrency(Math.max(0, totalContractAmount - totalDisbursedAmount))} บาท
+
+            {/* Bottom Work Type Summary Footer (aligned with Card 1) */}
+            <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl bg-sky-50/80 border border-sky-100 text-xs">
+              <span className="font-bold text-slate-800 whitespace-nowrap">ประเภทงาน</span>
+              <span className="font-semibold text-[#124e82] tabular-nums truncate">
+                ถนน (ถ.) <strong>{workTypeSummary.road}</strong>
+                <span className="text-slate-400 mx-1.5" aria-hidden="true">·</span>
+                อาคาร (อ.) <strong>{workTypeSummary.building}</strong>
+                {workTypeSummary.other > 0 && (
+                  <>
+                    <span className="text-slate-400 mx-1.5" aria-hidden="true">·</span>
+                    อื่นๆ <strong>{workTypeSummary.other}</strong>
+                  </>
+                )}
               </span>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Charts & Analytical Breakdown (Requirements 9, 10, 11) */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Requirement 10: กราฟงบประมาณแยกตามปีงบประมาณ */}
-        <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-xs">
-          <div className="flex items-center justify-between mb-5">
-            <div className="flex items-center gap-2">
-              <BarChart3 className="w-5 h-5 text-emerald-700" />
+        {/* Card 3: Budget Overview */}
+        <div className="lg:col-span-4 bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden flex flex-col">
+          <div className="bg-[#155d96] px-4 py-2 flex items-center justify-between">
+            <h3 className="text-xs sm:text-sm font-bold text-white font-heading">
+              ภาพรวมงบประมาณ {budgetYearLabel}
+            </h3>
+            <span className="text-[11px] text-sky-100 tabular-nums">
+              {displayProjects.length} โครงการ
+            </span>
+          </div>
+
+          <div className="p-3 flex-1 flex flex-col justify-between gap-2.5">
+            <div className="space-y-3 flex-1 flex flex-col justify-center">
+              {/* Approved Budget */}
               <div>
-                <h3 className="text-base font-bold text-slate-800 font-heading">
-                  งบประมาณแยกตามปีงบประมาณ
+                <div className="flex items-center justify-between gap-2 text-xs mb-1">
+                  <span className="flex items-center gap-2 font-semibold text-slate-700">
+                    <span className="w-3 h-3 rounded-xs bg-amber-500 shrink-0" aria-hidden="true" />
+                    <span>งบอนุมัติ</span>
+                  </span>
+                  <span className="font-bold text-slate-900 text-sm tabular-nums">
+                    {formatCurrency(totalApprovedBudget)} บ.
+                  </span>
+                </div>
+                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-amber-500 rounded-full transition-all duration-300"
+                    style={{ width: `${approvedBarPct}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Contracted Budget */}
+              <div>
+                <div className="flex items-center justify-between gap-2 text-xs mb-1">
+                  <span className="flex items-center gap-2 font-semibold text-slate-700">
+                    <span className="w-3 h-3 rounded-xs bg-emerald-600 shrink-0" aria-hidden="true" />
+                    <span>วงเงินสัญญา</span>
+                  </span>
+                  <span className="font-bold text-slate-900 text-sm tabular-nums">
+                    {formatCurrency(totalContractAmount)} บ.
+                  </span>
+                </div>
+                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-emerald-600 rounded-full transition-all duration-300"
+                    style={{ width: `${contractBarPct}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Disbursed Budget */}
+              <div>
+                <div className="flex items-center justify-between gap-2 text-xs mb-1">
+                  <span className="flex items-center gap-2 font-semibold text-slate-700">
+                    <span className="w-3 h-3 rounded-xs bg-blue-600 shrink-0" aria-hidden="true" />
+                    <span>เบิกจ่ายแล้ว</span>
+                  </span>
+                  <span className="font-bold text-blue-700 text-sm tabular-nums">
+                    {formatCurrency(totalDisbursedAmount)} บ.
+                  </span>
+                </div>
+                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-600 rounded-full transition-all duration-300"
+                    style={{ width: `${disbursedBarPct}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-sky-50/80 border border-sky-100 text-xs tabular-nums">
+              <span className="font-semibold text-slate-700">ทำสัญญาแล้ว {contractRatePct}%</span>
+              <span className="font-bold text-[#124e82]">
+                เบิกจ่าย {disbursedRatePct}%
+              </span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* =====================================================================
+          4. ROW 2: ACTION & ALERT TRACKING CARDS (3-Column Grid)
+             1) ใกล้ครบกำหนด (<=30 วัน)
+             2) โครงการล่าช้า (เกินกำหนด)
+             3) ประเด็นที่ต้องเร่งติดตาม (ใบคำร้อง/ซ่อมแซม + เร่งรัดเข้างาน)
+         ===================================================================== */}
+      <section className="grid grid-cols-1 lg:grid-cols-3 gap-3.5 items-stretch">
+        {/* Card 1: Projects Near Deadline */}
+        <div className="bg-amber-50/75 rounded-2xl border border-amber-200/90 p-3.5 flex flex-col">
+          <div className="flex items-start justify-between gap-2 pb-2.5 border-b border-amber-200/70">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-8 h-8 rounded-full bg-amber-500 text-white flex items-center justify-center shrink-0">
+                <Clock className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-[13px] font-bold text-amber-900 font-heading truncate">
+                  โครงการใกล้ครบกำหนด
                 </h3>
-                <p className="text-xs text-slate-500">เปรียบเทียบงบประมาณที่ได้รับอนุมัติ vs วงเงินสัญญา vs เบิกจ่าย</p>
+                <p className="text-[11px] text-amber-800/80">อีก 30 วัน หรือน้อยกว่า</p>
               </div>
             </div>
+            <span className="text-xs font-bold text-amber-800 tabular-nums whitespace-nowrap pt-0.5">
+              {nearDeadlineProjects.length} รายการ
+            </span>
           </div>
 
-          <div className="space-y-4">
-            {budgetByYear.map(item => {
-              const approvedPct = (item.approved / maxYearBudget) * 100;
-              const contractPct = (item.contracted / maxYearBudget) * 100;
-              const disbursedPct = (item.disbursed / maxYearBudget) * 100;
-
-              return (
-                <div key={item.year} className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-100">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-bold text-slate-800">
-                      ปีงบประมาณ พ.ศ. {item.year}
-                    </span>
-                    <span className="text-xs text-slate-500">
-                      {projectsByYear.find(p => p.year === item.year)?.count || 0} โครงการ
-                    </span>
-                  </div>
-
-                  {/* 3 bars: Approved, Contract, Disbursed */}
-                  <div className="space-y-1.5 text-xs">
-                    <div>
-                      <div className="flex justify-between text-[11px] text-slate-600 mb-0.5">
-                        <span className="flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded-xs bg-amber-500 inline-block" />
-                          งบอนุมัติ:
-                        </span>
-                        <span className="font-semibold">{formatCurrency(item.approved)} บ.</span>
-                      </div>
-                      <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-amber-500 rounded-full transition-all duration-500"
-                          style={{ width: `${approvedPct}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between text-[11px] text-slate-600 mb-0.5">
-                        <span className="flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded-xs bg-emerald-600 inline-block" />
-                          วงเงินสัญญา:
-                        </span>
-                        <span className="font-semibold">{formatCurrency(item.contracted)} บ.</span>
-                      </div>
-                      <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-emerald-600 rounded-full transition-all duration-500"
-                          style={{ width: `${contractPct}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <div className="flex justify-between text-[11px] text-slate-600 mb-0.5">
-                        <span className="flex items-center gap-1.5">
-                          <span className="w-2.5 h-2.5 rounded-xs bg-blue-600 inline-block" />
-                          เบิกจ่ายแล้ว:
-                        </span>
-                        <span className="font-semibold text-blue-700">{formatCurrency(item.disbursed)} บ.</span>
-                      </div>
-                      <div className="h-2 w-full bg-slate-200 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-blue-600 rounded-full transition-all duration-500"
-                          style={{ width: `${disbursedPct}%` }}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Requirement 11: กราฟแสดงสถานะความคืบหน้าของโครงการ */}
-        <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200/80 shadow-xs flex flex-col justify-between">
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <PieChart className="w-5 h-5 text-emerald-700" />
-                <div>
-                  <h3 className="text-base font-bold text-slate-800 font-heading">
-                    สถานะความคืบหน้าโครงการ
-                  </h3>
-                  <p className="text-xs text-slate-500">สัดส่วนโครงการตามขั้นตอนการดำเนินงาน</p>
-                </div>
+          <div className="mt-2 flex-1 divide-y divide-amber-200/60">
+            {visibleNearDue.length === 0 ? (
+              <div className="py-5 text-center text-xs text-amber-900/60 flex flex-col items-center gap-1.5">
+                <CheckCircle2 className="w-4.5 h-4.5 text-amber-600/60" />
+                <span>ไม่มีโครงการใกล้ครบกำหนดภายใน 30 วัน</span>
               </div>
-            </div>
-
-            <div className="space-y-2.5">
-              {[
-                { key: 'in_progress', label: 'อยู่ระหว่างดำเนินงาน', count: statusDistribution.in_progress, color: 'bg-emerald-500' },
-                { key: 'completed', label: 'ดำเนินการแล้วเสร็จ (เบิกจ่ายแล้ว)', count: statusDistribution.completed, color: 'bg-teal-600' },
-                { key: 'inspected', label: 'ตรวจรับแล้ว รอเบิกจ่าย', count: statusDistribution.inspected, color: 'bg-blue-500' },
-                { key: 'contracted', label: 'ลงนามสัญญาแล้ว/รอเข้าทำงาน', count: statusDistribution.contracted, color: 'bg-indigo-500' },
-                { key: 'delivered', label: 'ส่งมอบงานแล้ว รอตรวจรับ', count: statusDistribution.delivered, color: 'bg-purple-500' },
-                { key: 'procurement_tor', label: 'จัดทำ TOR/ราคากลาง', count: statusDistribution.procurement_tor, color: 'bg-amber-500' },
-                { key: 'not_started', label: 'ยังไม่เริ่มดำเนินการ', count: statusDistribution.not_started, color: 'bg-slate-400' },
-                { key: 'overdue', label: 'เกินกำหนดสัญญา', count: statusDistribution.overdue, color: 'bg-rose-500' },
-                ...(statusDistribution.cancelled > 0
-                  ? [{ key: 'cancelled', label: 'ยกเลิกโครงการ', count: statusDistribution.cancelled, color: 'bg-slate-500' }]
-                  : [])
-              ].map(item => {
-                const percent = totalCount > 0 ? Math.round((item.count / totalCount) * 100) : 0;
-                return (
-                  <div key={item.key} className="flex items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-2 min-w-36">
-                      <span className={`w-3 h-3 rounded-full shrink-0 ${item.color}`} />
-                      <span className="text-slate-700 truncate">{item.label}</span>
-                    </div>
-
-                    <div className="flex-1 max-w-40 bg-slate-100 h-2.5 rounded-full overflow-hidden">
-                      <div
-                        className={`h-full ${item.color} rounded-full`}
-                        style={{ width: `${percent}%` }}
-                      />
-                    </div>
-
-                    <div className="text-right font-medium text-slate-600 min-w-16">
-                      <span className="font-bold text-slate-800">{item.count}</span> โครงการ
-                      <span className="text-[10px] text-slate-400 ml-1">({percent}%)</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Quick Category Summary */}
-          <div className="mt-6 pt-4 border-t border-slate-100">
-            <div className="text-xs font-bold text-slate-700 mb-2">สรุปตามหมวดงบประมาณ:</div>
-            <div className="flex flex-wrap gap-1.5">
-              {categoryBreakdown.map(cat => (
-                <span
-                  key={cat.category}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200/60 text-xs"
+            ) : (
+              visibleNearDue.map(({ project, remaining }) => (
+                <button
+                  key={project.id}
+                  type="button"
+                  onClick={() => onSelectProject(project, 4)}
+                  className="w-full py-2 px-1.5 flex items-center justify-between gap-3 text-left hover:bg-amber-100/60 rounded-lg transition-colors"
                 >
-                  <span className="font-medium">{cat.category}:</span>
-                  <strong className="text-emerald-900">{cat.count} โครงการ</strong>
-                  <span className="text-emerald-600">({formatCurrency(cat.totalBudget)} บ.)</span>
-                </span>
-              ))}
-            </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-bold text-slate-900 truncate">
+                      {project.name}
+                    </div>
+                    <div className="text-[11px] text-slate-600 truncate mt-0.5">
+                      {project.projectCode}
+                      {project.location ? ` · ${project.location}` : ''}
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="text-xs font-extrabold text-amber-700 tabular-nums whitespace-nowrap">
+                      {remaining.days === 0 ? 'ครบวันนี้' : `${remaining.days} วัน`}
+                    </span>
+                    <div className="text-[10px] text-slate-500 tabular-nums">
+                      {formatThaiDate(project.endDate)}
+                    </div>
+                  </div>
+                </button>
+              ))
+            )}
           </div>
-        </div>
-      </div>
 
-      {/* Recent Projects Table Preview */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs overflow-hidden">
-        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
+          {nearDeadlineProjects.length > 4 && (
+            <button
+              type="button"
+              onClick={() => setShowAllNearDue(prev => !prev)}
+              className="mt-1.5 pt-2 border-t border-amber-200/70 w-full flex items-center justify-center gap-1 text-xs font-semibold text-amber-800 hover:text-amber-950 transition-colors"
+            >
+              <span>
+                {showAllNearDue
+                  ? 'ย่อรายการ'
+                  : `ดูทั้งหมด (${nearDeadlineProjects.length} โครงการ)`}
+              </span>
+              {showAllNearDue ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+          )}
+        </div>
+
+        {/* Card 2: Overdue Projects */}
+        <div className="bg-rose-50/75 rounded-2xl border border-rose-200/90 p-3.5 flex flex-col">
+          <div className="flex items-start justify-between gap-2 pb-2.5 border-b border-rose-200/70">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-8 h-8 rounded-full bg-rose-600 text-white flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-[13px] font-bold text-rose-900 font-heading truncate">
+                  โครงการล่าช้า
+                </h3>
+                <p className="text-[11px] text-rose-800/80">เกินกำหนดตามแผนสัญญา</p>
+              </div>
+            </div>
+            <span className="text-xs font-bold text-rose-700 tabular-nums whitespace-nowrap pt-0.5">
+              {overdueProjects.length} รายการ
+            </span>
+          </div>
+
+          <div className="mt-2 flex-1 divide-y divide-rose-200/60">
+            {visibleOverdue.length === 0 ? (
+              <div className="py-5 text-center text-xs text-rose-900/60 flex flex-col items-center gap-1.5">
+                <CheckCircle2 className="w-4.5 h-4.5 text-emerald-600/70" />
+                <span>ไม่มีโครงการล่าช้าเกินกำหนดสัญญา</span>
+              </div>
+            ) : (
+              visibleOverdue.map(({ project, overdueDays }) => (
+                <button
+                  key={project.id}
+                  type="button"
+                  onClick={() => onSelectProject(project, 4)}
+                  className="w-full py-2 px-1.5 flex items-center justify-between gap-3 text-left hover:bg-rose-100/60 rounded-lg transition-colors"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-bold text-slate-900 truncate">
+                      {project.name}
+                    </div>
+                    <div className="text-[11px] text-slate-600 truncate mt-0.5">
+                      {project.projectCode}
+                      {project.location ? ` · ${project.location}` : ''}
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span className="text-xs font-extrabold text-rose-600 tabular-nums whitespace-nowrap">
+                      {overdueDays > 0 ? `${overdueDays} วัน` : 'เกินกำหนด'}
+                    </span>
+                    {project.endDate && (
+                      <div className="text-[10px] text-slate-500 tabular-nums">
+                        ครบ {formatThaiDate(project.endDate)}
+                      </div>
+                    )}
+                  </div>
+                </button>
+              ))
+            )}
+          </div>
+
+          {overdueProjects.length > 4 && (
+            <button
+              type="button"
+              onClick={() => setShowAllOverdue(prev => !prev)}
+              className="mt-1.5 pt-2 border-t border-rose-200/70 w-full flex items-center justify-center gap-1 text-xs font-semibold text-rose-800 hover:text-rose-950 transition-colors"
+            >
+              <span>
+                {showAllOverdue
+                  ? 'ย่อรายการ'
+                  : `ดูทั้งหมด (${overdueProjects.length} โครงการ)`}
+              </span>
+              {showAllOverdue ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+          )}
+        </div>
+
+        {/* Card 3: Urgent Follow-Up (Repair Petitions & Work Notice Acceleration) */}
+        <div className="bg-sky-50/75 rounded-2xl border border-sky-200/90 p-3.5 flex flex-col">
+          <div className="flex items-start justify-between gap-2 pb-2.5 border-b border-sky-200/70">
+            <div className="flex items-center gap-2 min-w-0">
+              <div className="w-8 h-8 rounded-full bg-[#1d74b8] text-white flex items-center justify-center shrink-0">
+                <Megaphone className="w-4 h-4" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-[13px] font-bold text-[#124e82] font-heading truncate">
+                  ประเด็นที่ต้องเร่งติดตาม
+                </h3>
+                <p className="text-[11px] text-sky-900/75">
+                  ติดตามใบคำร้องซ่อมแซมและงานกระทบประชาชน
+                </p>
+              </div>
+            </div>
+            {onNavigateToRepairRequests && (
+              <button
+                type="button"
+                onClick={onNavigateToRepairRequests}
+                className="text-[11px] font-bold text-[#124e82] hover:text-sky-950 inline-flex items-center gap-0.5 whitespace-nowrap shrink-0 pt-0.5"
+              >
+                <span>ทั้งหมด</span>
+                <ArrowUpRight className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Optional Compact Switcher when Contractor Work Notice Alerts also exist */}
+          {workNoticeAlerts.length > 0 && currentUser?.role === 'admin' && (
+            <div className="mt-2 flex items-center gap-1 p-0.5 bg-sky-100/80 rounded-lg text-[11px]">
+              <button
+                type="button"
+                onClick={() => setFollowUpMode('repairs')}
+                className={`flex-1 px-2.5 py-1 rounded-md font-semibold transition-colors whitespace-nowrap ${
+                  followUpMode === 'repairs'
+                    ? 'bg-white text-[#124e82] shadow-2xs'
+                    : 'text-sky-800 hover:text-[#124e82]'
+                }`}
+              >
+                คำร้องซ่อมแซม ({openRepairPetitions.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setFollowUpMode('notices')}
+                className={`flex-1 px-2.5 py-1 rounded-md font-semibold transition-colors whitespace-nowrap ${
+                  followUpMode === 'notices'
+                    ? 'bg-white text-[#124e82] shadow-2xs'
+                    : 'text-sky-800 hover:text-[#124e82]'
+                }`}
+              >
+                เร่งรัดเข้างาน ({workNoticeAlerts.length})
+              </button>
+            </div>
+          )}
+
+          <div className="mt-2 flex-1 divide-y divide-sky-200/60">
+            {followUpMode === 'notices' && workNoticeAlerts.length > 0 && currentUser?.role === 'admin' ? (
+              visibleNotices.map(({ project, alert }) => (
+                <button
+                  key={project.id}
+                  type="button"
+                  onClick={() => onSelectProject(project, 5)}
+                  className="w-full py-2 px-1.5 flex items-center justify-between gap-3 text-left hover:bg-sky-100/60 rounded-lg transition-colors"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-bold text-slate-900 truncate">
+                      เร่งรัดผู้รับจ้างเข้าทำงาน
+                    </div>
+                    <div className="text-[11px] text-slate-600 truncate mt-0.5">
+                      {project.projectCode} · {project.name}
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <span
+                      className={`text-xs font-extrabold tabular-nums whitespace-nowrap ${
+                        alert.isOver15Days ? 'text-rose-600' : 'text-amber-700'
+                      }`}
+                    >
+                      {alert.isOver15Days
+                        ? `เกิน 15 วัน (${alert.daysElapsed} วัน)`
+                        : `เหลือ ${alert.daysRemainingIn15} วัน`}
+                    </span>
+                  </div>
+                </button>
+              ))
+            ) : visibleRepairs.length === 0 ? (
+              <div className="py-5 text-center text-xs text-sky-900/65 flex flex-col items-center gap-1.5">
+                <Wrench className="w-4.5 h-4.5 text-sky-600/60" />
+                <span>ไม่มีใบคำร้องซ่อมแซมที่ค้างดำเนินการ</span>
+              </div>
+            ) : (
+              visibleRepairs.map(req => {
+                const statusMeta = REPAIR_STATUS_META[req.status] || REPAIR_STATUS_META.received;
+                const urgencyPrefix =
+                  req.urgency === 'emergency'
+                    ? 'ฉุกเฉิน'
+                    : req.urgency === 'urgent'
+                    ? 'เร่งด่วน'
+                    : null;
+                return (
+                  <button
+                    key={req.id}
+                    type="button"
+                    onClick={() => onNavigateToRepairRequests?.()}
+                    className="w-full py-2 px-1.5 flex items-center justify-between gap-3 text-left hover:bg-sky-100/60 rounded-lg transition-colors"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="text-xs font-bold text-slate-900 truncate">
+                        {req.subject || req.roadName}
+                      </div>
+                      <div className="text-[11px] text-slate-600 truncate mt-0.5">
+                        {req.requestCode}
+                        {req.villageNo ? ` · หมู่ ${req.villageNo}` : ''}
+                        {req.roadName && req.subject !== req.roadName ? ` · ${req.roadName}` : ''}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div
+                        className={`text-xs font-extrabold whitespace-nowrap ${
+                          req.urgency === 'emergency'
+                            ? 'text-rose-600'
+                            : req.urgency === 'urgent'
+                            ? 'text-amber-700'
+                            : statusMeta.textClass
+                        }`}
+                      >
+                        {urgencyPrefix ? `${urgencyPrefix} · ` : ''}
+                        {statusMeta.label}
+                      </div>
+                      <div className="text-[10px] text-slate-500 tabular-nums">
+                        รับแจ้ง {formatThaiDate(req.petitionDate)}
+                      </div>
+                    </div>
+                  </button>
+                );
+              })
+            )}
+          </div>
+
+          {followUpMode === 'repairs' && openRepairPetitions.length > 4 && (
+            <button
+              type="button"
+              onClick={() => setShowAllFollowUp(prev => !prev)}
+              className="mt-2 pt-2 border-t border-sky-200/70 w-full flex items-center justify-center gap-1 text-xs font-semibold text-[#124e82] hover:text-sky-950 transition-colors"
+            >
+              <span>
+                {showAllFollowUp
+                  ? 'ย่อรายการ'
+                  : `ดูทั้งหมด (${openRepairPetitions.length} คำร้อง)`}
+              </span>
+              {showAllFollowUp ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+          )}
+        </div>
+      </section>
+
+      {/* =====================================================================
+          5. RECENT PROJECTS TABLE (Preserved at Bottom as Requested)
+         ===================================================================== */}
+      <section className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
+        <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between gap-3">
           <div>
             <h3 className="text-base font-bold text-slate-800 font-heading">
               รายการโครงการล่าสุด
+              {activeBucketFilter !== 'all' && (
+                <span className="ml-2 text-xs font-semibold text-[#124e82]">
+                  ({summaryItems.find(i => i.key === activeBucketFilter)?.label})
+                </span>
+              )}
             </h3>
-            <p className="text-xs text-slate-500">คลิกที่โครงการเพื่อเปิดดูรายละเอียดฉบับเต็มและเอกสารแนบ</p>
+            <p className="text-xs text-slate-500">
+              คลิกที่โครงการเพื่อเปิดดูรายละเอียดฉบับเต็มและเอกสารแนบ
+            </p>
           </div>
           {currentUser?.role === 'admin' && (
             <button
+              type="button"
               onClick={onOpenNewProjectModal}
-              className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 flex items-center gap-1"
+              className="text-xs font-semibold text-[#155d96] hover:text-[#0f4470] flex items-center gap-1 whitespace-nowrap shrink-0"
             >
               เพิ่มโครงการใหม่ <ArrowUpRight className="w-3.5 h-3.5" />
             </button>
@@ -731,7 +1225,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50 text-slate-600 uppercase font-semibold border-b border-slate-200">
+            <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
               <tr>
                 <th className="py-3 px-4">รหัส / ปี</th>
                 <th className="py-3 px-4">ชื่อโครงการ</th>
@@ -743,87 +1237,102 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {filteredProjects.slice(0, 5).map(p => {
-                const isSelected = selectedRowId === p.id;
-                return (
-                <tr
-                  key={p.id}
-                  onClick={e => {
-                    const clickedInteractive = Boolean((e.target as HTMLElement).closest('button, a'));
-                    setSelectedRowId(prev =>
-                      clickedInteractive ? p.id : prev === p.id ? null : p.id
-                    );
-                  }}
-                  className={`transition cursor-pointer ${
-                    isSelected
-                      ? 'bg-emerald-50/75 [&>td]:shadow-[inset_0_1px_0_0_rgba(16,185,129,0.75),inset_0_-1px_0_0_rgba(16,185,129,0.75)] [&>td:first-child]:shadow-[inset_2px_1px_0_0_rgba(16,185,129,0.85),inset_0_-1px_0_0_rgba(16,185,129,0.75)] [&>td:last-child]:shadow-[inset_-2px_1px_0_0_rgba(16,185,129,0.85),inset_0_-1px_0_0_rgba(16,185,129,0.75)]'
-                      : 'hover:bg-slate-50/80'
-                  }`}
-                >
-                  <td className="py-3 px-4 whitespace-nowrap">
-                    <span className="font-semibold text-slate-900">{p.projectCode}</span>
-                    <span className="block text-[10px] text-slate-500">ปี {p.fiscalYear}</span>
-                  </td>
-                  <td className="py-3 px-4 max-w-xs sm:max-w-md">
-                    <button
-                      onClick={() => onSelectProject(p)}
-                      className="font-medium text-slate-800 hover:text-emerald-700 text-left line-clamp-1"
-                    >
-                      {p.name}
-                    </button>
-                    <span className="text-[11px] text-slate-400 block truncate">{p.location}</span>
-                  </td>
-                  <td className="py-3 px-4 whitespace-nowrap">
-                    <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-medium text-[11px]">
-                      {p.budgetCategory}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4 text-right whitespace-nowrap font-medium text-slate-900">
-                    {p.contractAmount ? `${formatCurrency(p.contractAmount)} บ.` : '-'}
-                  </td>
-                  <td className="py-3 px-4 whitespace-nowrap text-slate-700">
-                    {p.contractorName || '-'}
-                  </td>
-                  <td className="py-3 px-4 text-center whitespace-nowrap">
-                    <div className="flex flex-col items-center gap-1">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                          p.status === 'completed'
-                            ? 'bg-teal-100 text-teal-800'
-                            : p.status === 'in_progress'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : p.status === 'overdue'
-                            ? 'bg-rose-100 text-rose-800'
-                            : p.status === 'inspected'
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-slate-100 text-slate-700'
-                        }`}
-                      >
-                        {STATUS_LABELS[p.status] || p.status}
-                      </span>
-                      {currentUser?.role === 'admin' && getWorkNoticeAlert(p).hasAlert && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-300">
-                          <AlertTriangle className="w-3 h-3 text-amber-700 shrink-0" />
-                          <span>เร่งรัดผู้รับจ้างเข้าทำงาน</span>
-                        </span>
-                      )}
-                    </div>
-                  </td>
-                  <td className="py-3 px-4 text-center whitespace-nowrap">
-                    <button
-                      onClick={() => onSelectProject(p)}
-                      className="text-xs font-semibold text-emerald-600 hover:text-emerald-800 px-2 py-1 rounded-md hover:bg-emerald-50 transition"
-                    >
-                      ดูข้อมูล
-                    </button>
+              {latestProjects.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-10 text-center text-slate-400">
+                    ไม่พบโครงการตามเงื่อนไขที่เลือก
                   </td>
                 </tr>
-                );
-              })}
+              ) : (
+                latestProjects.map(p => {
+                  const isSelected = selectedRowId === p.id;
+                  return (
+                    <tr
+                      key={p.id}
+                      onClick={e => {
+                        const clickedInteractive = Boolean(
+                          (e.target as HTMLElement).closest('button, a')
+                        );
+                        setSelectedRowId(prev =>
+                          clickedInteractive ? p.id : prev === p.id ? null : p.id
+                        );
+                      }}
+                      className={`transition cursor-pointer ${
+                        isSelected
+                          ? 'bg-sky-50/75 [&>td]:shadow-[inset_0_1px_0_0_rgba(21,93,150,0.45),inset_0_-1px_0_0_rgba(21,93,150,0.45)]'
+                          : 'hover:bg-slate-50/80'
+                      }`}
+                    >
+                      <td className="py-3 px-4 whitespace-nowrap tabular-nums">
+                        <span className="font-semibold text-slate-900 font-mono">
+                          {p.projectCode}
+                        </span>
+                        <span className="block text-[10px] text-slate-500">ปี {p.fiscalYear}</span>
+                      </td>
+                      <td className="py-3 px-4 max-w-xs sm:max-w-md">
+                        <button
+                          type="button"
+                          onClick={() => onSelectProject(p)}
+                          className="font-medium text-slate-800 hover:text-[#155d96] text-left line-clamp-1"
+                        >
+                          {p.name}
+                        </button>
+                        <span className="text-[11px] text-slate-400 block truncate">
+                          {p.location}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 whitespace-nowrap text-slate-700 font-medium">
+                        {p.budgetCategory}
+                      </td>
+                      <td className="py-3 px-4 text-right whitespace-nowrap font-semibold text-slate-900 tabular-nums">
+                        {p.contractAmount ? `${formatCurrency(p.contractAmount)} บ.` : '-'}
+                      </td>
+                      <td className="py-3 px-4 whitespace-nowrap text-slate-700">
+                        {p.contractorName || '-'}
+                      </td>
+                      <td className="py-3 px-4 text-center whitespace-nowrap">
+                        <div className="flex flex-col items-center gap-0.5">
+                          <span
+                            className={`text-xs font-bold ${
+                              p.status === 'completed'
+                                ? 'text-blue-700'
+                                : p.status === 'in_progress'
+                                ? 'text-emerald-700'
+                                : p.status === 'overdue'
+                                ? 'text-rose-600'
+                                : p.status === 'cancelled'
+                                ? 'text-slate-400 line-through'
+                                : p.status === 'inspected'
+                                ? 'text-indigo-700'
+                                : 'text-amber-700'
+                            }`}
+                          >
+                            {STATUS_LABELS[p.status] || p.status}
+                          </span>
+                          {currentUser?.role === 'admin' && getWorkNoticeAlert(p).hasAlert && (
+                            <span className="text-[10px] font-semibold text-amber-700">
+                              เร่งรัดผู้รับจ้างเข้าทำงาน
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-center whitespace-nowrap">
+                        <button
+                          type="button"
+                          onClick={() => onSelectProject(p)}
+                          className="text-xs font-semibold text-[#155d96] hover:text-[#0f4470] px-2.5 py-1 rounded-lg hover:bg-sky-50 transition"
+                        >
+                          ดูข้อมูล
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
-      </div>
+      </section>
     </div>
   );
 };
