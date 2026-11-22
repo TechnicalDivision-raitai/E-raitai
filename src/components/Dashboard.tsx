@@ -363,7 +363,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
   }, [displayProjects]);
 
   // Donut Chart Geometry (SVG stroke-dasharray)
-  const donutRadius = 56;
+  const donutRadius = 59;
   const donutCircumference = 2 * Math.PI * donutRadius;
   const donutSegments = useMemo(() => {
     if (totalCount === 0) return [];
@@ -568,7 +568,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
           <div className="p-3 flex-1 flex flex-col justify-between gap-2.5">
             <div className="flex-1 flex flex-col sm:flex-row lg:flex-col xl:flex-row items-center justify-center gap-3">
               {/* SVG Donut */}
-              <div className="relative w-32 h-32 shrink-0">
+              <div className="relative w-36 h-36 shrink-0">
                 <svg
                   viewBox="0 0 160 160"
                   className="w-full h-full -rotate-90"
@@ -581,7 +581,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     r={donutRadius}
                     fill="none"
                     stroke="#e2e8f0"
-                    strokeWidth="22"
+                    strokeWidth="30"
                   />
                   {donutSegments.map(seg => {
                     const isHighlighted =
@@ -597,7 +597,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         r={donutRadius}
                         fill="none"
                         stroke={seg.strokeColor}
-                        strokeWidth={isHighlighted ? 25 : 22}
+                        strokeWidth={isHighlighted ? 34 : 30}
                         strokeDasharray={`${seg.length} ${donutCircumference - seg.length}`}
                         strokeDashoffset={seg.offset}
                         className="cursor-pointer transition-all duration-200"
@@ -615,7 +615,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </svg>
 
                 {/* Center Metric */}
-                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none px-4 text-center">
                   {(() => {
                     const focusItem = hoveredBucket
                       ? summaryItems.find(i => i.key === hoveredBucket)
@@ -623,17 +623,32 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       ? summaryItems.find(i => i.key === activeBucketFilter)
                       : null;
                     const centerVal = focusItem ? focusItem.count : totalCount;
-                    const centerSub = focusItem
-                      ? `${totalCount > 0 ? Math.round((focusItem.count / totalCount) * 100) : 0}%`
-                      : 'โครงการ';
+                    const focusPct =
+                      focusItem && totalCount > 0
+                        ? Math.round((focusItem.count / totalCount) * 100)
+                        : 0;
                     return (
                       <>
-                        <span className="text-3xl font-extrabold text-emerald-900 tabular-nums leading-none">
+                        <span
+                          className="text-2xl font-extrabold tabular-nums leading-none transition-colors duration-150"
+                          style={{ color: focusItem ? focusItem.strokeColor : '#064e3b' }}
+                        >
                           {centerVal}
                         </span>
-                        <span className="text-xs font-semibold text-slate-500 mt-1">
-                          {centerSub}
-                        </span>
+                        {focusItem ? (
+                          <>
+                            <span className="text-[11px] font-bold text-slate-700 tabular-nums leading-tight mt-0.5">
+                              {focusPct}%
+                            </span>
+                            <span className="text-[9.5px] font-semibold text-slate-500 leading-tight max-w-[66px] truncate">
+                              {focusItem.label}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-[11px] font-semibold text-slate-500 mt-1">
+                            โครงการ
+                          </span>
+                        )}
                       </>
                     );
                   })()}
