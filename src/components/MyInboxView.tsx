@@ -157,6 +157,36 @@ export const MyInboxView: React.FC<MyInboxViewProps> = ({
     }
   };
 
+  const getBudgetCategoryBadgeClass = (category?: string): string => {
+    const normalized = (category || '').trim();
+    if (normalized.includes('งบประมาณรายจ่าย') || normalized.includes('ข้อบัญญัติ')) {
+      return 'bg-sky-50 text-sky-800 border-sky-300';
+    }
+    if (normalized.includes('เงินสะสม')) {
+      return 'bg-amber-50 text-amber-800 border-amber-300';
+    }
+    if (normalized.includes('อุดหนุนเฉพาะกิจ') || normalized.includes('เฉพาะกิจ')) {
+      return 'bg-violet-50 text-violet-800 border-violet-300';
+    }
+    if (normalized.includes('อุดหนุนทั่วไป') || normalized.includes('อุดหนุน')) {
+      return 'bg-teal-50 text-teal-800 border-teal-300';
+    }
+    if (!normalized) {
+      return 'bg-slate-50 text-slate-600 border-slate-300';
+    }
+    const fallbackPalettes = [
+      'bg-indigo-50 text-indigo-800 border-indigo-300',
+      'bg-rose-50 text-rose-800 border-rose-300',
+      'bg-cyan-50 text-cyan-800 border-cyan-300',
+      'bg-orange-50 text-orange-800 border-orange-300'
+    ];
+    let hash = 0;
+    for (let i = 0; i < normalized.length; i += 1) {
+      hash = (hash * 31 + normalized.charCodeAt(i)) >>> 0;
+    }
+    return fallbackPalettes[hash % fallbackPalettes.length];
+  };
+
   return (
     <div className="space-y-6">
       <div className="bg-white p-5 rounded-2xl border border-gray-200 shadow-xs space-y-5">
@@ -279,9 +309,21 @@ export const MyInboxView: React.FC<MyInboxViewProps> = ({
                       </td>
 
                       <td className="p-3 whitespace-nowrap">
-                        <span className="px-2 py-0.5 rounded-md bg-gray-100 text-gray-700 font-medium text-[11px]">
-                          {p.budgetCategory}
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold border ${getBudgetCategoryBadgeClass(
+                            p.budgetCategory
+                          )}`}
+                        >
+                          {p.budgetCategory || 'ไม่ระบุหมวดงบ'}
                         </span>
+                        {p.meetingSession && (
+                          <div
+                            className="text-[10px] text-slate-400 mt-0.5 truncate max-w-36"
+                            title={p.meetingSession}
+                          >
+                            {p.meetingSession}
+                          </div>
+                        )}
                       </td>
 
                       <td className="p-3 max-w-xs">

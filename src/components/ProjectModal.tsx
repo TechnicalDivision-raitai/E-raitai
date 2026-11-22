@@ -1706,7 +1706,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
     <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5">
       <div className="bg-white rounded-3xl shadow-2xl border border-slate-200 w-full max-w-5xl max-h-[92vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Modal Header */}
-        <div className="px-6 py-4 bg-gradient-to-r from-emerald-800 to-teal-800 text-white flex items-center justify-between">
+        <div className="shrink-0 px-6 py-4 bg-gradient-to-r from-emerald-800 to-teal-800 text-white flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-emerald-700/60 rounded-xl">
               <HardHat className="w-5 h-5 text-emerald-200" />
@@ -1728,8 +1728,8 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
           </button>
         </div>
 
-        {/* Tab Navigation (6 Categories) */}
-        <div className="bg-slate-100 border-b border-slate-200 px-4 flex gap-1 overflow-x-auto scrollbar-none py-1.5">
+        {/* Tab Navigation (7 Categories) */}
+        <div className="shrink-0 bg-slate-100 border-b border-slate-200 px-4 flex gap-1 overflow-x-auto scrollbar-none py-1.5">
           {tabs.map(tab => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.num;
@@ -1755,8 +1755,9 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
           })}
         </div>
 
-        {/* Modal Body Form */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+        {/* Modal Body Form (Scrollable Content + Pinned Bottom Footer) */}
+        <form onSubmit={handleSubmit} className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {/* =========================================================================
               หมวดที่ 1: ข้อมูลทั่วไปของโครงการ
               ========================================================================= */}
@@ -4279,9 +4280,10 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
               </div>
             </div>
           )}
+          </div>
 
-          {/* Modal Footer Controls */}
-          <div className="pt-4 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
+          {/* Pinned Modal Footer Controls */}
+          <div className="shrink-0 px-6 py-3.5 bg-slate-50/95 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2 text-xs text-slate-500">
               <span>หมวดที่ {activeTab} จาก 7</span>
               {duplicateCodeProject && (
@@ -4300,7 +4302,7 @@ export const ProjectModal: React.FC<ProjectModalProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-semibold transition"
+                className="px-4 py-2 rounded-xl border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 text-xs font-semibold transition"
               >
                 ยกเลิก
               </button>
