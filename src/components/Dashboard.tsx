@@ -27,8 +27,7 @@ import {
   isProjectCompletedOrDisbursed
 } from '../utils/thaiDate';
 import { STATUS_LABELS } from '../utils/excelExport';
-
-const HERO_BANNER_IMAGE = '/assets/aistudio/____________________8169f350.png';
+import civicSeamlessBanner from '../assets/images/civic_engineering_seamless_banner_1795349964067.jpg';
 
 interface DashboardProps {
   projects: Project[];
@@ -230,10 +229,10 @@ export const Dashboard: React.FC<DashboardProps> = ({
   // Breakdown by Budget Source (หมวดงบประมาณ) + Infrastructure Type (ถ./อ.) + Average Progress
   const categoryBreakdown = useMemo(() => {
     const palette = [
-      'bg-[#155d96]',
+      'bg-emerald-700',
       'bg-teal-600',
       'bg-amber-500',
-      'bg-indigo-600',
+      'bg-sky-600',
       'bg-rose-500'
     ];
     const map = new Map<string, { name: string; count: number; budget: number }>();
@@ -412,53 +411,51 @@ export const Dashboard: React.FC<DashboardProps> = ({
   return (
     <div className="space-y-3.5">
       {/* =====================================================================
-          1. HERO EXECUTIVE BANNER (Slim Compact Strip + Engineering Illustration)
+          1. HERO EXECUTIVE BANNER (Seamless White Canvas + Continuous Civic Art)
          ===================================================================== */}
-      <section className="relative bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
-        <div className="flex flex-col sm:flex-row items-stretch sm:h-[84px] lg:h-[92px]">
-          {/* Left Typography Zone */}
-          <div className="relative z-10 flex-1 px-5 py-2.5 sm:px-6 sm:py-0 flex flex-col justify-center bg-gradient-to-r from-sky-50/90 via-white to-white min-w-0">
+      <section className="relative bg-white rounded-2xl border border-emerald-100/90 shadow-xs overflow-hidden">
+        <div className="relative flex flex-col sm:flex-row items-stretch sm:h-[110px] md:h-[118px] lg:h-[128px] xl:h-[136px]">
+          {/* Left Typography Zone (Pure continuous white canvas) */}
+          <div className="relative z-20 flex-1 px-5 py-3 sm:px-7 sm:py-0 flex flex-col justify-center min-w-0">
             <h2
-              className="text-lg sm:text-[22px] font-extrabold text-[#124e82] font-heading tracking-tight leading-tight truncate"
+              className="text-xl sm:text-[24px] lg:text-[27px] font-extrabold text-emerald-900 font-heading tracking-tight leading-tight truncate"
               style={{ textWrap: 'balance' }}
             >
               ภาพรวมโครงการกองช่าง
             </h2>
-            <p className="text-xs sm:text-[13px] font-medium text-slate-600 mt-0.5 truncate">
-              สถานะ ความคืบหน้า งบประมาณ และกำหนดการ
-              <span className="text-slate-400 mx-1.5" aria-hidden="true">·</span>
-              <span className="text-[#124e82] font-semibold">
-                {filter.fiscalYear !== 'all'
-                  ? `ปีงบประมาณ พ.ศ. ${filter.fiscalYear}`
-                  : 'ทุกปีงบประมาณ'}
-              </span>
+            <p className="text-xs sm:text-[13px] lg:text-sm font-medium text-slate-500 mt-1 truncate">
+              สถานะ ความคืบหน้า งบประมาณ และกำหนดการดำเนินงาน
+            </p>
+            <p className="text-xs sm:text-[13px] lg:text-sm font-bold text-emerald-700 mt-0.5 truncate">
+              {filter.fiscalYear !== 'all'
+                ? `ปีงบประมาณ พ.ศ. ${filter.fiscalYear}`
+                : 'ทุกปีงบประมาณ'}
             </p>
           </div>
 
-          {/* Right Illustration Strip with Crisp Diagonal Civic Edge */}
-          <div
-            className="relative h-20 sm:h-full sm:w-[48%] lg:w-[50%] shrink-0 bg-[#2b82c9] overflow-hidden"
-            style={{ clipPath: 'polygon(0 0, 100% 0, 100% 100%, 26px 100%)' }}
-          >
-            <div
-              className="w-full h-full bg-sky-100 overflow-hidden"
-              style={{ clipPath: 'polygon(8px 0, 100% 0, 100% 100%, 34px 100%)' }}
-            >
-              {!bannerImgFailed ? (
+          {/* Right Continuous Illustration (Scaled boldly to fill height & width cleanly on baseline) */}
+          <div className="relative h-32 sm:h-full w-full sm:w-[395px] md:w-[445px] lg:w-[500px] xl:w-[540px] shrink-0 overflow-hidden bg-white select-none pointer-events-none">
+            {!bannerImgFailed ? (
+              <>
                 <img
-                  src={HERO_BANNER_IMAGE}
-                  alt="ภาพประกอบวิศวกรกองช่างตรวจสอบงานก่อสร้างถนน"
+                  src={civicSeamlessBanner}
+                  alt="ภาพประกอบงานก่อสร้างและวิศวกรกองช่าง"
                   referrerPolicy="no-referrer"
                   onError={() => setBannerImgFailed(true)}
-                  className="w-full h-full object-cover object-[52%_36%]"
+                  className="absolute left-1/2 -translate-x-[56%] sm:left-auto sm:translate-x-0 sm:right-2 lg:right-3 top-[-65%] h-[214%] w-auto max-w-none mix-blend-multiply"
                 />
-              ) : (
-                <div className="w-full h-full bg-gradient-to-br from-sky-100 via-sky-50 to-emerald-50 flex items-center justify-center gap-2 text-[#124e82]/70 px-6">
-                  <HardHat className="w-6 h-6 shrink-0" />
-                  <span className="text-xs font-semibold">งานก่อสร้างและบำรุงรักษา กองช่าง</span>
-                </div>
-              )}
-            </div>
+                {/* Soft white feather on left edge so artwork flows seamlessly into the text area */}
+                <div
+                  className="hidden sm:block absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-white via-white/75 to-transparent"
+                  aria-hidden="true"
+                />
+              </>
+            ) : (
+              <div className="w-full h-full bg-gradient-to-r from-white via-emerald-50/70 to-emerald-100/60 flex items-center justify-end gap-2 text-emerald-900/70 px-6">
+                <HardHat className="w-6 h-6 shrink-0" />
+                <span className="text-xs font-semibold">งานก่อสร้างและบำรุงรักษา กองช่าง</span>
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -469,14 +466,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
       <section className="flex flex-wrap items-center justify-between gap-2.5">
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 flex-1">
           {/* Filter 1: Budget Category */}
-          <div className="bg-sky-50/70 border border-sky-200/80 rounded-xl px-3 py-1 hover:border-sky-300 transition-colors">
-            <label className="block text-[10px] font-semibold text-slate-500 leading-tight">
+          <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl px-3 py-1 hover:border-emerald-300 transition-colors">
+            <label className="block text-[10px] font-semibold text-emerald-800/70 leading-tight">
               หมวดงบประมาณ
             </label>
             <select
               value={filter.category}
               onChange={e => setFilter(prev => ({ ...prev, category: e.target.value }))}
-              className="w-full bg-transparent text-xs font-bold text-[#124e82] focus:outline-hidden cursor-pointer pt-0.5 truncate"
+              className="w-full bg-transparent text-xs font-bold text-emerald-950 focus:outline-hidden cursor-pointer pt-0.5 truncate"
             >
               <option value="all">ทั้งหมด</option>
               {availableCategories.map(cat => (
@@ -488,8 +485,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
 
           {/* Filter 2: Project Status */}
-          <div className="bg-sky-50/70 border border-sky-200/80 rounded-xl px-3 py-1 hover:border-sky-300 transition-colors">
-            <label className="block text-[10px] font-semibold text-slate-500 leading-tight">
+          <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl px-3 py-1 hover:border-emerald-300 transition-colors">
+            <label className="block text-[10px] font-semibold text-emerald-800/70 leading-tight">
               สถานะโครงการ
             </label>
             <select
@@ -498,7 +495,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 setActiveBucketFilter('all');
                 setFilter(prev => ({ ...prev, status: e.target.value }));
               }}
-              className="w-full bg-transparent text-xs font-bold text-[#124e82] focus:outline-hidden cursor-pointer pt-0.5 truncate"
+              className="w-full bg-transparent text-xs font-bold text-emerald-950 focus:outline-hidden cursor-pointer pt-0.5 truncate"
             >
               <option value="all">ทั้งหมด</option>
               <option value="not_started">ยังไม่เริ่มดำเนินการ</option>
@@ -514,8 +511,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
           </div>
 
           {/* Filter 3: Fiscal Year */}
-          <div className="bg-sky-50/70 border border-sky-200/80 rounded-xl px-3 py-1 hover:border-sky-300 transition-colors">
-            <label className="block text-[10px] font-semibold text-slate-500 leading-tight">
+          <div className="bg-emerald-50/70 border border-emerald-200/80 rounded-xl px-3 py-1 hover:border-emerald-300 transition-colors">
+            <label className="block text-[10px] font-semibold text-emerald-800/70 leading-tight">
               ปีงบประมาณ
             </label>
             <select
@@ -526,7 +523,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   fiscalYear: e.target.value === 'all' ? 'all' : Number(e.target.value)
                 }))
               }
-              className="w-full bg-transparent text-xs font-bold text-[#124e82] focus:outline-hidden cursor-pointer pt-0.5 truncate"
+              className="w-full bg-transparent text-xs font-bold text-emerald-950 focus:outline-hidden cursor-pointer pt-0.5 truncate"
             >
               <option value="all">ทุกปีงบประมาณ</option>
               {availableYears.map(yr => (
@@ -556,7 +553,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
       <section className="grid grid-cols-1 lg:grid-cols-12 gap-3.5 items-stretch">
         {/* Card 1: Status Proportion Donut + Bottom Total Count */}
         <div className="lg:col-span-4 bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden flex flex-col">
-          <div className="bg-[#155d96] px-4 py-2 flex items-center justify-between">
+          <div className="bg-gradient-to-r from-emerald-800 to-teal-800 px-4 py-2 flex items-center justify-between">
             <h3 className="text-xs sm:text-sm font-bold text-white font-heading">
               สัดส่วนโครงการตามสถานะ
             </h3>
@@ -564,7 +561,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <button
                 type="button"
                 onClick={() => setActiveBucketFilter('all')}
-                className="text-[11px] font-medium text-sky-100 hover:text-white underline whitespace-nowrap"
+                className="text-[11px] font-medium text-emerald-100 hover:text-white underline whitespace-nowrap"
               >
                 แสดงทั้งหมด
               </button>
@@ -634,7 +631,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       : 'โครงการ';
                     return (
                       <>
-                        <span className="text-3xl font-extrabold text-[#124e82] tabular-nums leading-none">
+                        <span className="text-3xl font-extrabold text-emerald-900 tabular-nums leading-none">
                           {centerVal}
                         </span>
                         <span className="text-xs font-semibold text-slate-500 mt-1">
@@ -661,7 +658,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       onMouseEnter={() => setHoveredBucket(item.key)}
                       onMouseLeave={() => setHoveredBucket(null)}
                       className={`w-full flex items-center justify-between gap-2 px-1.5 py-0.5 rounded-lg transition-colors ${
-                        isActive ? 'bg-sky-50 text-[#124e82]' : 'hover:bg-slate-50 text-slate-700'
+                        isActive ? 'bg-emerald-50 text-emerald-900' : 'hover:bg-slate-50 text-slate-700'
                       }`}
                     >
                       <span className="flex items-center gap-2 min-w-0">
@@ -682,9 +679,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
 
             {/* Bottom Total Count Footer (moved from card header) */}
-            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-sky-50/80 border border-sky-100">
+            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-emerald-50/80 border border-emerald-100">
               <span className="text-xs font-bold text-slate-800">รวมทั้งหมด</span>
-              <span className="text-xs font-bold text-[#124e82] tabular-nums">
+              <span className="text-xs font-bold text-emerald-900 tabular-nums">
                 <strong className="text-base mr-1">{totalCount}</strong>โครงการ
               </span>
             </div>
@@ -693,7 +690,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
         {/* Card 2: Budget Sources, Work Types & Average 12-Step Progress */}
         <div className="lg:col-span-4 bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden flex flex-col">
-          <div className="bg-[#155d96] px-4 py-2 flex items-center justify-between">
+          <div className="bg-gradient-to-r from-emerald-800 to-teal-800 px-4 py-2 flex items-center justify-between">
             <h3 className="text-xs sm:text-sm font-bold text-white font-heading">
               จำแนกตามแหล่งงบและประเภทงาน
             </h3>
@@ -701,12 +698,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <button
                 type="button"
                 onClick={() => setFilter(prev => ({ ...prev, category: 'all' }))}
-                className="text-[11px] font-medium text-sky-100 hover:text-white underline whitespace-nowrap"
+                className="text-[11px] font-medium text-emerald-100 hover:text-white underline whitespace-nowrap"
               >
                 ทุกหมวดงบ
               </button>
             ) : (
-              <span className="text-[11px] text-sky-100 tabular-nums">
+              <span className="text-[11px] text-emerald-100 tabular-nums">
                 คืบหน้าเฉลี่ย {avgProgressPct}%
               </span>
             )}
@@ -734,7 +731,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       }
                       className={`w-full text-left px-2 py-1 rounded-lg transition-colors ${
                         isSelected
-                          ? 'bg-sky-50 ring-1 ring-sky-300'
+                          ? 'bg-emerald-50 ring-1 ring-emerald-300'
                           : 'hover:bg-slate-50'
                       }`}
                     >
@@ -766,7 +763,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                   <span className="font-semibold text-slate-600">
                     ความคืบหน้าเฉลี่ย (12 ขั้นตอน)
                   </span>
-                  <span className="font-bold text-[#124e82] tabular-nums">
+                  <span className="font-bold text-emerald-800 tabular-nums">
                     {avgProgressPct}%
                   </span>
                 </div>
@@ -788,9 +785,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
 
             {/* Bottom Work Type Summary Footer (aligned with Card 1) */}
-            <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl bg-sky-50/80 border border-sky-100 text-xs">
+            <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl bg-emerald-50/80 border border-emerald-100 text-xs">
               <span className="font-bold text-slate-800 whitespace-nowrap">ประเภทงาน</span>
-              <span className="font-semibold text-[#124e82] tabular-nums truncate">
+              <span className="font-semibold text-emerald-900 tabular-nums truncate">
                 ถนน (ถ.) <strong>{workTypeSummary.road}</strong>
                 <span className="text-slate-400 mx-1.5" aria-hidden="true">·</span>
                 อาคาร (อ.) <strong>{workTypeSummary.building}</strong>
@@ -807,11 +804,11 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
         {/* Card 3: Budget Overview */}
         <div className="lg:col-span-4 bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden flex flex-col">
-          <div className="bg-[#155d96] px-4 py-2 flex items-center justify-between">
+          <div className="bg-gradient-to-r from-emerald-800 to-teal-800 px-4 py-2 flex items-center justify-between">
             <h3 className="text-xs sm:text-sm font-bold text-white font-heading">
               ภาพรวมงบประมาณ {budgetYearLabel}
             </h3>
-            <span className="text-[11px] text-sky-100 tabular-nums">
+            <span className="text-[11px] text-emerald-100 tabular-nums">
               {displayProjects.length} โครงการ
             </span>
           </div>
@@ -876,9 +873,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-sky-50/80 border border-sky-100 text-xs tabular-nums">
+            <div className="flex items-center justify-between px-3 py-1.5 rounded-xl bg-emerald-50/80 border border-emerald-100 text-xs tabular-nums">
               <span className="font-semibold text-slate-700">ทำสัญญาแล้ว {contractRatePct}%</span>
-              <span className="font-bold text-[#124e82]">
+              <span className="font-bold text-emerald-900">
                 เบิกจ่าย {disbursedRatePct}%
               </span>
             </div>
@@ -1038,17 +1035,17 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
 
         {/* Card 3: Urgent Follow-Up (Repair Petitions & Work Notice Acceleration) */}
-        <div className="bg-sky-50/75 rounded-2xl border border-sky-200/90 p-3.5 flex flex-col">
-          <div className="flex items-start justify-between gap-2 pb-2.5 border-b border-sky-200/70">
+        <div className="bg-teal-50/75 rounded-2xl border border-teal-200/90 p-3.5 flex flex-col">
+          <div className="flex items-start justify-between gap-2 pb-2.5 border-b border-teal-200/70">
             <div className="flex items-center gap-2 min-w-0">
-              <div className="w-8 h-8 rounded-full bg-[#1d74b8] text-white flex items-center justify-center shrink-0">
+              <div className="w-8 h-8 rounded-full bg-teal-700 text-white flex items-center justify-center shrink-0">
                 <Megaphone className="w-4 h-4" />
               </div>
               <div className="min-w-0">
-                <h3 className="text-[13px] font-bold text-[#124e82] font-heading truncate">
+                <h3 className="text-[13px] font-bold text-teal-950 font-heading truncate">
                   ประเด็นที่ต้องเร่งติดตาม
                 </h3>
-                <p className="text-[11px] text-sky-900/75">
+                <p className="text-[11px] text-teal-900/75">
                   ติดตามใบคำร้องซ่อมแซมและงานกระทบประชาชน
                 </p>
               </div>
@@ -1057,7 +1054,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
               <button
                 type="button"
                 onClick={onNavigateToRepairRequests}
-                className="text-[11px] font-bold text-[#124e82] hover:text-sky-950 inline-flex items-center gap-0.5 whitespace-nowrap shrink-0 pt-0.5"
+                className="text-[11px] font-bold text-teal-800 hover:text-teal-950 inline-flex items-center gap-0.5 whitespace-nowrap shrink-0 pt-0.5"
               >
                 <span>ทั้งหมด</span>
                 <ArrowUpRight className="w-3.5 h-3.5" />
@@ -1067,14 +1064,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
 
           {/* Optional Compact Switcher when Contractor Work Notice Alerts also exist */}
           {workNoticeAlerts.length > 0 && currentUser?.role === 'admin' && (
-            <div className="mt-2 flex items-center gap-1 p-0.5 bg-sky-100/80 rounded-lg text-[11px]">
+            <div className="mt-2 flex items-center gap-1 p-0.5 bg-teal-100/80 rounded-lg text-[11px]">
               <button
                 type="button"
                 onClick={() => setFollowUpMode('repairs')}
                 className={`flex-1 px-2.5 py-1 rounded-md font-semibold transition-colors whitespace-nowrap ${
                   followUpMode === 'repairs'
-                    ? 'bg-white text-[#124e82] shadow-2xs'
-                    : 'text-sky-800 hover:text-[#124e82]'
+                    ? 'bg-white text-teal-900 shadow-2xs'
+                    : 'text-teal-800 hover:text-teal-950'
                 }`}
               >
                 คำร้องซ่อมแซม ({openRepairPetitions.length})
@@ -1084,8 +1081,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 onClick={() => setFollowUpMode('notices')}
                 className={`flex-1 px-2.5 py-1 rounded-md font-semibold transition-colors whitespace-nowrap ${
                   followUpMode === 'notices'
-                    ? 'bg-white text-[#124e82] shadow-2xs'
-                    : 'text-sky-800 hover:text-[#124e82]'
+                    ? 'bg-white text-teal-900 shadow-2xs'
+                    : 'text-teal-800 hover:text-teal-950'
                 }`}
               >
                 เร่งรัดเข้างาน ({workNoticeAlerts.length})
@@ -1093,14 +1090,14 @@ export const Dashboard: React.FC<DashboardProps> = ({
             </div>
           )}
 
-          <div className="mt-2 flex-1 divide-y divide-sky-200/60">
+          <div className="mt-2 flex-1 divide-y divide-teal-200/60">
             {followUpMode === 'notices' && workNoticeAlerts.length > 0 && currentUser?.role === 'admin' ? (
               visibleNotices.map(({ project, alert }) => (
                 <button
                   key={project.id}
                   type="button"
                   onClick={() => onSelectProject(project, 5)}
-                  className="w-full py-2 px-1.5 flex items-center justify-between gap-3 text-left hover:bg-sky-100/60 rounded-lg transition-colors"
+                  className="w-full py-2 px-1.5 flex items-center justify-between gap-3 text-left hover:bg-teal-100/60 rounded-lg transition-colors"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="text-xs font-bold text-slate-900 truncate">
@@ -1124,8 +1121,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </button>
               ))
             ) : visibleRepairs.length === 0 ? (
-              <div className="py-5 text-center text-xs text-sky-900/65 flex flex-col items-center gap-1.5">
-                <Wrench className="w-4.5 h-4.5 text-sky-600/60" />
+              <div className="py-5 text-center text-xs text-teal-900/65 flex flex-col items-center gap-1.5">
+                <Wrench className="w-4.5 h-4.5 text-teal-600/60" />
                 <span>ไม่มีใบคำร้องซ่อมแซมที่ค้างดำเนินการ</span>
               </div>
             ) : (
@@ -1142,7 +1139,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     key={req.id}
                     type="button"
                     onClick={() => onNavigateToRepairRequests?.()}
-                    className="w-full py-2 px-1.5 flex items-center justify-between gap-3 text-left hover:bg-sky-100/60 rounded-lg transition-colors"
+                    className="w-full py-2 px-1.5 flex items-center justify-between gap-3 text-left hover:bg-teal-100/60 rounded-lg transition-colors"
                   >
                     <div className="min-w-0 flex-1">
                       <div className="text-xs font-bold text-slate-900 truncate">
@@ -1181,7 +1178,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <button
               type="button"
               onClick={() => setShowAllFollowUp(prev => !prev)}
-              className="mt-2 pt-2 border-t border-sky-200/70 w-full flex items-center justify-center gap-1 text-xs font-semibold text-[#124e82] hover:text-sky-950 transition-colors"
+              className="mt-2 pt-2 border-t border-teal-200/70 w-full flex items-center justify-center gap-1 text-xs font-semibold text-teal-800 hover:text-teal-950 transition-colors"
             >
               <span>
                 {showAllFollowUp
@@ -1203,7 +1200,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <h3 className="text-base font-bold text-slate-800 font-heading">
               รายการโครงการล่าสุด
               {activeBucketFilter !== 'all' && (
-                <span className="ml-2 text-xs font-semibold text-[#124e82]">
+                <span className="ml-2 text-xs font-semibold text-emerald-800">
                   ({summaryItems.find(i => i.key === activeBucketFilter)?.label})
                 </span>
               )}
@@ -1216,7 +1213,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <button
               type="button"
               onClick={onOpenNewProjectModal}
-              className="text-xs font-semibold text-[#155d96] hover:text-[#0f4470] flex items-center gap-1 whitespace-nowrap shrink-0"
+              className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 flex items-center gap-1 whitespace-nowrap shrink-0"
             >
               เพิ่มโครงการใหม่ <ArrowUpRight className="w-3.5 h-3.5" />
             </button>
@@ -1259,7 +1256,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                       }}
                       className={`transition cursor-pointer ${
                         isSelected
-                          ? 'bg-sky-50/75 [&>td]:shadow-[inset_0_1px_0_0_rgba(21,93,150,0.45),inset_0_-1px_0_0_rgba(21,93,150,0.45)]'
+                          ? 'bg-emerald-50/75 [&>td]:shadow-[inset_0_1px_0_0_rgba(5,150,105,0.45),inset_0_-1px_0_0_rgba(5,150,105,0.45)]'
                           : 'hover:bg-slate-50/80'
                       }`}
                     >
@@ -1273,7 +1270,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         <button
                           type="button"
                           onClick={() => onSelectProject(p)}
-                          className="font-medium text-slate-800 hover:text-[#155d96] text-left line-clamp-1"
+                          className="font-medium text-slate-800 hover:text-emerald-700 text-left line-clamp-1"
                         >
                           {p.name}
                         </button>
@@ -1320,7 +1317,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                         <button
                           type="button"
                           onClick={() => onSelectProject(p)}
-                          className="text-xs font-semibold text-[#155d96] hover:text-[#0f4470] px-2.5 py-1 rounded-lg hover:bg-sky-50 transition"
+                          className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 px-2.5 py-1 rounded-lg hover:bg-emerald-50 transition"
                         >
                           ดูข้อมูล
                         </button>
