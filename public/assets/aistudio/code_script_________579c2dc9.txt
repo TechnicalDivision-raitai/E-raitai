@@ -1,0 +1,654 @@
+const SHEET_NAME = 'ทะเบียนโครงการ';
+const DRIVE_FOLDER_NAME = 'เอกสารโครงการกองช่าง_อบต.ไร่ใต้';
+const SARABAN_QUEUE_SHEET_NAME = 'SarabanQueue';
+const SARABAN_QUEUE_HEADERS = [
+  'queueId', 'idempotencyKey', 'createdAt', 'projectId', 'projectCode',
+  'fiscalYear', 'docCategory', 'bookNo', 'bookDate', 'subject',
+  'payloadJson', 'fileName', 'fileUrl', 'fileSize', 'mimeType',
+  'submittedBy', 'queueStatus', 'reviewedBy', 'reviewedAt', 'rejectReason'
+];
+
+function doGet(e) {
+  try {
+    const action = (e && e.parameter && e.parameter.action) || 'getProjects';
+    
+    if (action === 'ping') {
+      return createJsonResponse({
+        status: 'success',
+        message: 'Google Apps Script API พร้อมทำงาน',
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    if (action === 'getProjects') {
+      const projects = readProjectsFromSheet();
+      return createJsonResponse({
+        status: 'success',
+        count: projects.length,
+        data: projects,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    if (action === 'getProjectOptions') {
+      return handleGetProjectOptions_(e);
+    }
+
+    if (action === 'getSarabanQueue') {
+      return handleGetSarabanQueue_(e);
+    }
+    
+    return createJsonResponse({ status: 'error', message: 'Unknown GET action: ' + action });
+  } catch (err) {
+    return createJsonResponse({ status: 'error', message: err.toString() });
+  }
+}
+
+function doPost(e) {
+  try {
+    if (!e || !e.postData || !e.postData.contents) {
+      return createJsonResponse({ status: 'error', message: 'No POST data received' });
+    }
+    
+    var payload;
+    try {
+      payload = JSON.parse(e.postData.contents);
+    } catch (parseErr) {
+      return createJsonResponse({ status: 'error', message: 'Invalid JSON body: ' + parseErr.toString() });
+    }
+    
+    const action = payload.action;
+    
+    if (action === 'ping') {
+      return createJsonResponse({ status: 'success', message: 'Pong', timestamp: new Date().toISOString() });
+    }
+    
+    if (action === 'getProjects') {
+      const projects = readProjectsFromSheet();
+      return createJsonResponse({ status: 'success', count: projects.length, data: projects });
+    }
+    
+    if (action === 'syncProjects' || action === 'saveProjects') {
+      const lock = LockService.getScriptLock();
+      lock.waitLock(15000);
+      try {
+        const projects = payload.projects || [];
+        const count = writeProjectsToSheet(projects);
+        return createJsonResponse({
+          status: 'success',
+          message: 'บันทึกข้อมูลเข้า Google Sheet สำเร็จ',
+          count: count,
+          timestamp: new Date().toISOString()
+        });
+      } finally {
+        lock.releaseLock();
+      }
+    }
+    
+    if (action === 'uploadFile') {
+      const uploadRes = saveFileToDrive(payload);
+      return createJsonResponse({
+        status: 'success',
+        message: 'อัปโหลดไฟล์เข้า Google Drive สำเร็จ',
+        fileUrl: uploadRes.fileUrl,
+        fileId: uploadRes.fileId,
+        fileName: uploadRes.fileName,
+        folderName: uploadRes.folderName
+      });
+    }
+
+    if (action === 'getProjectOptions') {
+      return handleGetProjectOptions_({ parameter: payload });
+    }
+
+    if (action === 'pushSarabanQueue') {
+      return handlePushSarabanQueue_(payload);
+    }
+
+    if (action === 'getSarabanQueue') {
+      return handleGetSarabanQueue_({ parameter: payload });
+    }
+
+    if (action === 'resolveSarabanQueue') {
+      return handleResolveSarabanQueue_(payload);
+    }
+    if (action === 'deleteSarabanQueue') {
+      return handleDeleteSarabanQueue_(payload);
+    }
+    return createJsonResponse({ status: 'error', message: 'Unknown POST action: ' + action });
+  } catch (err) {
+    return createJsonResponse({ status: 'error', message: err.toString() });
+  }
+}
+
+function createJsonResponse(data) {
+  return ContentService.createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function readProjectsFromSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) {
+    return [];
+  }
+  
+  const data = sheet.getDataRange().getValues();
+  if (data.length <= 1) {
+    return [];
+  }
+  
+  const headers = data[0];
+  const jsonColIdx = headers.indexOf('ข้อมูลระบบฉบับเต็ม (JSON)');
+  
+  const projects = [];
+  for (let r = 1; r < data.length; r++) {
+    const row = data[r];
+    if (!row[0] && !row[2]) continue;
+    
+    let project = null;
+    if (jsonColIdx >= 0 && row[jsonColIdx]) {
+      try {
+        project = JSON.parse(row[jsonColIdx]);
+      } catch (e) {
+        project = null;
+      }
+    }
+    
+    if (!project) {
+      project = {
+        id: 'proj-' + (row[0] || r),
+        projectCode: String(row[0] || ''),
+        fiscalYear: Number(row[1]) || 2569,
+        name: String(row[2] || ''),
+        budgetCategory: String(row[3] || 'งบประมาณรายจ่าย'),
+        approvedBudget: Number(row[4]) || 0,
+        contractAmount: Number(row[5]) || 0,
+        contractNo: String(row[6] || ''),
+        startDate: row[7] ? String(row[7]) : '',
+        endDate: row[8] ? String(row[8]) : '',
+        contractorName: String(row[9] || ''),
+        responsiblePerson: String(row[10] || ''),
+        supervisorName: String(row[11] || ''),
+        status: String(row[12] || 'not_started'),
+        progressPercent: Number(row[13]) || 0,
+        location: String(row[14] || ''),
+        description: String(row[15] || ''),
+        attachments: [],
+        torCommittees: [],
+        inspectCommittees: [],
+        workNotices: [],
+        deliveries: [],
+        inspections: [],
+        disbursements: [],
+        remunerations: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+    }
+    
+    projects.push(project);
+  }
+  
+  return projects;
+}
+
+function writeProjectsToSheet(projects) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEET_NAME);
+  }
+  
+  sheet.clear();
+  
+  const headers = [
+    'รหัสโครงการ',
+    'ปีงบประมาณ',
+    'ชื่อโครงการ',
+    'หมวดงบประมาณ',
+    'งบอนุมัติ (บาท)',
+    'วงเงินสัญญา (บาท)',
+    'เลขที่สัญญา',
+    'วันที่เริ่มสัญญา',
+    'วันที่สิ้นสุดสัญญา',
+    'ผู้รับจ้าง',
+    'ผู้รับผิดชอบโครงการ',
+    'ผู้ควบคุมงาน',
+    'สถานะโครงการ',
+    'ความคืบหน้า (%)',
+    'สถานที่ดำเนินการ',
+    'รายละเอียดโครงการ',
+    'จำนวนเอกสารแนบ',
+    'ลิงก์ไฟล์ Google Drive',
+    'ข้อมูลระบบฉบับเต็ม (JSON)',
+    'วันที่ปรับปรุงล่าสุด'
+  ];
+  
+  const rows = [headers];
+  
+  for (let i = 0; i < projects.length; i++) {
+    const p = projects[i];
+    const attachments = p.attachments || [];
+    const attLinks = attachments.map(function(a) {
+      return (a.name || 'ไฟล์') + ': ' + (a.url || '');
+    }).join('\n');
+    
+    const row = [
+      p.projectCode || '',
+      p.fiscalYear || '',
+      p.name || '',
+      p.budgetCategory || '',
+      p.approvedBudget || 0,
+      p.contractAmount || 0,
+      p.contractNo || '',
+      p.startDate || '',
+      p.endDate || '',
+      p.contractorName || '',
+      p.responsiblePerson || '',
+      p.supervisorName || '',
+      p.status || 'not_started',
+      p.progressPercent || 0,
+      p.location || '',
+      p.description || '',
+      attachments.length,
+      attLinks,
+      JSON.stringify(p),
+      new Date().toLocaleString('th-TH')
+    ];
+    rows.push(row);
+  }
+  
+  sheet.getRange(1, 1, rows.length, headers.length).setValues(rows);
+  
+  const headerRange = sheet.getRange(1, 1, 1, headers.length);
+  headerRange.setBackground('#065f46');
+  headerRange.setFontColor('#ffffff');
+  headerRange.setFontWeight('bold');
+  sheet.setFrozenRows(1);
+  
+  return projects.length;
+}
+
+function saveFileToDrive(payload) {
+  const fileName = payload.fileName || ('เอกสารแนบ_' + Date.now() + '.pdf');
+  const mimeType = payload.mimeType || 'application/pdf';
+  const fileData = payload.fileData;
+  const folderName = payload.folderName || DRIVE_FOLDER_NAME;
+  
+  if (!fileData) {
+    throw new Error('ไม่พบข้อมูลไฟล์ (fileData)');
+  }
+  
+  const folders = DriveApp.getFoldersByName(folderName);
+  let folder;
+  if (folders.hasNext()) {
+    folder = folders.next();
+  } else {
+    folder = DriveApp.createFolder(folderName);
+  }
+  
+  const decodedBytes = Utilities.base64Decode(fileData);
+  const blob = Utilities.newBlob(decodedBytes, mimeType, fileName);
+  const file = folder.createFile(blob);
+  
+  // กำหนดสิทธิ์ให้ทุกคนที่มีลิงก์เข้าดูไฟล์ได้ (สิทธิ์ Staff และทุกคนสามารถเปิดดูไฟล์แนบได้)
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  
+  return {
+    fileId: file.getId(),
+    fileName: file.getName(),
+    fileUrl: file.getUrl(),
+    folderName: folder.getName()
+  };
+}
+
+// ============================================================================
+// ส่วนเชื่อมต่อระบบสารบรรณ (แนวทาง B: SarabanQueue)
+// ============================================================================
+
+function normalizeIsoDateGas_(raw) {
+  if (!raw) return '';
+  if (raw instanceof Date) {
+    return Utilities.formatDate(raw, 'Asia/Bangkok', 'yyyy-MM-dd');
+  }
+  const s = String(raw).trim();
+  const m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (m) {
+    let yr = Number(m[1]);
+    if (yr > 2400) yr -= 543;
+    const mm = ('0' + Number(m[2])).slice(-2);
+    const dd = ('0' + Number(m[3])).slice(-2);
+    return yr + '-' + mm + '-' + dd;
+  }
+  return s;
+}
+
+function getOrCreateSarabanQueueSheet_() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(SARABAN_QUEUE_SHEET_NAME);
+  if (!sheet) {
+    sheet = ss.insertSheet(SARABAN_QUEUE_SHEET_NAME);
+  }
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(SARABAN_QUEUE_HEADERS);
+    const headerRange = sheet.getRange(1, 1, 1, SARABAN_QUEUE_HEADERS.length);
+    headerRange.setBackground('#065f46');
+    headerRange.setFontColor('#ffffff');
+    headerRange.setFontWeight('bold');
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+// Endpoint 1: GET ?action=getProjectOptions&fiscalYear=all
+function handleGetProjectOptions_(e) {
+  const params = (e && e.parameter) || {};
+  const fiscalYear = params.fiscalYear ? String(params.fiscalYear).trim() : 'all';
+  const projects = readProjectsFromSheet();
+
+  const options = [];
+  for (let i = 0; i < projects.length; i++) {
+    const p = projects[i];
+    if (fiscalYear && fiscalYear !== 'all' && String(p.fiscalYear) !== fiscalYear) {
+      continue;
+    }
+    options.push({
+      id: String(p.id || ''),
+      projectCode: String(p.projectCode || ''),
+      fiscalYear: Number(p.fiscalYear) || 0,
+      name: String(p.name || ''),
+      status: String(p.status || 'not_started'),
+      contractNo: String(p.contractNo || '')
+    });
+  }
+
+  return createJsonResponse({
+    status: 'success',
+    count: options.length,
+    data: options
+  });
+}
+
+// Endpoint 2: POST action: "pushSarabanQueue"
+function handlePushSarabanQueue_(body) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    const sheet = getOrCreateSarabanQueueSheet_();
+    const values = sheet.getDataRange().getValues();
+    const idempotencyKey = body.idempotencyKey ? String(body.idempotencyKey).trim() : '';
+
+    // ตรวจสอบกันส่งซ้ำ
+    if (idempotencyKey && values.length > 1) {
+      for (let r = 1; r < values.length; r++) {
+        const existingKey = String(values[r][1] || '').trim();
+        const existingStatus = String(values[r][16] || '').trim();
+        if (existingKey === idempotencyKey && (existingStatus === 'pending' || existingStatus === 'approved')) {
+          return createJsonResponse({
+            status: 'success',
+            queueId: String(values[r][0]),
+            queueStatus: existingStatus,
+            duplicated: true,
+            message: 'รายการนี้ถูกส่งเข้าคิวไว้แล้ว (' + values[r][0] + ')'
+          });
+        }
+      }
+    }
+
+    const now = new Date();
+    const dateCode = Utilities.formatDate(now, 'Asia/Bangkok', 'yyyyMMdd');
+    let seq = 1;
+    for (let i = 1; i < values.length; i++) {
+      if (String(values[i][0] || '').indexOf('SQ-' + dateCode + '-') === 0) {
+        seq++;
+      }
+    }
+    const queueId = 'SQ-' + dateCode + '-' + ('000' + seq).slice(-3);
+
+    const att = body.attachment || {};
+    const payloadStr = JSON.stringify(body.payload || {});
+    const newRow = [
+      queueId,
+      idempotencyKey,
+      now.toISOString(),
+      String(body.projectId || ''),
+      String(body.projectCode || ''),
+      Number(body.fiscalYear) || '',
+      String(body.docCategory || 'other'),
+      String(body.bookNo || ''),
+      normalizeIsoDateGas_(body.bookDate),
+      String(body.subject || ''),
+      payloadStr,
+      String(att.fileName || ''),
+      String(att.fileUrl || ''),
+      Number(att.fileSize) || 0,
+      String(att.mimeType || ''),
+      String(body.submittedBy || ''),
+      'pending',
+      '',
+      '',
+      ''
+    ];
+
+    sheet.appendRow(newRow);
+    return createJsonResponse({
+      status: 'success',
+      queueId: queueId,
+      queueStatus: 'pending',
+      duplicated: false,
+      message: 'ส่งรายการเข้าคิวรอยืนยันในระบบโครงการเรียบร้อยแล้ว'
+    });
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+// Endpoint 3: GET ?action=getSarabanQueue&queueStatus=pending|all
+function handleGetSarabanQueue_(e) {
+  const params = (e && e.parameter) || {};
+  const filterStatus = params.queueStatus ? String(params.queueStatus).trim() : 'all';
+  const sheet = getOrCreateSarabanQueueSheet_();
+  const values = sheet.getDataRange().getValues();
+  const items = [];
+  let pendingCount = 0;
+
+  for (let r = 1; r < values.length; r++) {
+    const row = values[r];
+    const qId = String(row[0] || '').trim();
+    if (!qId) continue;
+
+    const qStatus = String(row[16] || 'pending').trim();
+    if (qStatus === 'pending') pendingCount++;
+    if (filterStatus !== 'all' && qStatus !== filterStatus) continue;
+
+    let parsedPayload = {};
+    try {
+      parsedPayload = row[10] ? JSON.parse(String(row[10])) : {};
+    } catch (err) {
+      parsedPayload = {};
+    }
+
+    items.push({
+      queueId: qId,
+      idempotencyKey: String(row[1] || ''),
+      createdAt: row[2] instanceof Date ? row[2].toISOString() : String(row[2] || ''),
+      projectId: String(row[3] || ''),
+      projectCode: String(row[4] || ''),
+      fiscalYear: Number(row[5]) || 0,
+      docCategory: String(row[6] || 'other'),
+      bookNo: String(row[7] || ''),
+      bookDate: normalizeIsoDateGas_(row[8]),
+      subject: String(row[9] || ''),
+      payload: parsedPayload,
+      fileName: String(row[11] || ''),
+      fileUrl: String(row[12] || ''),
+      fileSize: Number(row[13]) || 0,
+      mimeType: String(row[14] || ''),
+      submittedBy: String(row[15] || ''),
+      queueStatus: qStatus,
+      reviewedBy: String(row[17] || ''),
+      reviewedAt: row[18] instanceof Date ? row[18].toISOString() : String(row[18] || ''),
+      rejectReason: String(row[19] || '')
+    });
+  }
+
+  items.reverse();
+  return createJsonResponse({
+    status: 'success',
+    pendingCount: pendingCount,
+    data: items
+  });
+}
+
+// Endpoint 4: POST action: "resolveSarabanQueue"
+function handleResolveSarabanQueue_(body) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    const queueId = String(body.queueId || '').trim();
+    const decision = String(body.decision || '').trim();
+    if (!queueId || (decision !== 'approve' && decision !== 'reject')) {
+      return createJsonResponse({ status: 'error', message: 'Invalid queueId or decision' });
+    }
+
+    const sheet = getOrCreateSarabanQueueSheet_();
+    const values = sheet.getDataRange().getValues();
+    let targetRow = -1;
+
+    for (let r = 1; r < values.length; r++) {
+      if (String(values[r][0] || '').trim() === queueId) {
+        targetRow = r + 1;
+        break;
+      }
+    }
+
+    if (targetRow < 0) {
+      return createJsonResponse({ status: 'error', message: 'ไม่พบรายการคิว ' + queueId });
+    }
+
+    const nextStatus = decision === 'approve' ? 'approved' : 'rejected';
+    const reviewedAt = new Date().toISOString();
+
+    // อัปเดตโครงการใน ทะเบียนโครงการ ทันทีเมื่ออนุมัติและมี updatedProject ส่งมา
+    if (decision === 'approve' && body.updatedProject && body.updatedProject.id) {
+      const projects = readProjectsFromSheet();
+      const idx = projects.findIndex(function(p) {
+        return String(p.id) === String(body.updatedProject.id);
+      });
+      if (idx >= 0) {
+        projects[idx] = body.updatedProject;
+        writeProjectsToSheet(projects);
+      }
+    }
+
+    sheet.getRange(targetRow, 17).setValue(nextStatus);
+    sheet.getRange(targetRow, 18).setValue(String(body.reviewedBy || ''));
+    sheet.getRange(targetRow, 19).setValue(reviewedAt);
+    sheet.getRange(targetRow, 20).setValue(decision === 'reject' ? String(body.rejectReason || '') : '');
+
+    return createJsonResponse({
+      status: 'success',
+      queueId: queueId,
+      queueStatus: nextStatus,
+      reviewedAt: reviewedAt
+    });
+  } finally {
+    lock.releaseLock();
+  }
+}
+// Endpoint 5: POST action: "deleteSarabanQueue"
+function handleDeleteSarabanQueue_(body) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(15000);
+  try {
+    let queueId = String(body.queueId || '').trim();
+    const idempotencyKey = String(body.idempotencyKey || '').trim();
+    const sheet = getOrCreateSarabanQueueSheet_();
+    const values = sheet.getDataRange().getValues();
+    let targetRow = -1;
+    let rowData = null;
+
+    for (let r = 1; r < values.length; r++) {
+      const rQueueId = String(values[r][0] || '').trim();
+      const rIdemKey = String(values[r][1] || '').trim();
+      if ((queueId && rQueueId === queueId) || (!queueId && idempotencyKey && rIdemKey === idempotencyKey)) {
+        targetRow = r + 1;
+        rowData = values[r];
+        queueId = rQueueId;
+        break;
+      }
+    }
+
+    if (targetRow < 0) {
+      return createJsonResponse({
+        status: 'success',
+        deleted: false,
+        queueId: queueId,
+        message: 'ไม่พบรายการคิวในชีต (อาจถูกลบไปแล้ว)'
+      });
+    }
+
+    const prevStatus = String(rowData[16] || '').trim();
+    const rowProjectId = String(body.projectId || rowData[3] || '').trim();
+    const rowProjectCode = String(rowData[4] || '').trim();
+    const rowDocCat = String(body.docCategory || rowData[6] || '').trim();
+    const rowBookNo = String(rowData[7] || '').trim();
+    const rowBookDate = normalizeIsoDateGas_(rowData[8]);
+    const rowFileUrl = String(rowData[12] || '').trim();
+    let rolledBackProject = false;
+
+    if (prevStatus === 'approved') {
+      const projects = readProjectsFromSheet();
+      if (body.updatedProject && body.updatedProject.id) {
+        const updIdx = projects.findIndex(function(p) {
+          return String(p.id) === String(body.updatedProject.id);
+        });
+        if (updIdx >= 0) {
+          projects[updIdx] = body.updatedProject;
+          writeProjectsToSheet(projects);
+          rolledBackProject = true;
+        }
+      } else {
+        const pIdx = projects.findIndex(function(p) {
+          if (rowProjectId && String(p.id) === rowProjectId) return true;
+          if (rowProjectCode && String(p.projectCode || '').trim() === rowProjectCode) return true;
+          return false;
+        });
+        if (pIdx >= 0) {
+          const proj = projects[pIdx];
+          proj.attachments = (proj.attachments || []).filter(function(a) {
+            if (a.id === 'saraban-' + queueId) return false;
+            if (rowFileUrl && a.url === rowFileUrl && String(a.id || '').indexOf('saraban-') === 0) return false;
+            return true;
+          });
+          proj.workNotices = (proj.workNotices || []).filter(function(w) { return w.id !== 'wn-' + queueId; });
+          proj.deliveries = (proj.deliveries || []).filter(function(d) { return d.id !== 'del-' + queueId; });
+          proj.inspections = (proj.inspections || []).filter(function(i) { return i.id !== 'ins-' + queueId; });
+          proj.disbursements = (proj.disbursements || []).filter(function(d) { return d.id !== 'dis-' + queueId; });
+          proj.remunerations = (proj.remunerations || []).filter(function(r) { return r.id !== 'rem-' + queueId; });
+          if (rowDocCat === 'tor_order' && proj.torOrderNo === rowBookNo) proj.torOrderNo = '';
+          if (rowDocCat === 'tor_approval' && proj.torDate === rowBookDate) proj.torDate = '';
+          if (rowDocCat === 'ref_price' && proj.refPriceDate === rowBookDate) proj.refPriceDate = '';
+          if (rowDocCat === 'inspect_order' && proj.inspectOrderNo === rowBookNo) proj.inspectOrderNo = '';
+          if (rowDocCat === 'contract' && proj.contractNo === rowBookNo) proj.contractNo = '';
+          projects[pIdx] = proj;
+          writeProjectsToSheet(projects);
+          rolledBackProject = true;
+        }
+      }
+    }
+
+    sheet.deleteRow(targetRow);
+
+    return createJsonResponse({
+      status: 'success',
+      deleted: true,
+      queueId: queueId,
+      rolledBackProject: rolledBackProject,
+      message: 'ลบรายการคิวเรียบร้อยแล้ว'
+    });
+  } finally {
+    lock.releaseLock();
+  }
+}

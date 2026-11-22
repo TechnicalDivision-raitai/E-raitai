@@ -10,7 +10,13 @@ import {
   Trash2,
   Phone,
   RotateCcw,
-  FileText
+  FileText,
+  CloudOff,
+  Code2,
+  Copy,
+  Check,
+  X,
+  RefreshCw
 } from 'lucide-react';
 import {
   RepairRequest,
@@ -24,6 +30,7 @@ import {
   REPAIR_STATUS_META,
   exportRepairRequestsToExcel
 } from '../utils/repairHelpers';
+import { REPAIR_REQUESTS_GAS_SNIPPET } from '../services/googleSync';
 import { RepairRequestModal } from './RepairRequestModal';
 import { RepairRequestDetailModal } from './RepairRequestDetailModal';
 
@@ -34,6 +41,11 @@ interface RepairRequestsViewProps {
   onSaveRequest: (request: RepairRequest) => void;
   onDeleteRequest: (id: string) => void;
   onQuickStatusChange: (id: string, status: RepairRequestStatus) => void;
+  needsScriptUpdate?: boolean;
+  syncError?: string | null;
+  isSyncing?: boolean;
+  onPushSyncToCloud?: () => Promise<void> | void;
+  onRefreshFromCloud?: () => Promise<void> | void;
 }
 
 type StatusFilterKey = 'all' | 'active' | RepairRequestStatus;
@@ -53,7 +65,12 @@ export const RepairRequestsView: React.FC<RepairRequestsViewProps> = ({
   currentUser,
   onSaveRequest,
   onDeleteRequest,
-  onQuickStatusChange
+  onQuickStatusChange,
+  needsScriptUpdate = false,
+  syncError = null,
+  isSyncing = false,
+  onPushSyncToCloud,
+  onRefreshFromCloud
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedYear, setSelectedYear] = useState<number | 'all'>('all');
@@ -65,9 +82,21 @@ export const RepairRequestsView: React.FC<RepairRequestsViewProps> = ({
   const [editingRequest, setEditingRequest] = useState<RepairRequest | null>(null);
   const [formInitialTab, setFormInitialTab] = useState<1 | 2>(1);
   const [detailRequestId, setDetailRequestId] = useState<string | null>(null);
+  const [isScriptModalOpen, setIsScriptModalOpen] = useState(false);
+  const [copiedScript, setCopiedScript] = useState(false);
 
   const isAdmin = currentUser.role === 'admin';
   const canModify = isAdmin;
+
+  const handleCopyScript = async () => {
+    try {
+      await navigator.clipboard.writeText(REPAIR_REQUESTS_GAS_SNIPPET);
+      setCopiedScript(true);
+      setTimeout(() => setCopiedScript(false), 2500);
+    } catch {
+      Swal.fire('คัดลอกไม่สำเร็จ', 'กรุณาคลุมดำและคัดลอกโค้ดจากกล่องด้านล่างด้วยตนเอง', 'info');
+    }
+  };
 
   // Merge available fiscal years with any years present in repair requests
   const yearOptions = useMemo(() => {
@@ -224,6 +253,76 @@ export const RepairRequestsView: React.FC<RepairRequestsViewProps> = ({
           )}
         </div>
       </div>
+
+      {/* Admin Cloud Sync Setup / Retry Banner (only shown when Apps Script needs update or sync error occurs) */}
+      {isAdmin && needsScriptUpdate && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-start gap-2.5 min-w-0">
+            <CloudOff className="w-4.5 h-4.5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="text-xs text-amber-950 space-y-0.5">
+              <div className="font-bold">
+                ใบคำร้องซ่อมแซมยังไม่ได้ซิงค์ข้ามอุปกรณ์ (ต้องอัปเดตโค้ด Google Apps Script 1 ครั้ง)
+              </div>
+              <p className="text-amber-800/90 leading-relaxed">
+                ข้อมูลที่แก้ไขถูกเก็บไว้ในเครื่องนี้แล้ว เมื่อเพิ่มฟังก์ชัน <code className="px-1 py-0.5 rounded bg-amber-100 font-mono text-[11px]">getRepairRequests / syncRepairRequests</code> ใน Apps Script และกด Deploy เวอร์ชันใหม่แล้ว กดปุ่ม &ldquo;ซิงค์ขึ้นคลาวด์ตอนนี้&rdquo; ข้อมูลทั้งหมดจะซิงค์ไปยังทุกเครื่องอัตโนมัติ
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsScriptModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-xs font-semibold transition whitespace-nowrap"
+            >
+              <Code2 className="w-3.5 h-3.5" />
+              <span>ดูโค้ด Apps Script</span>
+            </button>
+            {onPushSyncToCloud && (
+              <button
+                type="button"
+                disabled={isSyncing}
+                onClick={() => onPushSyncToCloud()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-amber-100/70 text-amber-900 border border-amber-300 text-xs font-semibold transition whitespace-nowrap disabled:opacity-60"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                <span>ซิงค์ขึ้นคลาวด์ตอนนี้</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {isAdmin && !needsScriptUpdate && syncError && (
+        <div className="bg-rose-50 border border-rose-200 rounded-xl px-4 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2 text-xs text-rose-800">
+            <CloudOff className="w-4 h-4 text-rose-600 shrink-0" />
+            <span>{syncError}</span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {onPushSyncToCloud && (
+              <button
+                type="button"
+                disabled={isSyncing}
+                onClick={() => onPushSyncToCloud()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold transition whitespace-nowrap disabled:opacity-60"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                <span>ส่งซิงค์อีกครั้ง</span>
+              </button>
+            )}
+            {onRefreshFromCloud && (
+              <button
+                type="button"
+                disabled={isSyncing}
+                onClick={() => onRefreshFromCloud()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-rose-100/60 text-rose-800 border border-rose-200 text-xs font-semibold transition whitespace-nowrap disabled:opacity-60"
+              >
+                <span>ดึงข้อมูลล่าสุด</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* 5-Column Flat KPI Strip */}
       <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
@@ -726,6 +825,102 @@ export const RepairRequestsView: React.FC<RepairRequestsViewProps> = ({
         onEdit={(req, tab) => openEditModal(req, tab || 1)}
         onQuickStatusChange={onQuickStatusChange}
       />
+
+      {/* Apps Script Add-on Modal for Repair Requests Sync */}
+      {isScriptModalOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4"
+          onClick={() => setIsScriptModalOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-3xl max-h-[88vh] flex flex-col overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between gap-3 bg-slate-50">
+              <div className="min-w-0">
+                <h3 className="text-sm sm:text-base font-bold text-slate-900">
+                  โค้ดส่วนเสริม Google Apps Script (ซิงค์ใบคำร้องซ่อมแซมข้ามอุปกรณ์)
+                </h3>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  ระบบจะสร้างชีต <span className="font-semibold text-slate-700">ทะเบียนคำร้องซ่อมแซม</span> ใน Google Sheet เดิมโดยอัตโนมัติ
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsScriptModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/70 transition"
+                aria-label="ปิดหน้าต่าง"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-5 overflow-y-auto space-y-4">
+              <ol className="text-xs text-slate-700 space-y-1.5 list-decimal list-inside bg-sky-50/70 border border-sky-200/80 rounded-xl p-3.5">
+                <li>
+                  เปิดไฟล์ Google Apps Script เดิมของระบบโครงการ (<code className="font-mono text-[11px] bg-white px-1 py-0.5 rounded border border-sky-200">Code.gs</code>)
+                </li>
+                <li>
+                  เพิ่มเงื่อนไข <code className="font-mono text-[11px] bg-white px-1 py-0.5 rounded border border-sky-200">getRepairRequests</code> ใน <code className="font-mono text-[11px]">doGet</code> และ <code className="font-mono text-[11px] bg-white px-1 py-0.5 rounded border border-sky-200">getRepairRequests / syncRepairRequests</code> ใน <code className="font-mono text-[11px]">doPost</code> พร้อมวางฟังก์ชันด้านล่างต่อท้ายไฟล์
+                </li>
+                <li>
+                  กด <strong>Deploy → Manage deployments → กดรูปดินสอ (Edit) → เลือก Version: New version → กด Deploy</strong> แล้วกลับมากดปุ่ม <strong>ซิงค์ขึ้นคลาวด์ตอนนี้</strong>
+                </li>
+              </ol>
+
+              <div className="relative">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs font-bold text-slate-700">โค้ดสำหรับเพิ่มใน Code.gs</span>
+                  <button
+                    type="button"
+                    onClick={handleCopyScript}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#155d96] hover:bg-[#124e82] text-white text-xs font-semibold transition"
+                  >
+                    {copiedScript ? (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        <span>คัดลอกแล้ว</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>คัดลอกโค้ดทั้งหมด</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <pre className="bg-slate-900 text-slate-100 rounded-xl p-4 text-[11px] leading-relaxed overflow-x-auto max-h-80 font-mono">
+                  {REPAIR_REQUESTS_GAS_SNIPPET}
+                </pre>
+              </div>
+            </div>
+
+            <div className="px-5 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-2">
+              {onPushSyncToCloud && (
+                <button
+                  type="button"
+                  disabled={isSyncing}
+                  onClick={async () => {
+                    await onPushSyncToCloud();
+                    setIsScriptModalOpen(false);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold transition disabled:opacity-60"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+                  <span>Deploy แล้ว — ซิงค์ขึ้นคลาวด์ตอนนี้</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsScriptModalOpen(false)}
+                className="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-xs font-semibold text-slate-700 transition"
+              >
+                ปิด
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

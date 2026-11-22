@@ -44,6 +44,8 @@ import {
 import {
   fetchProjectsFromGoogleSheet,
   syncProjectsToGoogleSheet,
+  fetchRepairRequestsFromGoogleSheet,
+  syncRepairRequestsToGoogleSheet,
   fetchSarabanQueue,
   resolveSarabanQueue,
   deleteSarabanQueue
@@ -179,6 +181,11 @@ export default function App() {
   const [sarabanNeedsScriptUpdate, setSarabanNeedsScriptUpdate] = useState<boolean>(false);
   const [sarabanQueueError, setSarabanQueueError] = useState<string | null>(null);
 
+  // Repair Requests Cloud Sync State
+  const [repairNeedsScriptUpdate, setRepairNeedsScriptUpdate] = useState<boolean>(false);
+  const [repairSyncError, setRepairSyncError] = useState<string | null>(null);
+  const [repairSyncing, setRepairSyncing] = useState<boolean>(false);
+
   // Persist current view state across browser reloads
   useEffect(() => {
     try {
@@ -253,6 +260,53 @@ export default function App() {
     }
   };
 
+  const loadRepairRequestsFromCloud = async (options?: {
+    pushLocalIfNewSheet?: boolean;
+    silent?: boolean;
+  }) => {
+    const pushLocalIfNewSheet = options?.pushLocalIfNewSheet ?? true;
+    const silent = options?.silent ?? true;
+    setRepairSyncing(true);
+    try {
+      const res = await fetchRepairRequestsFromGoogleSheet();
+      if (res.success && Array.isArray(res.repairRequests)) {
+        setRepairNeedsScriptUpdate(false);
+        setRepairSyncError(null);
+
+        if (res.repairRequests.length > 0) {
+          setRepairRequests(res.repairRequests);
+          saveStoredRepairRequests(res.repairRequests);
+          if (!silent) {
+            showToast(`ดึงข้อมูลคำร้องซ่อมแซมจาก Google Sheet สำเร็จ (${res.repairRequests.length} รายการ)`, 'success');
+          }
+        } else if (!res.sheetExists) {
+          // Brand-new sheet on Google Sheets: preserve local edited records and push them up automatically for Admin
+          const localItems = getStoredRepairRequests();
+          const activeUser = getStoredUser();
+          if (pushLocalIfNewSheet && localItems.length > 0 && activeUser?.role === 'admin') {
+            const pushRes = await syncRepairRequestsToGoogleSheet(localItems);
+            if (pushRes.success && !silent) {
+              showToast(`ซิงค์ข้อมูลคำร้องซ่อมแซมขึ้น Google Sheet สำเร็จ (${localItems.length} รายการ)`, 'success');
+            }
+          }
+        } else {
+          // Sheet exists and is intentionally empty on cloud
+          setRepairRequests([]);
+          saveStoredRepairRequests([]);
+        }
+      } else if (res.needsScriptUpdate) {
+        setRepairNeedsScriptUpdate(true);
+        setRepairSyncError(res.error || null);
+      } else {
+        setRepairSyncError(res.error || 'ไม่สามารถดึงข้อมูลคำร้องซ่อมแซมจาก Google Sheet ได้');
+      }
+    } catch {
+      setRepairSyncError('เกิดข้อผิดพลาดในการซิงค์ข้อมูลคำร้องซ่อมแซม');
+    } finally {
+      setRepairSyncing(false);
+    }
+  };
+
   // 1. Auto-pull projects from Google Sheet on app initial load
   useEffect(() => {
     let isMounted = true;
@@ -312,6 +366,7 @@ export default function App() {
 
     loadFromCloudSheet();
     loadSarabanQueue(false);
+    loadRepairRequestsFromCloud({ pushLocalIfNewSheet: true, silent: true });
     return () => {
       isMounted = false;
     };
@@ -323,7 +378,8 @@ export default function App() {
     try {
       const [res] = await Promise.all([
         fetchProjectsFromGoogleSheet(),
-        loadSarabanQueue(false)
+        loadSarabanQueue(false),
+        loadRepairRequestsFromCloud({ pushLocalIfNewSheet: true, silent: true })
       ]);
       if (res.success) {
         if (Array.isArray(res.projects) && res.projects.length > 0) {
@@ -822,21 +878,91 @@ export default function App() {
     });
   };
 
+  // Repair Requests Cloud Sync + Local Persistence Helper
+  const updateRepairRequests = (
+    nextItems: RepairRequest[],
+    successMessage?: string,
+    toastType: 'success' | 'info' = 'success'
+  ) => {
+    setRepairRequests(nextItems);
+    saveStoredRepairRequests(nextItems);
+
+    setSyncStatus('syncing');
+    setRepairSyncing(true);
+    syncRepairRequestsToGoogleSheet(nextItems)
+      .then(res => {
+        if (res.success) {
+          setRepairNeedsScriptUpdate(false);
+          setRepairSyncError(null);
+          setSyncStatus('synced');
+          if (successMessage) {
+            showToast(`${successMessage} (ซิงค์ขึ้น Google Sheet แล้ว)`, toastType);
+          }
+        } else if (res.needsScriptUpdate) {
+          setRepairNeedsScriptUpdate(true);
+          setRepairSyncError(res.error || null);
+          setSyncStatus('error');
+          showToast(
+            'บันทึกในเครื่องแล้ว แต่ยังไม่ได้ซิงค์ข้ามอุปกรณ์ — กรุณาอัปเดตโค้ด Apps Script ในหน้าคำร้องซ่อมแซม',
+            'error'
+          );
+        } else {
+          setRepairSyncError(res.error || 'ซิงค์คำร้องซ่อมแซมขึ้น Google Sheet ไม่สำเร็จ');
+          setSyncStatus('error');
+          showToast(res.error || 'บันทึกในเครื่องแล้ว แต่ซิงค์ขึ้น Google Sheet ไม่สำเร็จ', 'error');
+        }
+      })
+      .catch(() => {
+        setRepairSyncError('เกิดข้อผิดพลาดเครือข่ายขณะซิงค์คำร้องซ่อมแซม');
+        setSyncStatus('error');
+        showToast('บันทึกในเครื่องแล้ว แต่ไม่สามารถเชื่อมต่อ Google Sheet ได้', 'error');
+      })
+      .finally(() => {
+        setRepairSyncing(false);
+      });
+  };
+
+  const handlePushRepairRequestsToCloud = async () => {
+    if (currentUser?.role !== 'admin') return;
+    setSyncStatus('syncing');
+    setRepairSyncing(true);
+    try {
+      const res = await syncRepairRequestsToGoogleSheet(repairRequests);
+      if (res.success) {
+        setRepairNeedsScriptUpdate(false);
+        setRepairSyncError(null);
+        setSyncStatus('synced');
+        showToast(`ซิงค์ใบคำร้องซ่อมแซมขึ้น Google Sheet สำเร็จ (${repairRequests.length} รายการ)`, 'success');
+      } else if (res.needsScriptUpdate) {
+        setRepairNeedsScriptUpdate(true);
+        setRepairSyncError(res.error || null);
+        setSyncStatus('error');
+        showToast('ยังตรวจไม่พบฟังก์ชัน syncRepairRequests ใน Google Apps Script กรุณา Deploy เวอร์ชันใหม่ก่อน', 'error');
+      } else {
+        setRepairSyncError(res.error || 'ไม่สามารถซิงค์ขึ้น Google Sheet ได้');
+        setSyncStatus('error');
+        showToast(res.error || 'ไม่สามารถซิงค์ขึ้น Google Sheet ได้', 'error');
+      }
+    } catch {
+      setRepairSyncError('เกิดข้อผิดพลาดในการเชื่อมต่อ Google Sheet');
+      setSyncStatus('error');
+      showToast('เกิดข้อผิดพลาดในการเชื่อมต่อ Google Sheet', 'error');
+    } finally {
+      setRepairSyncing(false);
+    }
+  };
+
   // Repair Requests Handlers (Admin only; Staff is read-only)
   const handleSaveRepairRequest = (req: RepairRequest) => {
     if (currentUser?.role !== 'admin') {
       Swal.fire('ไม่อนุญาต', 'เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถบันทึกหรือแก้ไขคำร้องได้', 'warning');
       return;
     }
-    setRepairRequests(prev => {
-      const exists = prev.some(item => item.id === req.id);
-      const next = exists
-        ? prev.map(item => (item.id === req.id ? req : item))
-        : [req, ...prev];
-      saveStoredRepairRequests(next);
-      return next;
-    });
-    showToast(`บันทึกคำร้อง ${req.requestCode} เรียบร้อยแล้ว`, 'success');
+    const exists = repairRequests.some(item => item.id === req.id);
+    const next = exists
+      ? repairRequests.map(item => (item.id === req.id ? req : item))
+      : [req, ...repairRequests];
+    updateRepairRequests(next, `บันทึกคำร้อง ${req.requestCode} เรียบร้อยแล้ว`, 'success');
   };
 
   const handleDeleteRepairRequest = (id: string) => {
@@ -844,12 +970,8 @@ export default function App() {
       Swal.fire('ไม่อนุญาต', 'เฉพาะผู้ดูแลระบบ (Admin) เท่านั้นที่สามารถลบข้อมูลคำร้องได้', 'warning');
       return;
     }
-    setRepairRequests(prev => {
-      const next = prev.filter(item => item.id !== id);
-      saveStoredRepairRequests(next);
-      return next;
-    });
-    showToast('ลบรายการคำร้องเรียบร้อยแล้ว', 'info');
+    const next = repairRequests.filter(item => item.id !== id);
+    updateRepairRequests(next, 'ลบรายการคำร้องเรียบร้อยแล้ว', 'info');
   };
 
   const handleQuickRepairStatusChange = (id: string, status: RepairRequestStatus) => {
@@ -859,23 +981,19 @@ export default function App() {
     }
     const nowIso = new Date().toISOString();
     const todayStr = nowIso.slice(0, 10);
-    setRepairRequests(prev => {
-      const next = prev.map(item => {
-        if (item.id !== id) return item;
-        return {
-          ...item,
-          status,
-          repairCompletedDate:
-            status === 'completed' && !item.repairCompletedDate
-              ? todayStr
-              : item.repairCompletedDate,
-          updatedAt: nowIso
-        };
-      });
-      saveStoredRepairRequests(next);
-      return next;
+    const next = repairRequests.map(item => {
+      if (item.id !== id) return item;
+      return {
+        ...item,
+        status,
+        repairCompletedDate:
+          status === 'completed' && !item.repairCompletedDate
+            ? todayStr
+            : item.repairCompletedDate,
+        updatedAt: nowIso
+      };
     });
-    showToast('อัปเดตสถานะคำร้องเรียบร้อยแล้ว', 'success');
+    updateRepairRequests(next, 'อัปเดตสถานะคำร้องเรียบร้อยแล้ว', 'success');
   };
 
   const openRepairCount = useMemo(
@@ -1167,6 +1285,13 @@ export default function App() {
               onSaveRequest={handleSaveRepairRequest}
               onDeleteRequest={handleDeleteRepairRequest}
               onQuickStatusChange={handleQuickRepairStatusChange}
+              needsScriptUpdate={repairNeedsScriptUpdate}
+              syncError={repairSyncError}
+              isSyncing={repairSyncing}
+              onPushSyncToCloud={handlePushRepairRequestsToCloud}
+              onRefreshFromCloud={() =>
+                loadRepairRequestsFromCloud({ pushLocalIfNewSheet: true, silent: false })
+              }
             />
           )}
 
